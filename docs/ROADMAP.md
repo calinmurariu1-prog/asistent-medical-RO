@@ -14,12 +14,22 @@ raportează la numerotarea din specificația produsului.
 - Securitate: bcrypt, criptare câmp (CNP), audit log, consimțământ, RBAC.
 - CI GitHub Actions (ruff + pytest). Teste pentru module 1 și 2.
 
-## Faza 2 — Documente & OCR (Modul 4)
+## ✅ Faza 2 — Documente & OCR (Modul 4) — livrată
 
-- Upload PDF/JPG/PNG/DICOM în MinIO/S3 (`documents`).
-- Pipeline extracție: Tesseract (imagini) · pypdf (PDF) · pydicom (DICOM).
-- Serviciu AI: extragere diagnostice/tratamente/medicamente + rezumat.
-- Job asincron de procesare (status `pending→processing→done`).
+- Upload PDF/JPG/PNG/DICOM în MinIO/S3 (`documents`), cu validare tip și
+  dimensiune și izolare per pacient.
+- Pipeline extracție text: pypdf (PDF, cu fallback OCR pentru scanări) ·
+  Tesseract (imagini) · pydicom (DICOM). Degradare grațioasă dacă un binar
+  lipsește.
+- Abstracție AI multi-provider (`app/services/ai/`): Anthropic / OpenAI /
+  Gemini, cu **mock offline** determinist când nu există cheie API — extrage
+  diagnostice/tratamente/medicamente/valori analize + rezumat.
+- Parser de valori de laborator + flagging normal/crescut/scăzut/critic
+  (`lab_results`).
+- Endpoint-uri: upload, listă+filtru, detaliu, download (URL semnat),
+  reprocesare, ștergere. Status `pending→processing→done/failed`.
+- Notă: procesarea rulează sincron în request; în producție se mută pe o coadă
+  (Celery/RQ) — lifecycle-ul de status e deja modelat.
 
 ## Faza 3 — Interpretare analize & grafice (Modul 5)
 

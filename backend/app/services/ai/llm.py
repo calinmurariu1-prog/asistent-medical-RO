@@ -1,0 +1,143 @@
+"""Concrete LLM providers (Anthropic / OpenAI / Gemini).
+
+Each provider only implements `_complete(system, user) -> str`; the shared
+`LLMProvider` base builds the extraction prompt, parses the JSON response and
+falls back to the deterministic lab parser so a value is never lost.
+"""
+from __future__ import annotations
+
+import json
+import logging
+
+from app.core.config import settings
+from app.services.ai.base import DocumentExtraction, ExtractedLabValue
+from app.services.ai.lab_parser import parse_lab_values
+
+logger = logging.getLogger(__name__)
+
+_SYSTEM = (
+    "Ești un asistent care extrage date structurate din documente medicale "
+    "românești. Nu inventezi informații; dacă un câmp lipsește, îl lași gol. "
+    "Răspunzi EXCLUSIV cu JSON valid, fără text suplimentar."
+)
+
+_USER_TEMPLATE = """Categorie document: {category}
+
+Extrage din textul de mai jos și returnează un obiect JSON cu cheile:
+- "summary": rezumat scurt în română (2-4 propoziții)
+- "diagnoses": listă de diagnostice
+- "treatments": listă de tratamente/recomandări
+- "medications": listă de medicamente
+- "lab_values": listă de obiecte {{"analyte","value","unit","ref_low","ref_high"}}
+  (value/ref_low/ref_high numerice sau null)
+
+TEXT:
+\"\"\"
+{text}
+\"\"\""""
+
+
+class LLMProvider:
+    name = "llm"
+
+    def _complete(self, system: str, user: str) -> str:  # pragma: no cover
+        raise NotImplementedError
+
+    def extract_document(self, text: str, category: str) -> DocumentExtraction:
+        # Deterministic lab values act as a safety net regardless of the LLM.
+        fallback_labs = parse_lab_values(text)
+        prompt = _USER_TEMPLATE.format(category=category, text=text[:12000])
+        try:
+            raw = self._complete(_SYSTEM, prompt)
+            data = json.loads(_strip_code_fences(raw))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("%s extraction failed, using fallback: %s", self.name, exc)
+            return DocumentExtraction(
+                summary="Document procesat (extragere AI indisponibilă).",
+                lab_values=fallback_labs,
+            )
+
+        lab_values = [
+            ExtractedLabValue(
+                analyte=str(lv.get("analyte", "")).strip(),
+                value=_num(lv.get("value")),
+                unit=lv.get("unit"),
+                ref_low=_num(lv.get("ref_low")),
+                ref_high=_num(lv.get("ref_high")),
+            )
+            for lv in data.get("lab_values", [])
+            if lv.get("analyte")
+        ] or fallback_labs
+
+        return DocumentExtraction(
+            summary=str(data.get("summary", "")).strip(),
+            diagnoses=[str(d) for d in data.get("diagnoses", [])],
+            treatments=[str(t) for t in data.get("treatments", [])],
+            medications=[str(m) for m in data.get("medications", [])],
+            lab_values=lab_values,
+        )
+
+
+def _num(v: object) -> float | None:
+    if v is None or isinstance(v, bool):
+        return None
+    try:
+        return float(str(v).replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+
+
+def _strip_code_fences(s: str) -> str:
+    s = s.strip()
+    if s.startswith("```"):
+        s = s.split("\n", 1)[-1]
+        if s.endswith("```"):
+            s = s.rsplit("```", 1)[0]
+    return s.strip()
+
+
+class AnthropicProvider(LLMProvider):
+    name = "anthropic"
+
+    def _complete(self, system: str, user: str) -> str:
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        msg = client.messages.create(
+            model=settings.ANTHROPIC_MODEL,
+            max_tokens=2000,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+        )
+        return "".join(block.text for block in msg.content if block.type == "text")
+
+
+class OpenAIProvider(LLMProvider):
+    name = "openai"
+
+    def _complete(self, system: str, user: str) -> str:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        resp = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            response_format={"type": "json_object"},
+        )
+        return resp.choices[0].message.content or "{}"
+
+
+class GeminiProvider(LLMProvider):
+    name = "gemini"
+
+    def _complete(self, system: str, user: str) -> str:
+        import google.generativeai as genai
+
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        model = genai.GenerativeModel(
+            settings.GEMINI_MODEL, system_instruction=system
+        )
+        return model.generate_content(user).text or "{}"

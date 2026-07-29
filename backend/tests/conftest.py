@@ -12,9 +12,29 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-import app.models  # noqa: F401  (register tables first)
+import app.models  # noqa: F401  (register tables before app.main rebinds `app`)
 from app.core.database import Base, get_db
-from app.main import app  # noqa: E402  (FastAPI instance; must come last)
+from app.main import app  # noqa: E402  (`app` here is the FastAPI instance)
+from app.services.storage import get_storage
+
+
+class InMemoryStorage:
+    """Test double for the S3/MinIO storage backend."""
+
+    def __init__(self) -> None:
+        self._objects: dict[str, bytes] = {}
+
+    def put(self, key: str, data: bytes, content_type: str | None = None) -> None:
+        self._objects[key] = data
+
+    def get(self, key: str) -> bytes:
+        return self._objects[key]
+
+    def delete(self, key: str) -> None:
+        self._objects.pop(key, None)
+
+    def presigned_url(self, key: str, expires: int = 3600) -> str:
+        return f"https://storage.test/{key}?expires={expires}"
 
 
 @pytest.fixture()
@@ -35,7 +55,12 @@ def db_session():
 
 
 @pytest.fixture()
-def client(db_session):
+def storage():
+    return InMemoryStorage()
+
+
+@pytest.fixture()
+def client(db_session, storage):
     def _override_get_db():
         try:
             yield db_session
@@ -43,6 +68,7 @@ def client(db_session):
             pass
 
     app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_storage] = lambda: storage
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
