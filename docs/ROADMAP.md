@@ -1,0 +1,69 @@
+# Roadmap — plan pe faze
+
+Fiecare fază livrează cod funcțional, testat și integrat. Modulele se
+raportează la numerotarea din specificația produsului.
+
+## ✅ Faza 1 — Fundație (livrată)
+
+- Structură monorepo + Docker Compose (Postgres + MinIO).
+- Schema DB completă: 17 tabele, relații, chei, indexuri (`docs/DATABASE.md`).
+- Migrație Alembic inițială + rulare automată la deploy.
+- **Modul 1 — Autentificare:** register, login, refresh, reset parolă,
+  verificare email, MFA (TOTP). JWT access+refresh.
+- **Modul 2 — Profil pacient:** date personale, IMC calculat, alergii.
+- Securitate: bcrypt, criptare câmp (CNP), audit log, consimțământ, RBAC.
+- CI GitHub Actions (ruff + pytest). Teste pentru module 1 și 2.
+
+## Faza 2 — Documente & OCR (Modul 4)
+
+- Upload PDF/JPG/PNG/DICOM în MinIO/S3 (`documents`).
+- Pipeline extracție: Tesseract (imagini) · pypdf (PDF) · pydicom (DICOM).
+- Serviciu AI: extragere diagnostice/tratamente/medicamente + rezumat.
+- Job asincron de procesare (status `pending→processing→done`).
+
+## Faza 3 — Interpretare analize & grafice (Modul 5)
+
+- Parsare valori în `lab_results` (analit, valoare, unitate, interval ref).
+- Flagging normal/crescut/scăzut/critic.
+- Explicații AI per parametru; comparație istorică; serii pentru grafice.
+
+## Faza 4 — RAG & Chat Medical AI (Modul 11)
+
+- Embeddings + `pgvector`; retrieval din documentele pacientului.
+- Chat contextual cu surse citate; guardrails („nu inventa", disclaimer).
+
+## Faza 5 — Cronice, medicamente, programări, notificări (Module 8–10, 14)
+
+- Monitorizare boli cronice + grafice (glicemie, HbA1c, TSH, tensiune…).
+- Verificare interacțiuni medicamentoase / dubluri (Modul 9).
+- Calendar programări + notificări push/email/SMS.
+
+## Faza 6 — Dashboard, Export, Admin (Module 12, 13, 15)
+
+- Dashboard agregat; export PDF/Word raport complet; panou admin.
+
+## Faza 7 — Frontend & mobil
+
+- Next.js (App Router) · TailwindCSS · shadcn/ui · Framer Motion.
+- Dark mode, responsive, paletă alb/albastru/mov/verde.
+- PWA instalabilă (Android/iOS). Native separat, opțional, ulterior.
+
+---
+
+## Scalare & monitorizare în producție
+
+**Scalare**
+- Backend stateless → scalare orizontală (N replici) în spatele unui LB.
+- Postgres gestionat (RDS/Cloud SQL) cu replici de citire; `pgvector` pentru RAG.
+- S3 gestionat pentru documente; CDN pentru livrare.
+- Cozi (Celery/RQ + Redis) pentru OCR/AI asincron.
+
+**Observabilitate**
+- Logging structurat (JSON) + agregare (Loki/ELK).
+- Metrics (Prometheus) + dashboards (Grafana); tracing (OpenTelemetry).
+- Alerting pe erori, latență, coadă de procesare.
+
+**Securitate în producție**
+- Secrete în secret manager; rotație chei de criptare.
+- WAF + rate limiting; scanare dependențe; backup-uri testate.
+- Jurnalizare acces conform GDPR; proces de export/ștergere date la cerere.
