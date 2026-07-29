@@ -10,7 +10,7 @@ import json
 import logging
 
 from app.core.config import settings
-from app.services.ai.base import DocumentExtraction, ExtractedLabValue
+from app.services.ai.base import DISCLAIMER, DocumentExtraction, ExtractedLabValue
 from app.services.ai.lab_parser import parse_lab_values
 
 logger = logging.getLogger(__name__)
@@ -76,6 +76,40 @@ class LLMProvider:
             medications=[str(m) for m in data.get("medications", [])],
             lab_values=lab_values,
         )
+
+    def explain_lab_value(
+        self,
+        *,
+        analyte: str,
+        value: float | None,
+        unit: str | None,
+        ref_low: float | None,
+        ref_high: float | None,
+        flag: str,
+        trend: str | None = None,
+    ) -> str:
+        ref = (
+            f"{ref_low}-{ref_high}"
+            if ref_low is not None and ref_high is not None
+            else "necunoscut"
+        )
+        user = (
+            "Explică pe scurt, într-un limbaj accesibil pacientului (2-4 "
+            "propoziții, în română), următoarea valoare de laborator. Nu pune "
+            f"diagnostic.\n\nAnalit: {analyte}\nValoare: {value} {unit or ''}\n"
+            f"Interval de referință: {ref}\nStatus: {flag}\n"
+            f"Tendință față de anterior: {trend or 'necunoscută'}"
+        )
+        system = (
+            "Ești un asistent medical informativ. Oferi explicații orientative, "
+            "nu diagnostice. Răspunzi doar cu text simplu."
+        )
+        try:
+            text = self._complete(system, user).strip()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("%s explanation failed: %s", self.name, exc)
+            text = f"Valoare {analyte}: {value} {unit or ''} (status: {flag})."
+        return f"{text} {DISCLAIMER}"
 
 
 def _num(v: object) -> float | None:

@@ -4,6 +4,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Protocol
 
+# Appended to every AI explanation/recommendation shown to the user.
+DISCLAIMER = (
+    "Aceste informații sunt orientative, generate automat, și NU reprezintă "
+    "un diagnostic. Consultați întotdeauna medicul."
+)
+
 
 @dataclass
 class ExtractedLabValue:
@@ -41,4 +47,18 @@ class AIProvider(Protocol):
 
     def extract_document(self, text: str, category: str) -> DocumentExtraction:
         """Extract diagnoses, treatments, medications, lab values and a summary."""
+        ...
+
+    def explain_lab_value(
+        self,
+        *,
+        analyte: str,
+        value: float | None,
+        unit: str | None,
+        ref_low: float | None,
+        ref_high: float | None,
+        flag: str,
+        trend: str | None = None,
+    ) -> str:
+        """Return a short, patient-friendly explanation of one lab value."""
         ...

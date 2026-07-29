@@ -31,11 +31,18 @@ raportează la numerotarea din specificația produsului.
 - Notă: procesarea rulează sincron în request; în producție se mută pe o coadă
   (Celery/RQ) — lifecycle-ul de status e deja modelat.
 
-## Faza 3 — Interpretare analize & grafice (Modul 5)
+## ✅ Faza 3 — Interpretare analize & grafice (Modul 5) — livrată
 
-- Parsare valori în `lab_results` (analit, valoare, unitate, interval ref).
-- Flagging normal/crescut/scăzut/critic.
-- Explicații AI per parametru; comparație istorică; serii pentru grafice.
+- Explicații AI per parametru (`ai.explain_lab_value`) cu o bază de referință
+  offline pentru analite comune (`ai/lab_reference.py`) + disclaimer.
+- Serii temporale per analit pentru grafice (`/labs/series/{analyte}`),
+  ordonate cronologic, cu interval de referință și tendință.
+- Comparație cu analizele anterioare: calcul de trend (creștere/scădere/stabil).
+- Rezumat (`/labs/summary`): ultima valoare per analit + numărul de valori
+  anormale și critice.
+- Endpoint-uri: listă+filtre, analite distincte, serie, adăugare manuală,
+  explicare individuală și în masă. Fără schimbări de schemă (reutilizează
+  `lab_results`).
 
 ## Faza 4 — RAG & Chat Medical AI (Modul 11)
 

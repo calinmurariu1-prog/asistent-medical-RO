@@ -18,7 +18,7 @@ testat. Vezi [`docs/ROADMAP.md`](docs/ROADMAP.md) pentru planul complet.
 |------|----------|-------|
 | **1** | Fundație: schema DB completă (17 tabele), Modul 1 Autentificare (JWT, register/login/reset/verify, MFA TOTP), Modul 2 Profil pacient, Docker, CI, teste | ✅ **livrat** |
 | **2** | Modul 4 Încărcare documente + OCR: upload PDF/JPG/PNG/DICOM în MinIO/S3, extragere text (Tesseract/pypdf/pydicom), extragere AI (diagnostice/tratamente/medicamente/valori analize) + rezumat | ✅ **livrat** |
-| 3 | Interpretare analize + grafice (Modul 5) | ⏳ |
+| **3** | Modul 5 Interpretare analize: explicații AI per parametru (bază de referință offline), serii temporale pentru grafice, comparație cu analizele anterioare (trend), rezumat cu valori anormale/critice | ✅ **livrat** |
 | 4 | RAG + Chat Medical AI (Modul 11) | ⏳ |
 | 5 | Monitorizare cronice, medicamente, programări, notificări | ⏳ |
 | 6 | Dashboard + Export + Admin | ⏳ |

@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import re
 
-from app.services.ai.base import DocumentExtraction
+from app.services.ai.base import DISCLAIMER, DocumentExtraction
 from app.services.ai.lab_parser import parse_lab_values
+from app.services.ai.lab_reference import lookup
 
 _DIAG_RE = re.compile(r"(?:diagnostic|diagnoza)[:\s]+(.+)", re.IGNORECASE)
 _TREAT_RE = re.compile(r"(?:tratament|recomand[ăa]ri)[:\s]+(.+)", re.IGNORECASE)
@@ -46,3 +47,48 @@ class MockProvider:
             medications=medications,
             lab_values=lab_values,
         )
+
+    def explain_lab_value(
+        self,
+        *,
+        analyte: str,
+        value: float | None,
+        unit: str | None,
+        ref_low: float | None,
+        ref_high: float | None,
+        flag: str,
+        trend: str | None = None,
+    ) -> str:
+        info = lookup(analyte)
+        unit_str = f" {unit}" if unit else ""
+        parts: list[str] = []
+
+        if info:
+            parts.append(f"{info.label}: {info.about}")
+
+        if value is not None:
+            ref = ""
+            if ref_low is not None and ref_high is not None:
+                ref = f" (interval de referință {ref_low}–{ref_high}{unit_str})"
+            parts.append(f"Valoarea ta este {value}{unit_str}{ref}.")
+
+        status_text = {
+            "high": "Valoarea este peste intervalul de referință.",
+            "critical_high": "Valoarea este mult peste intervalul de referință.",
+            "low": "Valoarea este sub intervalul de referință.",
+            "critical_low": "Valoarea este mult sub intervalul de referință.",
+            "normal": "Valoarea se încadrează în intervalul de referință.",
+        }.get(flag, "")
+        if status_text:
+            parts.append(status_text)
+
+        if info and flag in ("high", "critical_high"):
+            parts.append(info.high_meaning)
+        elif info and flag in ("low", "critical_low"):
+            parts.append(info.low_meaning)
+
+        if trend:
+            parts.append(f"Evoluție față de măsurătorile anterioare: {trend}.")
+
+        parts.append(DISCLAIMER)
+        return " ".join(parts)

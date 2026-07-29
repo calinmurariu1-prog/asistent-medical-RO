@@ -1,26 +1,19 @@
-"""Document and lab-result schemas (Module 4)."""
+"""Document schemas (Module 4)."""
 from __future__ import annotations
 
 from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.enums import DocumentCategory, LabFlag, ProcessingStatus
+from app.models.enums import DocumentCategory, ProcessingStatus
+from app.schemas.lab import LabResultOut
 
-
-class LabResultOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    analyte: str
-    value: float | None
-    value_text: str | None
-    unit: str | None
-    ref_low: float | None
-    ref_high: float | None
-    flag: LabFlag
-    measured_on: date | None
-    ai_explanation: str | None = None
+__all__ = [
+    "LabResultOut",
+    "DocumentOut",
+    "DocumentDetailOut",
+    "DocumentDownloadOut",
+]
 
 
 class DocumentOut(BaseModel):

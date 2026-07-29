@@ -22,17 +22,21 @@ logger = logging.getLogger(__name__)
 
 
 def compute_flag(value: float | None, low: float | None, high: float | None) -> LabFlag:
-    """Classify a lab value against its reference interval."""
+    """Classify a lab value against its reference interval.
+
+    "Critical" uses a generic multiplicative margin relative to the exceeded
+    bound (>=50% above the upper limit, or <=50% below the lower limit), since
+    a domain-agnostic parser cannot know analyte-specific panic values. Refine
+    per-analyte thresholds later if a clinical table is added.
+    """
     if value is None or (low is None and high is None):
         return LabFlag.NORMAL
     if high is not None and value > high:
-        span = (high - low) if (low is not None and high > low) else high
-        if span and value > high + 0.5 * abs(span):
+        if high > 0 and value >= high * 1.5:
             return LabFlag.CRITICAL_HIGH
         return LabFlag.HIGH
     if low is not None and value < low:
-        span = (high - low) if (high is not None and high > low) else low
-        if span and value < low - 0.5 * abs(span):
+        if low > 0 and value <= low * 0.5:
             return LabFlag.CRITICAL_LOW
         return LabFlag.LOW
     return LabFlag.NORMAL
