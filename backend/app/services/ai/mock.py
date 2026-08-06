@@ -92,3 +92,26 @@ class MockProvider:
 
         parts.append(DISCLAIMER)
         return " ".join(parts)
+
+    def chat(
+        self,
+        *,
+        question: str,
+        context: str,
+        history: list[tuple[str, str]] | None = None,
+    ) -> str:
+        if not context.strip():
+            return (
+                "Nu am suficiente informații în dosarul tău medical pentru a "
+                "răspunde la această întrebare. Îți recomand să încarci "
+                f"documentele relevante sau să discuți cu medicul. {DISCLAIMER}"
+            )
+        # Deterministic, grounded summary of the retrieved snippets.
+        top = [ln for ln in context.splitlines() if ln.strip()][:3]
+        joined = " ".join(top)
+        return (
+            "Pe baza informațiilor din dosarul tău medical, iată ce este "
+            f"relevant pentru întrebarea ta: {joined} "
+            "Sursele sunt indicate prin marcaje [S#]. "
+            f"{DISCLAIMER}"
+        )

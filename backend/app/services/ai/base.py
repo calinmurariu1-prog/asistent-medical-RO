@@ -62,3 +62,17 @@ class AIProvider(Protocol):
     ) -> str:
         """Return a short, patient-friendly explanation of one lab value."""
         ...
+
+    def chat(
+        self,
+        *,
+        question: str,
+        context: str,
+        history: list[tuple[str, str]] | None = None,
+    ) -> str:
+        """Answer a question grounded ONLY in the provided patient context.
+
+        Must refuse to invent information: if the context is insufficient, say
+        so plainly. `history` is prior (role, content) turns for continuity.
+        """
+        ...

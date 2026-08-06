@@ -111,6 +111,43 @@ class LLMProvider:
             text = f"Valoare {analyte}: {value} {unit or ''} (status: {flag})."
         return f"{text} {DISCLAIMER}"
 
+    def chat(
+        self,
+        *,
+        question: str,
+        context: str,
+        history: list[tuple[str, str]] | None = None,
+    ) -> str:
+        system = (
+            "Ești un asistent medical informativ pentru pacienți, în limba "
+            "română. Reguli stricte:\n"
+            "1. Răspunde DOAR pe baza contextului furnizat (dosarul pacientului) "
+            "și a cunoștințelor medicale generale.\n"
+            "2. NU inventa date despre pacient. Dacă în context nu există "
+            "informația cerută, spune clar că datele sunt insuficiente.\n"
+            "3. Nu pune diagnostic și nu prescrie tratament.\n"
+            "4. Când folosești o informație din context, indică sursa prin "
+            "marcajul ei [S#].\n"
+            "5. Încheie întotdeauna cu un disclaimer că informația este "
+            "orientativă și nu înlocuiește medicul."
+        )
+        convo = ""
+        for role, content in history or []:
+            convo += f"\n{role.upper()}: {content}"
+        user = (
+            f"CONTEXT (dosarul pacientului):\n{context or '(gol)'}\n"
+            f"{('ISTORIC CONVERSAȚIE:' + convo) if convo else ''}\n\n"
+            f"ÎNTREBARE: {question}"
+        )
+        try:
+            return self._complete(system, user).strip()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("%s chat failed: %s", self.name, exc)
+            return (
+                "Momentan nu pot genera un răspuns. Încearcă din nou mai "
+                f"târziu. {DISCLAIMER}"
+            )
+
 
 def _num(v: object) -> float | None:
     if v is None or isinstance(v, bool):

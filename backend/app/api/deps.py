@@ -4,6 +4,8 @@ from __future__ import annotations
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -47,13 +49,27 @@ def get_current_patient(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Patient:
-    """Return the patient profile for the current user, creating it lazily."""
-    patient = user.patient
-    if patient is None:
-        patient = Patient(user_id=user.id)
-        db.add(patient)
+    """Return the patient profile for the current user, creating it lazily.
+
+    Queries by user_id (not the cached `user.patient` relationship) and handles
+    the unique-constraint race where two concurrent requests both try to create
+    the profile.
+    """
+    patient = db.scalar(select(Patient).where(Patient.user_id == user.id))
+    if patient is not None:
+        return patient
+
+    patient = Patient(user_id=user.id)
+    db.add(patient)
+    try:
         db.commit()
-        db.refresh(patient)
+    except IntegrityError:
+        db.rollback()
+        patient = db.scalar(select(Patient).where(Patient.user_id == user.id))
+        if patient is None:
+            raise
+        return patient
+    db.refresh(patient)
     return patient
 
 

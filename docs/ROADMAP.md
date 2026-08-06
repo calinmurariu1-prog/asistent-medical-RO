@@ -44,10 +44,28 @@ raportează la numerotarea din specificația produsului.
   explicare individuală și în masă. Fără schimbări de schemă (reutilizează
   `lab_results`).
 
-## Faza 4 — RAG & Chat Medical AI (Modul 11)
+## ✅ Faza 4 — RAG & Chat Medical AI (Modul 11) — livrată
 
-- Embeddings + `pgvector`; retrieval din documentele pacientului.
-- Chat contextual cu surse citate; guardrails („nu inventa", disclaimer).
+- Retriever lexical peste dosarul pacientului (`services/rag/`): documente,
+  analize, istoric medical, medicamente active, alergii — cu scor pe cuvinte
+  cheie și marcaje de sursă `[S#]`. Interfața `build_context` e pregătită să
+  fie înlocuită cu un retriever vectorial (pgvector + embeddings) fără
+  modificări în serviciul de chat.
+- `AIProvider.chat` (mock offline + Anthropic/OpenAI/Gemini) cu guardrails
+  stricte: răspunde doar din context, nu inventează, spune când datele sunt
+  insuficiente, citează sursele, adaugă disclaimer.
+- Orchestrare chat (`chat_service.py`): persistă mesajele user+assistant,
+  păstrează istoricul conversației, atașează sursele folosite; titlu
+  auto-generat din prima întrebare.
+- Endpoint-uri `/chats`: creare, listă, detaliu (cu mesaje și surse), trimitere
+  mesaj, ștergere. Fără schimbări de schemă (reutilizează `ai_chats` /
+  `ai_chat_messages`).
+- Robustețe: crearea lazy a profilului de pacient interoghează după `user_id`
+  și tratează cursa pe constrângerea unică.
+
+### Upgrade planificat pentru RAG
+- Embeddings + `pgvector`, chunking al documentelor, re-ranking. Se conectează
+  în locul retriever-ului lexical prin aceeași funcție `build_context`.
 
 ## Faza 5 — Cronice, medicamente, programări, notificări (Module 8–10, 14)
 
