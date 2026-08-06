@@ -20,7 +20,7 @@ testat. Vezi [`docs/ROADMAP.md`](docs/ROADMAP.md) pentru planul complet.
 | **2** | Modul 4 Încărcare documente + OCR: upload PDF/JPG/PNG/DICOM în MinIO/S3, extragere text (Tesseract/pypdf/pydicom), extragere AI (diagnostice/tratamente/medicamente/valori analize) + rezumat | ✅ **livrat** |
 | **3** | Modul 5 Interpretare analize: explicații AI per parametru (bază de referință offline), serii temporale pentru grafice, comparație cu analizele anterioare (trend), rezumat cu valori anormale/critice | ✅ **livrat** |
 | **4** | Modul 11 RAG + Chat Medical AI: chat contextual peste dosarul pacientului (documente, analize, istoric, medicamente, alergii), cu surse citate și guardrails (nu inventează; spune când datele sunt insuficiente) | ✅ **livrat** |
-| 5 | Monitorizare cronice, medicamente, programări, notificări | ⏳ |
+| **5** | Module 8/9/10/14: monitorizare boli cronice (dashboard + grafice), medicamente + verificare interacțiuni/dubluri, programări (calendar), notificări (push/email/SMS + memento programări) | ✅ **livrat** |
 | 6 | Dashboard + Export + Admin | ⏳ |
 | 7 | Frontend Next.js + PWA mobil | ⏳ |
 

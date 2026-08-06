@@ -67,11 +67,22 @@ raportează la numerotarea din specificația produsului.
 - Embeddings + `pgvector`, chunking al documentelor, re-ranking. Se conectează
   în locul retriever-ului lexical prin aceeași funcție `build_context`.
 
-## Faza 5 — Cronice, medicamente, programări, notificări (Module 8–10, 14)
+## ✅ Faza 5 — Cronice, medicamente, programări, notificări — livrată
 
-- Monitorizare boli cronice + grafice (glicemie, HbA1c, TSH, tensiune…).
-- Verificare interacțiuni medicamentoase / dubluri (Modul 9).
-- Calendar programări + notificări push/email/SMS.
+- **Modul 9 — Medicamente:** CRUD + verificare interacțiuni și dubluri
+  terapeutice (`medication_check.py`, bază de cunoștințe curată, extensibilă;
+  cu disclaimer). Doar orientativ — nu înlocuiește medicul/farmacistul.
+- **Modul 8 — Monitorizare cronice:** dashboard (`/monitoring/dashboard`) care
+  grupează parametrii recunoscuți (glicemie, HbA1c, colesterol, TSH, tensiune,
+  puls, greutate…) pe arii clinice, cu ultima valoare, tendință și serie pentru
+  grafice; IMC calculat din profil. Reutilizează `lab_results` (fără migrație).
+- **Modul 10 — Programări:** CRUD calendar + filtru „upcoming”, statusuri.
+- **Modul 14 — Notificări:** creare/listare/marcare citit, dispatcher abstract
+  (push/email/SMS — momentan logat, adaptoarele reale se conectează ușor),
+  memento-uri idempotente pentru programări. Livrarea în timp real și
+  programată necesită un worker în producție.
+
+Fără schimbări de schemă — toate reutilizează tabelele existente.
 
 ## Faza 6 — Dashboard, Export, Admin (Module 12, 13, 15)
 
