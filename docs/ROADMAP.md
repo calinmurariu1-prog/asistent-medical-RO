@@ -113,11 +113,23 @@ Fără schimbări de schemă — reutilizează tabelele existente.
 
 Backend-ul acoperă acum toate modulele de business (1–15).
 
-## Faza 7 — Frontend & mobil
+## ✅ Faza 7 — Frontend & mobil — livrată
 
-- Next.js (App Router) · TailwindCSS · shadcn/ui · Framer Motion.
-- Dark mode, responsive, paletă alb/albastru/mov/verde.
-- PWA instalabilă (Android/iOS). Native separat, opțional, ulterior.
+- **Next.js 14 (App Router) + TypeScript + TailwindCSS**, design system cu
+  paletă alb/albastru/mov/verde prin variabile CSS, **dark mode** fără flash,
+  componente UI proprii (Button/Card/Input/Badge — stil shadcn), responsive.
+- Client API cu JWT (`lib/api.ts`), context de autentificare (`lib/auth.tsx`),
+  guard de rute în shell-ul aplicației.
+- Pagini: landing, login, register, dashboard, analize (cu explicații AI),
+  documente (upload + OCR), chat AI, medicamente (+ verificare interacțiuni),
+  programări, profil (+ export PDF/Word).
+- **PWA**: `manifest.webmanifest` + icon + theme-color (instalabilă pe mobil).
+- Build de producție verificat (`next build`, 13 rute). Dockerfile multi-stage
+  + serviciu în Docker Compose (port 3000).
+
+### Rămas opțional
+- Native separat (Swift/Kotlin) dacă e nevoie dincolo de PWA.
+- Service worker pentru offline complet; ecrane admin în UI.
 
 ---
 

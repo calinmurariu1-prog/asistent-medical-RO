@@ -23,7 +23,7 @@ testat. Vezi [`docs/ROADMAP.md`](docs/ROADMAP.md) pentru planul complet.
 | **5** | Module 8/9/10/14: monitorizare boli cronice (dashboard + grafice), medicamente + verificare interacțiuni/dubluri, programări (calendar), notificări (push/email/SMS + memento programări) | ✅ **livrat** |
 | **6** | Module 3/6/7/12: dosar medical (istoric + vaccinuri), cronologie unificată cu filtre, recomandări AI orientative, dashboard agregat | ✅ **livrat** |
 | **6.2** | Modul 13 Export raport PDF/Word + Modul 15 Panou Admin (utilizatori, statistici, loguri, feedback) | ✅ **livrat** |
-| 7 | Frontend Next.js + PWA mobil | ⏳ |
+| **7** | Frontend Next.js (App Router, TypeScript, Tailwind, dark mode, PWA): landing, autentificare, dashboard, analize, documente, chat, medicamente, programări, profil + export | ✅ **livrat** |
 | 7 | Frontend Next.js + PWA mobil | ⏳ |
 
 ---
@@ -73,6 +73,16 @@ export DATABASE_URL="postgresql+psycopg://medai:medai_dev_password@localhost:543
 alembic upgrade head
 uvicorn app.main:app --reload
 ```
+
+### Frontend (Next.js)
+
+```bash
+cd frontend
+npm install
+NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev   # http://localhost:3000
+```
+
+Cu Docker Compose, frontend-ul pornește automat pe http://localhost:3000.
 
 ### Teste
 

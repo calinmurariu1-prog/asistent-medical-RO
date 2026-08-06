@@ -48,15 +48,17 @@ services:
     ports:
       - "8000:8000"
 
-  # The `frontend` service (Next.js) lands in Phase 2. Once backend/frontend
-  # exists, add it here:
-  #
-  # frontend:
-  #   build: ./frontend
-  #   depends_on: [backend]
-  #   environment:
-  #     NEXT_PUBLIC_API_URL: http://localhost:8000
-  #   ports: ["3000:3000"]
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # Baked at build time for the browser bundle; for a real deploy set this
+      # as a build arg. At runtime the browser calls the backend directly.
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
 
 volumes:
   postgres-data:
