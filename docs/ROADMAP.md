@@ -101,10 +101,17 @@ Fără schimbări de schemă — toate reutilizează tabelele existente.
 
 Fără schimbări de schemă — reutilizează tabelele existente.
 
-## Faza 6.2 — Export & Admin (Module 13, 15)
+## ✅ Faza 6.2 — Export & Admin (Module 13, 15) — livrată
 
-- Export PDF/Word al raportului complet (istoric, analize, grafice, recomandări).
-- Panou admin: utilizatori, documente, loguri, statistici, feedback.
+- **Modul 13 — Export:** raport medical complet în **PDF** (reportlab) și
+  **Word/DOCX** (python-docx) — profil, istoric, analize, tratamente,
+  recomandări, cu disclaimer. `/export/report.pdf`, `/export/report.docx`.
+- **Modul 15 — Admin:** panou protejat prin rol (`require_admin`) — statistici,
+  listare/editare utilizatori (rol, activare), jurnal de audit, feedback.
+  Utilizatorii trimit feedback prin `/feedback`. Tabel nou `feedback` (migrație
+  Alembic `add feedback table`).
+
+Backend-ul acoperă acum toate modulele de business (1–15).
 
 ## Faza 7 — Frontend & mobil
 

@@ -26,6 +26,7 @@ Migrații gestionate cu Alembic (`backend/alembic/`).
 | `ai_chats` | `AIChat` | Sesiuni de chat AI |
 | `ai_chat_messages` | `AIChatMessage` | Mesaje chat (cu surse RAG) |
 | `notifications` | `Notification` | Notificări push/email/SMS |
+| `feedback` | `Feedback` | Feedback utilizatori (Modul 15, admin) |
 
 ## Relații principale
 

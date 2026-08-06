@@ -22,7 +22,8 @@ testat. Vezi [`docs/ROADMAP.md`](docs/ROADMAP.md) pentru planul complet.
 | **4** | Modul 11 RAG + Chat Medical AI: chat contextual peste dosarul pacientului (documente, analize, istoric, medicamente, alergii), cu surse citate și guardrails (nu inventează; spune când datele sunt insuficiente) | ✅ **livrat** |
 | **5** | Module 8/9/10/14: monitorizare boli cronice (dashboard + grafice), medicamente + verificare interacțiuni/dubluri, programări (calendar), notificări (push/email/SMS + memento programări) | ✅ **livrat** |
 | **6** | Module 3/6/7/12: dosar medical (istoric + vaccinuri), cronologie unificată cu filtre, recomandări AI orientative, dashboard agregat | ✅ **livrat** |
-| 6.2 | Export PDF/Word (Modul 13) + Panou Admin (Modul 15) | ⏳ |
+| **6.2** | Modul 13 Export raport PDF/Word + Modul 15 Panou Admin (utilizatori, statistici, loguri, feedback) | ✅ **livrat** |
+| 7 | Frontend Next.js + PWA mobil | ⏳ |
 | 7 | Frontend Next.js + PWA mobil | ⏳ |
 
 ---

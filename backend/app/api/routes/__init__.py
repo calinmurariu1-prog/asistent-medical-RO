@@ -2,11 +2,14 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    admin,
     appointments,
     auth,
     chats,
     dashboard,
     documents,
+    export,
+    feedback,
     history,
     labs,
     medications,
@@ -31,3 +34,6 @@ api_router.include_router(history.router)
 api_router.include_router(timeline.router)
 api_router.include_router(recommendations.router)
 api_router.include_router(dashboard.router)
+api_router.include_router(export.router)
+api_router.include_router(feedback.router)
+api_router.include_router(admin.router)

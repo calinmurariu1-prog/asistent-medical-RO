@@ -9,6 +9,7 @@ from app.models.clinical import (
     Procedure,
 )
 from app.models.document import Document, LabResult
+from app.models.feedback import Feedback
 from app.models.medication import Medication
 from app.models.notification import Notification
 from app.models.patient import (
@@ -39,4 +40,5 @@ __all__ = [
     "AIChat",
     "AIChatMessage",
     "Notification",
+    "Feedback",
 ]
