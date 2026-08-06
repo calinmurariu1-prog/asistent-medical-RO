@@ -20,6 +20,12 @@ from app.services.ai.base import DISCLAIMER
 _CRITICAL = {"critical_high", "critical_low"}
 _ABNORMAL = {"high", "low", "critical_high", "critical_low"}
 _METABOLIC = {"glicemie", "colesterol total", "ldl", "trigliceride", "hba1c"}
+_FLAG_LABEL = {
+    "high": "crescută",
+    "low": "scăzută",
+    "critical_high": "critic crescută",
+    "critical_low": "critic scăzută",
+}
 
 
 @dataclass
@@ -51,8 +57,9 @@ def build_recommendations(db: Session, patient: Patient) -> Recommendations:
                 f"{item['unit'] or ''}). Contactează medicul cât mai curând."
             )
         if flag in _ABNORMAL:
+            label = _FLAG_LABEL.get(flag, str(flag))
             rec.questions_for_doctor.append(
-                f"Întreabă medicul ce înseamnă valoarea {analyte} ({flag})."
+                f"Întreabă medicul ce înseamnă valoarea {analyte} ({label})."
             )
             rec.monitoring.append(f"Monitorizează periodic {analyte}.")
             if _normalize(analyte) in _METABOLIC:

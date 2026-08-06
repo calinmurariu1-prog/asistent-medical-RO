@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -16,7 +17,9 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     PROJECT_NAME: str = "Asistent Medical AI"
     API_V1_PREFIX: str = "/api/v1"
-    BACKEND_CORS_ORIGINS: list[str] = Field(default_factory=list)
+    # NoDecode: keep pydantic-settings from JSON-decoding the env value so the
+    # validator below can accept a plain comma-separated string.
+    BACKEND_CORS_ORIGINS: Annotated[list[str], NoDecode] = Field(default_factory=list)
 
     # ---- Security ----
     SECRET_KEY: str = "change-me"
