@@ -84,9 +84,27 @@ raportează la numerotarea din specificația produsului.
 
 Fără schimbări de schemă — toate reutilizează tabelele existente.
 
-## Faza 6 — Dashboard, Export, Admin (Module 12, 13, 15)
+## ✅ Faza 6 — Dosar complet, cronologie, recomandări, dashboard — livrată
 
-- Dashboard agregat; export PDF/Word raport complet; panou admin.
+- **Modul 3 — Dosar medical:** CRUD istoric (diagnostice, intervenții,
+  operații, internări, tratamente, boli cronice, antecedente familiale prin
+  `event_type`) + vaccinuri. Filtre pe an, medic, spital, tip, cronic.
+- **Modul 6 — Cronologie:** timeline unificat peste istoric, documente,
+  programări și medicamente, cu filtre pe an și tip.
+- **Modul 7 — Recomandări AI (orientative):** întrebări pentru medic,
+  investigații de discutat, sugestii de stil de viață, monitorizare și alerte —
+  derivate din analize anormale, boli cronice și interacțiuni medicamentoase,
+  cu disclaimer. Poate fi îmbogățit cu LLM prin `AIProvider`.
+- **Modul 12 — Dashboard agregat:** rezumat analize, documente recente,
+  tratamente active, programări viitoare, alerte, notificări necitite și
+  preview de recomandări.
+
+Fără schimbări de schemă — reutilizează tabelele existente.
+
+## Faza 6.2 — Export & Admin (Module 13, 15)
+
+- Export PDF/Word al raportului complet (istoric, analize, grafice, recomandări).
+- Panou admin: utilizatori, documente, loguri, statistici, feedback.
 
 ## Faza 7 — Frontend & mobil
 
