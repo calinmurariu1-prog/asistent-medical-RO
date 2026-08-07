@@ -106,6 +106,22 @@ class Settings(BaseSettings):
         return self.ENVIRONMENT.lower() == "production"
 
 
+def validate_production_config(s: Settings) -> None:
+    """Refuse to run in production with insecure default secrets."""
+    if not s.is_production:
+        return
+    problems: list[str] = []
+    if s.SECRET_KEY.startswith("change-me") or len(s.SECRET_KEY) < 32:
+        problems.append("SECRET_KEY")
+    if not s.DATA_ENCRYPTION_KEY or s.DATA_ENCRYPTION_KEY.startswith("change-me"):
+        problems.append("DATA_ENCRYPTION_KEY")
+    if problems:
+        raise RuntimeError(
+            "Configurare nesigură pentru producție — setează valori reale pentru: "
+            + ", ".join(problems)
+        )
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

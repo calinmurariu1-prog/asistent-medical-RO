@@ -7,7 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 # Ensure all models are registered on Base.metadata.
 import app.models  # noqa: F401,E402
 from app.api.routes import api_router
-from app.core.config import settings
+from app.core.config import settings, validate_production_config
+
+# Fail fast if deployed to production with insecure default secrets.
+validate_production_config(settings)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

@@ -64,6 +64,36 @@ def test_password_reset_invalidates_sessions(client):
     assert _login(client, "reset@example.com", "ParolaNoua1")[0]["access_token"]
 
 
+def test_mfa_secret_encrypted_and_login_flow(client, db_session):
+    import pyotp
+    from sqlalchemy import select
+
+    from app.models.user import User
+
+    _register(client, "mfa@example.com")
+    _tokens, h = _login(client, "mfa@example.com")
+
+    secret = client.post(f"{API}/auth/mfa/setup", headers=h).json()["secret"]
+    # Stored value must be the ciphertext, not the raw TOTP secret.
+    stored = db_session.scalar(
+        select(User).where(User.email == "mfa@example.com")
+    ).mfa_secret
+    assert stored and stored != secret
+
+    code = pyotp.TOTP(secret).now()
+    r = client.post(f"{API}/auth/mfa/activate", headers=h, json={"code": code})
+    assert r.status_code == 200
+
+    # Login now requires the MFA code.
+    r = client.post(f"{API}/auth/login",
+                    json={"email": "mfa@example.com", "password": "Parola1234"})
+    assert r.status_code == 401
+    r = client.post(f"{API}/auth/login", json={
+        "email": "mfa@example.com", "password": "Parola1234",
+        "mfa_code": pyotp.TOTP(secret).now()})
+    assert r.status_code == 200
+
+
 def test_ai_consent_enforced_when_enabled(client, monkeypatch):
     monkeypatch.setattr(settings, "REQUIRE_AI_CONSENT", True)
     _register(client, "consent@example.com")

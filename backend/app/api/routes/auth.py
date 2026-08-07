@@ -17,6 +17,8 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     decode_token,
+    decrypt_field,
+    encrypt_field,
     hash_password,
     verify_password,
 )
@@ -106,7 +108,8 @@ def login(
     if user.mfa_enabled:
         if not payload.mfa_code:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "MFA code required")
-        if not pyotp.TOTP(user.mfa_secret).verify(payload.mfa_code, valid_window=1):
+        secret = decrypt_field(user.mfa_secret)
+        if not secret or not pyotp.TOTP(secret).verify(payload.mfa_code, valid_window=1):
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid MFA code")
 
     audit.record(db, user_id=user.id, action="login", ip_address=_client_ip(request))
@@ -184,7 +187,7 @@ def mfa_setup(
     current: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> MFASetupResponse:
     secret = pyotp.random_base32()
-    current.mfa_secret = secret
+    current.mfa_secret = encrypt_field(secret)  # stored encrypted at rest
     db.add(current)
     db.commit()
     uri = pyotp.totp.TOTP(secret).provisioning_uri(
@@ -199,9 +202,10 @@ def mfa_activate(
     current: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
-    if not current.mfa_secret:
+    secret = decrypt_field(current.mfa_secret)
+    if not secret:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Run /mfa/setup first")
-    if not pyotp.TOTP(current.mfa_secret).verify(payload.code, valid_window=1):
+    if not pyotp.TOTP(secret).verify(payload.code, valid_window=1):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid code")
     current.mfa_enabled = True
     db.add(current)
