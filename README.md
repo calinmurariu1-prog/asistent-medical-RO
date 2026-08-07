@@ -84,6 +84,16 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev   # http://localhost:3000
 
 Cu Docker Compose, frontend-ul pornește automat pe http://localhost:3000.
 
+### Localhost rapid, fără Docker (backend + frontend)
+
+```bash
+bash scripts/dev.sh
+# Backend :8000 · API docs :8000/docs · Frontend :3000  (Ctrl+C oprește ambele)
+```
+
+Pornește backend-ul pe SQLite (aplică migrațiile automat) și frontend-ul în mod
+dev — util pentru test local când nu vrei stack-ul Docker.
+
 ### Teste
 
 ```bash
