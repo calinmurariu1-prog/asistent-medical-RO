@@ -34,6 +34,7 @@ yarn-error.log*
 # z.ai credentials — NEVER commit (contains a live token)
 zaiconfig.txt
 *zaiconfig*
+.z-ai-config
 
 # ---- Data / storage ----
 /data/

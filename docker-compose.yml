@@ -56,9 +56,11 @@ services:
     ports:
       - "3031:3031"
     # z.ai credentials mounted read-only from the (git-ignored) root file.
-    # The secret stays out of the image and out of git; only the path is here.
+    # The z-ai SDK looks for a file named `.z-ai-config` in the cwd (/app),
+    # so we mount our zaiconfig.txt to that exact name. Secret stays out of
+    # git and out of the image; only the path is referenced here.
     volumes:
-      - ./zaiconfig.txt:/app/zaiconfig.txt:ro
+      - ./zaiconfig.txt:/app/.z-ai-config:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3031/health"]
       interval: 30s
