@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   Activity,
   CalendarDays,
+  CreditCard,
   FileText,
   HeartPulse,
   LayoutDashboard,
@@ -18,6 +19,7 @@ import {
   User,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useNativeShell } from "@/lib/native";
 import { Spinner } from "@/components/ui";
 import { LogoMark } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-provider";
@@ -32,6 +34,7 @@ const nav = [
   { href: "/medications", label: "Medicamente", icon: Pill },
   { href: "/appointments", label: "Programări", icon: CalendarDays },
   { href: "/doctors", label: "Găsește medici", icon: MapPin },
+  { href: "/subscription", label: "Abonament", icon: CreditCard },
   { href: "/profile", label: "Profil", icon: User },
 ];
 
@@ -40,6 +43,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  useNativeShell();
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");

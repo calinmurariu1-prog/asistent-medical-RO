@@ -19,6 +19,7 @@ from app.models.patient import (
     Patient,
     Vaccine,
 )
+from app.models.subscription import Subscription
 from app.models.user import AuditLog, Consent, User
 
 __all__ = [
@@ -43,4 +44,5 @@ __all__ = [
     "Notification",
     "Feedback",
     "HealthSample",
+    "Subscription",
 ]

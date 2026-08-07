@@ -13,7 +13,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_patient
@@ -29,6 +29,8 @@ from app.schemas.document import (
 from app.services import document_processing
 from app.services.ai import get_ai_provider
 from app.services.ai.base import AIProvider
+from app.services.billing import entitlements
+from app.services.billing.entitlements import LIMIT_DOCUMENTS
 from app.services.storage import Storage, build_object_key, get_storage
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -59,6 +61,19 @@ def upload_document(
             status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             f"Tip fișier neacceptat: {file.content_type}. "
             "Acceptate: PDF, JPG, PNG, DICOM.",
+        )
+
+    # Free-plan document quota (Premium/Family are unlimited).
+    doc_count = db.scalar(
+        select(func.count())
+        .select_from(Document)
+        .where(Document.patient_id == patient.id)
+    )
+    if not entitlements.within_limit(patient.user, LIMIT_DOCUMENTS, int(doc_count or 0)):
+        raise HTTPException(
+            status.HTTP_402_PAYMENT_REQUIRED,
+            "Ai atins limita de documente a planului gratuit. "
+            "Fă upgrade la Premium pentru documente nelimitate.",
         )
 
     data = file.file.read()

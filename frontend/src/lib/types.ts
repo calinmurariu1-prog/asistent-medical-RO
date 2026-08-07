@@ -181,6 +181,30 @@ export interface HealthImportResult {
   message: string;
 }
 
+export type PlanId = "free" | "premium" | "family";
+
+export interface Plan {
+  plan: PlanId;
+  name: string;
+  price_eur_month: number;
+  tagline: string;
+  features: string[];
+  limits: Record<string, number>;
+  flags: Record<string, boolean>;
+}
+
+export interface Subscription {
+  plan: PlanId;
+  plan_name: string;
+  status: string;
+  provider: string;
+  current_period_end: string | null;
+  trial_end: string | null;
+  cancel_at_period_end: boolean;
+  limits: Record<string, number>;
+  flags: Record<string, boolean>;
+}
+
 export interface Dashboard {
   lab_summary: {
     total_analytes: number;

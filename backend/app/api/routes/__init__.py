@@ -6,6 +6,7 @@ from app.api.routes import (
     ai_skills,
     appointments,
     auth,
+    billing,
     chats,
     dashboard,
     documents,
@@ -41,6 +42,7 @@ api_router.include_router(dashboard.router)
 api_router.include_router(providers.router)
 api_router.include_router(gdpr.router)
 api_router.include_router(health.router)
+api_router.include_router(billing.router)
 api_router.include_router(ai_skills.router)
 api_router.include_router(export.router)
 api_router.include_router(feedback.router)

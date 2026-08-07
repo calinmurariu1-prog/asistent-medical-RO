@@ -21,6 +21,7 @@ from app.models.enums import ConsentType, UserRole
 
 if TYPE_CHECKING:
     from app.models.patient import Patient
+    from app.models.subscription import Subscription
 
 
 class User(Base, TimestampMixin):
@@ -55,6 +56,9 @@ class User(Base, TimestampMixin):
     )
     consents: Mapped[list[Consent]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
+    )
+    subscription: Mapped[Subscription | None] = relationship(
+        back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
 
     __table_args__ = (

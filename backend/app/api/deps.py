@@ -85,6 +85,25 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+def require_feature(flag: str):
+    """Dependency factory: gate an endpoint behind a plan feature flag.
+
+    Returns 402 Payment Required when the current user's effective plan does not
+    include the flag. Used to gate premium-only capabilities.
+    """
+    from app.services.billing import entitlements
+
+    def _dep(user: User = Depends(get_current_user)) -> User:
+        if not entitlements.has_flag(user, flag):
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Această funcție este disponibilă în planul Premium.",
+            )
+        return user
+
+    return _dep
+
+
 def require_ai_consent(
     user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> None:

@@ -115,6 +115,24 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.ENVIRONMENT.lower() == "production"
 
+    # Origins used by the Capacitor native WebView (Android/iOS). Always allowed
+    # since they're only reachable from inside the app, never a remote site.
+    MOBILE_CORS_ORIGINS: tuple[str, ...] = (
+        "capacitor://localhost",
+        "ionic://localhost",
+        "http://localhost",
+        "https://localhost",
+    )
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """Configured web origins + the fixed mobile WebView origins."""
+        merged = list(self.BACKEND_CORS_ORIGINS)
+        for origin in self.MOBILE_CORS_ORIGINS:
+            if origin not in merged:
+                merged.append(origin)
+        return merged
+
 
 def validate_production_config(s: Settings) -> None:
     """Refuse to run in production with insecure default secrets."""

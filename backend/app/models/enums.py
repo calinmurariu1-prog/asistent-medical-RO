@@ -115,6 +115,28 @@ class ConsentType(str, enum.Enum):
     DATA_SHARING = "data_sharing"
 
 
+class SubscriptionPlan(str, enum.Enum):
+    FREE = "free"
+    PREMIUM = "premium"
+    FAMILY = "family"
+
+
+class SubscriptionStatus(str, enum.Enum):
+    ACTIVE = "active"
+    TRIALING = "trialing"
+    PAST_DUE = "past_due"
+    CANCELED = "canceled"
+    EXPIRED = "expired"
+
+
+class BillingProvider(str, enum.Enum):
+    NONE = "none"
+    STRIPE = "stripe"          # web
+    APPLE = "apple"            # App Store In-App Purchase
+    GOOGLE = "google"          # Google Play Billing
+    MANUAL = "manual"          # admin/dev grant
+
+
 class HealthSource(str, enum.Enum):
     """Origin of an imported health metric."""
 
