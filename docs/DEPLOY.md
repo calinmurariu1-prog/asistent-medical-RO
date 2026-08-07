@@ -57,9 +57,13 @@ Setup (o singură dată):
    **Settings → Deploy Hook** → copiază URL-ul.
 2. (Opțional) Dezactivează *Auto-Deploy* pe Render, ca deploy-ul să vină doar
    prin GitHub Actions (după teste).
-3. În GitHub: **Settings → Secrets and variables → Actions → New secret**:
-   - `RENDER_DEPLOY_HOOK_BACKEND` = hook-ul serviciului backend
-   - `RENDER_DEPLOY_HOOK_FRONTEND` = hook-ul serviciului frontend
+3. În GitHub: **Settings → Secrets and variables → Actions → New secret**.
+   Ai două variante:
+   - **Blueprint (un singur hook):** `RENDER_DEPLOY_HOOK` = hook-ul de sync al
+     blueprint-ului (`https://api.render.com/sync/exs-...?key=...`) — declanșează
+     deploy la tot stack-ul.
+   - **Per serviciu:** `RENDER_DEPLOY_HOOK_BACKEND` și
+     `RENDER_DEPLOY_HOOK_FRONTEND` (`https://api.render.com/deploy/srv-...?key=...`).
 
 Fără aceste secrete, jobul de deploy pur și simplu se sare (CI rămâne verde).
 

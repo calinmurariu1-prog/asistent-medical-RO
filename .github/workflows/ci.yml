@@ -63,9 +63,16 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     env:
+      # Single blueprint sync hook (deploys the whole stack)...
+      HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+      # ...or per-service hooks.
       HOOK_BACKEND: ${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}
       HOOK_FRONTEND: ${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}
     steps:
+      - name: Trigger blueprint deploy
+        if: env.HOOK != ''
+        run: curl -fsS -X POST "$HOOK"
+
       - name: Trigger backend deploy
         if: env.HOOK_BACKEND != ''
         run: curl -fsS -X POST "$HOOK_BACKEND"
@@ -75,5 +82,5 @@ jobs:
         run: curl -fsS -X POST "$HOOK_FRONTEND"
 
       - name: No hooks configured
-        if: env.HOOK_BACKEND == '' && env.HOOK_FRONTEND == ''
-        run: echo "No Render deploy hooks set — skipping. Add RENDER_DEPLOY_HOOK_* secrets to enable."
+        if: env.HOOK == '' && env.HOOK_BACKEND == '' && env.HOOK_FRONTEND == ''
+        run: echo "No Render deploy hooks set — skipping. Add RENDER_DEPLOY_HOOK (or _BACKEND/_FRONTEND) secrets to enable."
