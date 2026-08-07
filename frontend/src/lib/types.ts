@@ -132,6 +132,13 @@ export interface NearbyProviders {
   disclaimer: string;
 }
 
+export interface AiSkill {
+  name: string;
+  title: string;
+  description: string;
+  inputs: string[];
+}
+
 export interface Dashboard {
   lab_summary: {
     total_analytes: number;

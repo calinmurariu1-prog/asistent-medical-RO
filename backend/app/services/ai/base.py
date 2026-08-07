@@ -76,3 +76,7 @@ class AIProvider(Protocol):
         so plainly. `history` is prior (role, content) turns for continuity.
         """
         ...
+
+    def complete(self, *, system: str, user: str) -> str:
+        """Generic text completion used by the AI-skills framework."""
+        ...

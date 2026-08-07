@@ -3,6 +3,7 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     admin,
+    ai_skills,
     appointments,
     auth,
     chats,
@@ -38,6 +39,7 @@ api_router.include_router(recommendations.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(providers.router)
 api_router.include_router(gdpr.router)
+api_router.include_router(ai_skills.router)
 api_router.include_router(export.router)
 api_router.include_router(feedback.router)
 api_router.include_router(admin.router)

@@ -43,6 +43,13 @@ class LLMProvider:
     def _complete(self, system: str, user: str) -> str:  # pragma: no cover
         raise NotImplementedError
 
+    def complete(self, *, system: str, user: str) -> str:
+        try:
+            return self._complete(system, user)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("%s complete failed: %s", self.name, exc)
+            return DISCLAIMER
+
     def extract_document(self, text: str, category: str) -> DocumentExtraction:
         # Deterministic lab values act as a safety net regardless of the LLM.
         fallback_labs = parse_lab_values(text)

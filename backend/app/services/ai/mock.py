@@ -93,6 +93,10 @@ class MockProvider:
         parts.append(DISCLAIMER)
         return " ".join(parts)
 
+    def complete(self, *, system: str, user: str) -> str:
+        # Rarely used: the skills framework prefers each skill's own mock output.
+        return f"(răspuns simulat) {DISCLAIMER}"
+
     def chat(
         self,
         *,

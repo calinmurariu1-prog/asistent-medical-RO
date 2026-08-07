@@ -64,6 +64,9 @@ class MedLLMProvider:
             logger.error("[medllm] micro-service connection error: %s", exc)
             return DISCLAIMER
 
+    def complete(self, *, system: str, user: str) -> str:
+        return self._complete(system, user)
+
     # ------------------------------------------------------------------
     def extract_document(self, text: str, category: str) -> DocumentExtraction:
         system_prompt = (

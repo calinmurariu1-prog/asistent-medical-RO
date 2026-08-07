@@ -12,6 +12,7 @@ import {
   MapPin,
   MessageSquare,
   Pill,
+  Sparkles,
   Stethoscope,
   User,
 } from "lucide-react";
@@ -24,6 +25,7 @@ const nav = [
   { href: "/labs", label: "Analize", icon: Activity },
   { href: "/documents", label: "Documente", icon: FileText },
   { href: "/chat", label: "Chat AI", icon: MessageSquare },
+  { href: "/assistant", label: "Asistent AI", icon: Sparkles },
   { href: "/medications", label: "Medicamente", icon: Pill },
   { href: "/appointments", label: "Programări", icon: CalendarDays },
   { href: "/doctors", label: "Găsește medici", icon: MapPin },
