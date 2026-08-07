@@ -35,6 +35,7 @@ from app.schemas.auth import (
     UserOut,
 )
 from app.services import audit
+from app.services.email import send_password_reset_email, send_verification_email
 from app.services.token_service import (
     EMAIL_VERIFY,
     PASSWORD_RESET,
@@ -78,8 +79,8 @@ def register(
     db.commit()
     db.refresh(user)
 
-    # In production, email this verification token instead of discarding it.
-    create_purpose_token(str(user.id), EMAIL_VERIFY)
+    token = create_purpose_token(str(user.id), EMAIL_VERIFY)
+    send_verification_email(user.email, token)
     audit.record(db, user_id=user.id, action="register", ip_address=_client_ip(request))
     return user
 
@@ -110,23 +111,27 @@ def login(
 
     audit.record(db, user_id=user.id, action="login", ip_address=_client_ip(request))
     return TokenPair(
-        access_token=create_access_token(str(user.id)),
-        refresh_token=create_refresh_token(str(user.id)),
+        access_token=create_access_token(str(user.id), user.token_version),
+        refresh_token=create_refresh_token(str(user.id), user.token_version),
     )
 
 
 @router.post("/refresh", response_model=TokenPair)
-def refresh(payload: RefreshRequest) -> TokenPair:
+def refresh(payload: RefreshRequest, db: Session = Depends(get_db)) -> TokenPair:
     try:
         data = decode_token(payload.refresh_token)
     except jwt.PyJWTError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid refresh token") from None
     if data.get("type") != REFRESH:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token type")
-    sub = data["sub"]
+
+    user = db.get(User, int(data["sub"]))
+    if user is None or not user.is_active or data.get("ver", 0) != user.token_version:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Refresh token revoked")
+
     return TokenPair(
-        access_token=create_access_token(sub),
-        refresh_token=create_refresh_token(sub),
+        access_token=create_access_token(str(user.id), user.token_version),
+        refresh_token=create_refresh_token(str(user.id), user.token_version),
     )
 
 
@@ -136,8 +141,8 @@ def password_reset_request(
 ) -> dict[str, str]:
     user = db.scalar(select(User).where(User.email == payload.email))
     if user:
-        create_purpose_token(str(user.id), PASSWORD_RESET, hours=2)
-        # TODO: email the token to the user.
+        token = create_purpose_token(str(user.id), PASSWORD_RESET, hours=2)
+        send_password_reset_email(user.email, token)
     # Always 200 to prevent account enumeration.
     return {"detail": "If the email exists, a reset link has been sent."}
 
@@ -153,6 +158,8 @@ def password_reset_confirm(
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
     user.hashed_password = hash_password(payload.new_password)
+    # Invalidate all existing sessions after a password reset.
+    user.token_version += 1
     db.commit()
     return {"detail": "Password updated"}
 
@@ -207,6 +214,17 @@ def me(current: User = Depends(get_current_user)) -> User:
     return current
 
 
+@router.post("/logout-all")
+def logout_all(
+    current: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> dict[str, str]:
+    """Revoke every existing token for this user (all devices)."""
+    current.token_version += 1
+    db.add(current)
+    db.commit()
+    return {"detail": "Toate sesiunile au fost deconectate."}
+
+
 @router.post("/login-form", response_model=TokenPair, include_in_schema=False)
 def login_form(
     form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
@@ -220,6 +238,6 @@ def login_form(
     ):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
     return TokenPair(
-        access_token=create_access_token(str(user.id)),
-        refresh_token=create_refresh_token(str(user.id)),
+        access_token=create_access_token(str(user.id), user.token_version),
+        refresh_token=create_refresh_token(str(user.id), user.token_version),
     )

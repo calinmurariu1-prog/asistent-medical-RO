@@ -10,6 +10,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Index,
+    Integer,
     String,
     Text,
 )
@@ -43,6 +44,9 @@ class User(Base, TimestampMixin):
     # MFA (TOTP)
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     mfa_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Bumped to invalidate all outstanding tokens (logout-all, password reset).
+    token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

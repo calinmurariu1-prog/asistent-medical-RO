@@ -171,5 +171,11 @@ Backend-ul acoperă acum toate modulele de business (1–15).
   ștergere cont cu confirmare parolă (`POST /gdpr/delete-account`, Art. 17),
   management consimțământ (`/gdpr/consents`, istoric append-only) — toate cu
   audit.
-- **Rămas:** OAuth Google/Apple, emailuri reale (SMTP), rotație/revocare refresh
-  token, security review complet, aplicarea (enforcement) consimțământului AI.
+- **Emailuri reale (SMTP):** verificare email + resetare parolă trimit efectiv
+  (`services/email.py`); fără SMTP configurat, se loghează (dev-safe).
+- **Revocare token:** `token_version` pe user + claim `ver` în JWT.
+  `/auth/logout-all` și resetarea parolei invalidează toate sesiunile vechi;
+  refresh-ul verifică versiunea. Migrație Alembic dedicată.
+- **Enforcement consimțământ AI:** `require_ai_consent` (activabil cu
+  `REQUIRE_AI_CONSENT=true`) — blochează endpoint-urile AI fără consimțământ.
+- **Rămas:** OAuth Google/Apple, security review complet.

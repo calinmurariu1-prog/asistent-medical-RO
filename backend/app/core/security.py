@@ -32,26 +32,29 @@ def verify_password(plain: str, hashed: str) -> bool:
 # --------------------------------------------------------------------------
 # JWT
 # --------------------------------------------------------------------------
-def _create_token(subject: str, token_type: str, expires: timedelta) -> str:
+def _create_token(
+    subject: str, token_type: str, expires: timedelta, version: int
+) -> str:
     now = datetime.now(UTC)
     payload: dict[str, Any] = {
         "sub": subject,
         "type": token_type,
+        "ver": version,
         "iat": now,
         "exp": now + expires,
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
-def create_access_token(subject: str) -> str:
+def create_access_token(subject: str, version: int = 0) -> str:
     return _create_token(
-        subject, ACCESS, timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        subject, ACCESS, timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES), version
     )
 
 
-def create_refresh_token(subject: str) -> str:
+def create_refresh_token(subject: str, version: int = 0) -> str:
     return _create_token(
-        subject, REFRESH, timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        subject, REFRESH, timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS), version
     )
 
 

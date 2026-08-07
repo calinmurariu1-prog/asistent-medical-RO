@@ -8,11 +8,12 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import ACCESS, decode_token
-from app.models.enums import UserRole
+from app.models.enums import ConsentType, UserRole
 from app.models.patient import Patient
-from app.models.user import User
+from app.models.user import Consent, User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login-form", auto_error=True)
 
@@ -41,6 +42,9 @@ def get_current_user(
 
     user = db.get(User, int(user_id))
     if user is None or not user.is_active:
+        raise _CREDENTIALS_EXC
+    # Token revocation: a bumped token_version invalidates old tokens.
+    if payload.get("ver", 0) != user.token_version:
         raise _CREDENTIALS_EXC
     return user
 
@@ -79,3 +83,24 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
             status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required"
         )
     return user
+
+
+def require_ai_consent(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> None:
+    """Enforce AI_PROCESSING consent on AI endpoints (when the flag is on)."""
+    if not settings.REQUIRE_AI_CONSENT:
+        return
+    latest = db.scalar(
+        select(Consent)
+        .where(
+            Consent.user_id == user.id,
+            Consent.consent_type == ConsentType.AI_PROCESSING,
+        )
+        .order_by(Consent.id.desc())
+    )
+    if latest is None or not latest.granted:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Este necesar consimțământul pentru procesarea AI.",
+        )

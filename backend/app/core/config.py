@@ -86,6 +86,11 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     SMTP_FROM: str = "noreply@asistent-medical.ro"
     SMTP_TLS: bool = True
+    FRONTEND_URL: str = "http://localhost:3000"
+
+    # ---- Consent enforcement ----
+    # When true, AI features require an active AI_PROCESSING consent.
+    REQUIRE_AI_CONSENT: bool = False
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod

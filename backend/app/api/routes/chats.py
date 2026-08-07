@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_patient
+from app.api.deps import get_current_patient, require_ai_consent
 from app.core.database import get_db
 from app.models.chat import AIChat, AIChatMessage
 from app.models.patient import Patient
@@ -55,7 +55,11 @@ def get_chat(
     return _owned_chat(chat_id, patient, db)
 
 
-@router.post("/{chat_id}/messages", response_model=MessageOut)
+@router.post(
+    "/{chat_id}/messages",
+    response_model=MessageOut,
+    dependencies=[Depends(require_ai_consent)],
+)
 def post_message(
     chat_id: int,
     payload: MessageIn,
