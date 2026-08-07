@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from app.models.chat import AIChat
     from app.models.clinical import Doctor, MedicalHistory
     from app.models.document import Document, LabResult
+    from app.models.health import HealthSample
     from app.models.medication import Medication
     from app.models.user import User
 
@@ -80,6 +81,9 @@ class Patient(Base, TimestampMixin):
         back_populates="patient", cascade="all, delete-orphan"
     )
     chats: Mapped[list[AIChat]] = relationship(
+        back_populates="patient", cascade="all, delete-orphan"
+    )
+    health_samples: Mapped[list[HealthSample]] = relationship(
         back_populates="patient", cascade="all, delete-orphan"
     )
 

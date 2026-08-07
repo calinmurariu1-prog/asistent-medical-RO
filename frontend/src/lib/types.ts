@@ -139,6 +139,48 @@ export interface AiSkill {
   inputs: string[];
 }
 
+export type HealthSourceId =
+  | "apple_health"
+  | "google_health"
+  | "huawei_health"
+  | "manual";
+
+export interface HealthSourceInfo {
+  source: HealthSourceId;
+  label: string;
+  connected: boolean;
+  sample_count: number;
+  how_to: string;
+  accepts: string;
+}
+
+export interface HealthMetricSummary {
+  metric_type: string;
+  label: string;
+  unit: string;
+  count: number;
+  min: number | null;
+  max: number | null;
+  avg: number | null;
+  latest_value: number | null;
+  latest_at: string | null;
+}
+
+export interface HealthSummary {
+  total_samples: number;
+  connected_sources: string[];
+  metrics: HealthMetricSummary[];
+}
+
+export interface HealthImportResult {
+  source: HealthSourceId;
+  imported: number;
+  duplicates: number;
+  skipped: number;
+  metrics: Record<string, number>;
+  message: string;
+}
+
 export interface Dashboard {
   lab_summary: {
     total_analytes: number;

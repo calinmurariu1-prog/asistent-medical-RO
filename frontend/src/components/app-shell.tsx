@@ -7,6 +7,7 @@ import {
   Activity,
   CalendarDays,
   FileText,
+  HeartPulse,
   LayoutDashboard,
   LogOut,
   MapPin,
@@ -24,6 +25,7 @@ import { ThemeToggle } from "@/components/theme-provider";
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/labs", label: "Analize", icon: Activity },
+  { href: "/health", label: "Date de sănătate", icon: HeartPulse },
   { href: "/documents", label: "Documente", icon: FileText },
   { href: "/chat", label: "Chat AI", icon: MessageSquare },
   { href: "/assistant", label: "Asistent AI", icon: Sparkles },
