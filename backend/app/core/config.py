@@ -92,6 +92,16 @@ class Settings(BaseSettings):
     # When true, AI features require an active AI_PROCESSING consent.
     REQUIRE_AI_CONSENT: bool = False
 
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def _normalize_db_url(cls, v: str) -> str:
+        # Managed hosts (Render/Heroku) hand out `postgres://` / `postgresql://`
+        # URLs; SQLAlchemy needs the psycopg-v3 driver spelled out.
+        for prefix in ("postgresql://", "postgres://"):
+            if v.startswith(prefix):
+                return "postgresql+psycopg://" + v[len(prefix):]
+        return v
+
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def _split_origins(cls, v: object) -> list[str]:

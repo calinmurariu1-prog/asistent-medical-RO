@@ -9,6 +9,23 @@ from app.core.rate_limit import reset_rate_limits
 API = "/api/v1"
 
 
+def test_database_url_normalized_for_managed_hosts():
+    assert (
+        Settings(DATABASE_URL="postgres://u:p@h:5432/db").DATABASE_URL
+        == "postgresql+psycopg://u:p@h:5432/db"
+    )
+    assert (
+        Settings(DATABASE_URL="postgresql://u:p@h/db").DATABASE_URL
+        == "postgresql+psycopg://u:p@h/db"
+    )
+    # Already-qualified and sqlite URLs are left untouched.
+    assert Settings(DATABASE_URL="sqlite://").DATABASE_URL == "sqlite://"
+    assert (
+        Settings(DATABASE_URL="postgresql+psycopg://x/y").DATABASE_URL
+        == "postgresql+psycopg://x/y"
+    )
+
+
 def test_production_config_rejects_weak_secrets():
     weak = Settings(
         ENVIRONMENT="production", SECRET_KEY="change-me", DATA_ENCRYPTION_KEY=""
