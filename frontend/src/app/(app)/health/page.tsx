@@ -1,9 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Activity, HeartPulse, Info, Trash2, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Activity,
+  HeartPulse,
+  Info,
+  Smartphone,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
+import { healthNativeAvailable, syncNativeHealth } from "@/lib/health-native";
 import type {
   HealthImportResult,
   HealthSourceId,
@@ -110,6 +118,14 @@ function SourceCard({
 export default function HealthPage() {
   const sources = useFetch<HealthSourceInfo[]>("/health-data/sources");
   const summary = useFetch<HealthSummary>("/health-data/summary");
+  const [native, setNative] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [syncErr, setSyncErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    healthNativeAvailable().then(setNative);
+  }, []);
 
   function reloadAll() {
     sources.reload();
@@ -119,6 +135,21 @@ export default function HealthPage() {
   async function loadSample() {
     await api.post("/health-data/import-sample");
     reloadAll();
+  }
+
+  async function syncPhone() {
+    setSyncing(true);
+    setSyncMsg(null);
+    setSyncErr(null);
+    try {
+      const r = await syncNativeHealth(30);
+      setSyncMsg(r.message);
+      reloadAll();
+    } catch (err) {
+      setSyncErr(err instanceof Error ? err.message : "Sincronizare eșuată");
+    } finally {
+      setSyncing(false);
+    }
   }
 
   return (
@@ -134,6 +165,27 @@ export default function HealthPage() {
         Importă măsurătorile din aplicațiile de sănătate (pași, puls, somn,
         greutate, SpO₂ etc.). Datele sunt normalizate și urmărite în timp.
       </p>
+
+      {native && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 ring-2 ring-brand-blue/30">
+          <div className="flex items-start gap-2">
+            <Smartphone size={18} className="mt-0.5 text-brand-blue" />
+            <div>
+              <p className="font-semibold">Sincronizare directă de pe telefon</p>
+              <p className="text-sm text-muted">
+                Citește automat din Sănătate (HealthKit) / Health Connect —
+                fără export de fișiere.
+              </p>
+            </div>
+          </div>
+          <Button onClick={syncPhone} disabled={syncing}>
+            <HeartPulse size={16} />
+            {syncing ? "Se sincronizează…" : "Sincronizează acum"}
+          </Button>
+        </Card>
+      )}
+      {syncMsg && <p className="text-sm text-brand-green">{syncMsg}</p>}
+      {syncErr && <p className="text-sm text-red-600">{syncErr}</p>}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {sources.loading ? (

@@ -17,12 +17,14 @@ from app.models.enums import HealthMetricType, HealthSource
 from app.models.health import HealthSample
 from app.models.patient import Patient
 from app.schemas.health import (
+    HealthImportJsonRequest,
     HealthSampleOut,
     HealthSourceInfo,
     HealthSummaryOut,
     ImportResultOut,
 )
 from app.services.health import get_importer, service
+from app.services.health.base import parse_generic_samples
 from app.services.health.mock import sample_series
 
 router = APIRouter(prefix="/health-data", tags=["health-data"])
@@ -126,6 +128,50 @@ def import_health_data(
             + (f", {result.duplicates} deja existente" if result.duplicates else "")
             + "."
         )
+    return ImportResultOut(
+        source=result.source,
+        imported=result.imported,
+        duplicates=result.duplicates,
+        skipped=result.skipped,
+        metrics=result.metrics,
+        message=message,
+    )
+
+
+MAX_JSON_SAMPLES = 20_000
+
+
+@router.post("/import-json/{source}", response_model=ImportResultOut)
+def import_health_json(
+    source: HealthSource,
+    payload: HealthImportJsonRequest,
+    patient: Patient = Depends(get_current_patient),
+    db: Session = Depends(get_db),
+) -> ImportResultOut:
+    """Ingest already-normalized samples (native HealthKit / Health Connect sync).
+
+    The mobile app reads on-device health data, maps it to canonical metric
+    types, and pushes it here — no file export needed.
+    """
+    if source == HealthSource.MANUAL:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Sursă neacceptată.")
+    if len(payload.samples) > MAX_JSON_SAMPLES:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"Prea multe valori într-o cerere (max {MAX_JSON_SAMPLES}).",
+        )
+
+    samples = parse_generic_samples(
+        {"samples": [s.model_dump() for s in payload.samples]}
+    )
+    result = service.persist_samples(db, patient.id, source, samples)
+    message = (
+        f"{result.imported} valori sincronizate"
+        + (f", {result.duplicates} deja existente" if result.duplicates else "")
+        + "."
+        if (result.imported or result.duplicates)
+        else "Nu am găsit valori compatibile."
+    )
     return ImportResultOut(
         source=result.source,
         imported=result.imported,

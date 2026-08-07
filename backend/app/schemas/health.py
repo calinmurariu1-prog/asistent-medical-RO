@@ -46,6 +46,20 @@ class HealthSampleOut(BaseModel):
     recorded_at: datetime
 
 
+class HealthSampleIn(BaseModel):
+    type: str                      # canonical metric type or a known alias
+    value: float
+    unit: str | None = None
+    recorded_at: datetime
+
+
+class HealthImportJsonRequest(BaseModel):
+    """Normalized samples pushed directly (e.g. from native HealthKit / Health
+    Connect on the mobile app)."""
+
+    samples: list[HealthSampleIn]
+
+
 class HealthSourceInfo(BaseModel):
     source: HealthSource
     label: str

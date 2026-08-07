@@ -136,6 +136,43 @@ def test_sources_and_sample_and_series(client):
     assert steps[0]["unit"] == "count"
 
 
+def test_import_json_native_sync(client):
+    h = _auth(client, email="native@example.com")
+    payload = {
+        "samples": [
+            {"type": "steps", "value": 8210, "unit": "count", "recorded_at": "2024-03-01T07:00:00Z"},  # noqa: E501
+            {"type": "heart_rate", "value": 64, "recorded_at": "2024-03-01T07:05:00Z"},
+            {"type": "oxygen_saturation", "value": 98, "recorded_at": "2024-03-01T07:06:00Z"},  # noqa: E501
+        ]
+    }
+    r = client.post(
+        f"{API}/health-data/import-json/apple_health", headers=h, json=payload
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["imported"] == 3
+
+    # Idempotent: same payload again inserts nothing.
+    again = client.post(
+        f"{API}/health-data/import-json/apple_health", headers=h, json=payload
+    ).json()
+    assert again["imported"] == 0
+    assert again["duplicates"] == 3
+
+    summary = client.get(f"{API}/health-data/summary", headers=h).json()
+    assert summary["total_samples"] == 3
+    assert "apple_health" in summary["connected_sources"]
+
+
+def test_import_json_rejects_manual_source(client):
+    h = _auth(client, email="native2@example.com")
+    r = client.post(
+        f"{API}/health-data/import-json/manual",
+        headers=h,
+        json={"samples": [{"type": "steps", "value": 1, "recorded_at": "2024-03-01T07:00:00Z"}]},
+    )
+    assert r.status_code == 400
+
+
 def test_import_invalid_json_rejected(client):
     h = _auth(client)
     r = client.post(

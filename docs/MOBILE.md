@@ -60,10 +60,29 @@ npm i -D @capacitor/assets
 npx capacitor-assets generate --iconBackgroundColor '#2563EB'
 ```
 
+## Sănătate nativă (HealthKit / Health Connect)
+Pe telefon, aplicația poate citi datele **direct de pe dispozitiv** (fără export
+de fișiere) și le trimite în același pipeline normalizat (`/health-data`).
+
+1. Instalează un plugin de sănătate (recomandat `capacitor-health`, care acoperă
+   HealthKit + Health Connect):
+   ```bash
+   npm i capacitor-health && npx cap sync
+   ```
+2. **iOS:** activează *HealthKit* în capabilitățile app-ului (Xcode → Signing &
+   Capabilities) și adaugă cheile de privacy în `Info.plist`
+   (`NSHealthShareUsageDescription`).
+3. **Android:** Health Connect + permisiunile `android.permission.health.READ_*`
+   în manifest.
+4. Codul client e în `frontend/src/lib/health-native.ts`. `readSamples()` este
+   „cusătura" care vorbește cu pluginul — ajustează numele metodelor la pluginul
+   ales. Pagina „Date de sănătate" afișează automat butonul *Sincronizează acum*
+   când rulează nativ.
+
+Datele native se mapează pe aceleași `HealthMetricType` și se trimit la
+`POST /health-data/import-json/{apple_health|google_health}` (import idempotent).
+
 ## Ce urmează (upgrade-uri native)
-- **Sănătate nativă:** citire directă din HealthKit (iOS) / Health Connect
-  (Android) prin plugin, pe lângă importul de fișiere existent
-  (`/health-data`). Se mapează pe aceleași `HealthMetricType`.
 - **Push notifications:** `@capacitor/push-notifications` + FCM/APNs.
 - **Stocare sigură:** token-urile pot trece de la `localStorage` la
   `@capacitor/preferences` (deja instalat) pe nativ.
