@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-1.5-pro"
 
+    # MedLLM micro-service (z-ai CLI wrapper). No API key needed here; the
+    # micro-service handles credentials. Reachable by service name in Docker.
+    MED_LLM_URL: str = "http://med-llm:3031"
+    MED_LLM_TIMEOUT: float = 90.0
+
     # ---- Maps / provider search (Google Places) ----
     # Server-side key (IP-restricted). Never exposed to the browser.
     GOOGLE_MAPS_API_KEY: str = ""

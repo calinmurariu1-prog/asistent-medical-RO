@@ -133,6 +133,17 @@ Backend-ul acoperă acum toate modulele de business (1–15).
 
 ---
 
+## ✅ LLM medical integrat (MedLLM)
+
+- Provider `medllm` (`backend/app/services/ai/med_llm.py`) care implementează
+  aceeași interfață (`extract_document`, `explain_lab_value`, `chat`) și apelează
+  un micro-serviciu Node.js (`med-llm-service/`, `z-ai` CLI) prin HTTP.
+- Selectat cu `AI_DEFAULT_PROVIDER=medllm`; guardrails (fără diagnostic, surse
+  `[S#]`, disclaimer) aplicate în prompturi. Fallback pe disclaimer la orice
+  eroare de rețea.
+- Serviciu `med-llm` adăugat în `docker-compose.yml` (port 3031). Teste cu
+  micro-serviciul mock-uit.
+
 ## Scalare & monitorizare în producție
 
 **Scalare**

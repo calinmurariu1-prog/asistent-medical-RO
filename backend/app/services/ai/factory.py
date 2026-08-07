@@ -19,6 +19,17 @@ _KEY_BY_PROVIDER = {
 def get_ai_provider() -> AIProvider:
     """FastAPI dependency. Returns a real provider if its key is set, else mock."""
     provider = settings.AI_DEFAULT_PROVIDER.lower()
+
+    # MedLLM talks to a micro-service (no API key here); handle it first.
+    if provider == "medllm":
+        try:
+            from app.services.ai.med_llm import MedLLMProvider
+
+            return MedLLMProvider()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to init MedLLM provider: %s; using mock.", exc)
+            return MockProvider()
+
     key_getter = _KEY_BY_PROVIDER.get(provider)
 
     if not key_getter or not key_getter():

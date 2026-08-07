@@ -45,8 +45,21 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-medai}:${POSTGRES_PASSWORD:-medai_dev_password}@db:5432/${POSTGRES_DB:-asistent_medical}
       S3_ENDPOINT_URL: http://minio:9000
+      MED_LLM_URL: http://med-llm:3031
     ports:
       - "8000:8000"
+
+  # Medical LLM micro-service (z-ai CLI wrapper). Used when AI_DEFAULT_PROVIDER=medllm.
+  med-llm:
+    build: ./med-llm-service
+    restart: unless-stopped
+    ports:
+      - "3031:3031"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3031/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   frontend:
     build: ./frontend
