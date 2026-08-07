@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.rate_limit import RateLimiter
 from app.core.security import (
     REFRESH,
     create_access_token,
@@ -43,12 +44,22 @@ from app.services.token_service import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# Brute-force protection on credential endpoints.
+_auth_limiter = RateLimiter(
+    settings.RATE_LIMIT_LOGIN_TIMES, settings.RATE_LIMIT_WINDOW_SECONDS
+)
+
 
 def _client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
 
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(_auth_limiter)],
+)
 def register(
     payload: RegisterRequest,
     request: Request,
@@ -73,7 +84,9 @@ def register(
     return user
 
 
-@router.post("/login", response_model=TokenPair)
+@router.post(
+    "/login", response_model=TokenPair, dependencies=[Depends(_auth_limiter)]
+)
 def login(
     payload: LoginRequest,
     request: Request,
@@ -117,7 +130,7 @@ def refresh(payload: RefreshRequest) -> TokenPair:
     )
 
 
-@router.post("/password-reset/request")
+@router.post("/password-reset/request", dependencies=[Depends(_auth_limiter)])
 def password_reset_request(
     payload: PasswordResetRequest, db: Session = Depends(get_db)
 ) -> dict[str, str]:

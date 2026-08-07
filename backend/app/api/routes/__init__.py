@@ -10,6 +10,7 @@ from app.api.routes import (
     documents,
     export,
     feedback,
+    gdpr,
     history,
     labs,
     medications,
@@ -36,6 +37,7 @@ api_router.include_router(timeline.router)
 api_router.include_router(recommendations.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(providers.router)
+api_router.include_router(gdpr.router)
 api_router.include_router(export.router)
 api_router.include_router(feedback.router)
 api_router.include_router(admin.router)

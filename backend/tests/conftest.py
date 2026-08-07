@@ -5,6 +5,9 @@ import os
 
 os.environ.setdefault("DATA_ENCRYPTION_KEY", "test-encryption-key-please-change-000")
 os.environ.setdefault("SECRET_KEY", "test-secret")
+# Keep the shared in-process rate limiter from tripping across the suite; the
+# dedicated rate-limit test re-enables it explicitly.
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 
 import pytest
 from fastapi.testclient import TestClient

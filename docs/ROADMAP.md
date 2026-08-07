@@ -161,3 +161,15 @@ Backend-ul acoperă acum toate modulele de business (1–15).
 - Secrete în secret manager; rotație chei de criptare.
 - WAF + rate limiting; scanare dependențe; backup-uri testate.
 - Jurnalizare acces conform GDPR; proces de export/ștergere date la cerere.
+
+### ✅ Securitate & GDPR — livrat parțial
+- **Rate limiting** in-process pe endpoint-urile de credențiale (anti
+  brute-force); configurabil (`RATE_LIMIT_*`). Prod: mută pe Redis.
+- **Security headers** pe fiecare răspuns (nosniff, X-Frame-Options DENY,
+  Referrer-Policy, Permissions-Policy; HSTS în producție).
+- **GDPR:** export complet al datelor (`GET /gdpr/export`, Art. 15/20),
+  ștergere cont cu confirmare parolă (`POST /gdpr/delete-account`, Art. 17),
+  management consimțământ (`/gdpr/consents`, istoric append-only) — toate cu
+  audit.
+- **Rămas:** OAuth Google/Apple, emailuri reale (SMTP), rotație/revocare refresh
+  token, security review complet, aplicarea (enforcement) consimțământului AI.

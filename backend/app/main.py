@@ -30,6 +30,21 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    """Baseline security headers on every response."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "geolocation=(self), microphone=(), camera=()"
+    if settings.is_production:
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=63072000; includeSubDomains"
+        )
+    return response
+
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
 

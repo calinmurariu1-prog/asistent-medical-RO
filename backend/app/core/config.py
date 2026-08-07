@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     DATA_ENCRYPTION_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
 
+    # ---- Rate limiting ----
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_LOGIN_TIMES: int = 10
+    RATE_LIMIT_WINDOW_SECONDS: int = 60
+
     # ---- Database ----
     DATABASE_URL: str = (
         "postgresql+psycopg://medai:medai_dev_password@db:5432/asistent_medical"
