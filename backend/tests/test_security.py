@@ -9,6 +9,18 @@ from app.core.rate_limit import reset_rate_limits
 API = "/api/v1"
 
 
+def test_field_encryption_works_with_arbitrary_key(monkeypatch):
+    """Any passphrase must yield a usable Fernet key (regression: CI key was
+    valid base64 but not 32 bytes and crashed encryption)."""
+    from app.core import security
+
+    for key in ("short", "ci-encryption-key-please-change-00000000", "a passphrase!"):
+        monkeypatch.setattr(security.settings, "DATA_ENCRYPTION_KEY", key)
+        enc = security.encrypt_field("CNP1234567890")
+        assert enc and enc != "CNP1234567890"
+        assert security.decrypt_field(enc) == "CNP1234567890"
+
+
 def test_database_url_normalized_for_managed_hosts():
     assert (
         Settings(DATABASE_URL="postgres://u:p@h:5432/db").DATABASE_URL

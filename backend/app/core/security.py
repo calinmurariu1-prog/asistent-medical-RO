@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import base64
+import binascii
+import hashlib
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -74,13 +76,13 @@ def _fernet() -> Fernet:
     key = settings.DATA_ENCRYPTION_KEY
     if not key:
         raise RuntimeError("DATA_ENCRYPTION_KEY is not configured")
-    # Accept either a raw 32-byte urlsafe base64 key or arbitrary string.
+    # Use the value as-is if it is already a valid Fernet key; otherwise derive
+    # a deterministic 32-byte key from it (SHA-256), so any passphrase works.
     try:
-        base64.urlsafe_b64decode(key)
-        fkey = key.encode()
-    except Exception:  # noqa: BLE001
-        fkey = base64.urlsafe_b64encode(key.encode()[:32].ljust(32, b"0"))
-    return Fernet(fkey)
+        return Fernet(key.encode())
+    except (ValueError, binascii.Error):
+        digest = hashlib.sha256(key.encode()).digest()
+        return Fernet(base64.urlsafe_b64encode(digest))
 
 
 def encrypt_field(value: str | None) -> str | None:
