@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#2563EB"/>
       <stop offset="1" stop-color="#7C3AED"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#g)"/>
-  <path d="M256 120v120a80 80 0 0 0 160 0v-40" fill="none" stroke="#fff" stroke-width="28" stroke-linecap="round"/>
-  <path d="M176 120v96a80 80 0 0 0 160 0" fill="none" stroke="#fff" stroke-width="28" stroke-linecap="round" opacity="0.55"/>
-  <circle cx="416" cy="200" r="34" fill="#10B981" stroke="#fff" stroke-width="16"/>
-  <rect x="236" y="330" width="40" height="120" rx="20" fill="#fff"/>
-  <rect x="196" y="370" width="120" height="40" rx="20" fill="#fff"/>
+  <rect width="512" height="512" rx="112" fill="url(#tile)"/>
+  <g transform="translate(64,64) scale(8)">
+    <path d="M5 29 H15 L19 18 L24 33 L27 24 H31" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M37 12 l1.7 4.6 4.6 1.7 -4.6 1.7 -1.7 4.6 -1.7 -4.6 -4.6 -1.7 4.6 -1.7 z" fill="#fff"/>
+    <circle cx="31" cy="24" r="2.4" fill="#10B981"/>
+  </g>
 </svg>

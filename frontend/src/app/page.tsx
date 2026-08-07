@@ -1,12 +1,7 @@
 import Link from "next/link";
-import {
-  Activity,
-  FileText,
-  MessageSquare,
-  ShieldCheck,
-  Stethoscope,
-} from "lucide-react";
+import { Activity, FileText, MessageSquare, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui";
+import { LogoMark } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-provider";
 
 const features = [
@@ -37,7 +32,7 @@ export default function LandingPage() {
     <main className="min-h-screen">
       <header className="mx-auto flex max-w-6xl items-center justify-between p-6">
         <div className="flex items-center gap-2 font-semibold">
-          <Stethoscope className="text-brand-blue" />
+          <LogoMark />
           Asistent Medical AI
         </div>
         <div className="flex items-center gap-3">

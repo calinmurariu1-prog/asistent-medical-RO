@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Stethoscope } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 import { Button, Card, Input } from "@/components/ui";
+import { LogoMark } from "@/components/logo";
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -36,7 +36,7 @@ export default function RegisterPage() {
     <main className="flex min-h-screen items-center justify-center p-6">
       <Card className="w-full max-w-md">
         <div className="mb-6 flex items-center gap-2 font-semibold">
-          <Stethoscope className="text-brand-blue" />
+          <LogoMark />
           Asistent Medical AI
         </div>
         <h1 className="text-xl font-bold">Creează cont</h1>

@@ -14,11 +14,11 @@ import {
   MessageSquare,
   Pill,
   Sparkles,
-  Stethoscope,
   User,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Spinner } from "@/components/ui";
+import { LogoMark } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-provider";
 
 const nav = [
@@ -66,7 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         }`}
       >
         <div className="mb-6 flex items-center gap-2 px-2 font-semibold">
-          <Stethoscope className="text-brand-blue" size={20} />
+          <LogoMark size={22} />
           <span className="text-sm">Asistent Medical</span>
         </div>
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">

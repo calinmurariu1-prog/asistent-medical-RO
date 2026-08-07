@@ -7,6 +7,10 @@ export const metadata: Metadata = {
   description:
     "Dosarul tău medical, înțeles pe limba ta. Informații orientative — nu înlocuiesc medicul.",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export const viewport: Viewport = {
