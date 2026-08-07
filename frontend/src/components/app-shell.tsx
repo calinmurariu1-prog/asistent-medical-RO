@@ -9,6 +9,7 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
+  MapPin,
   MessageSquare,
   Pill,
   Stethoscope,
@@ -25,6 +26,7 @@ const nav = [
   { href: "/chat", label: "Chat AI", icon: MessageSquare },
   { href: "/medications", label: "Medicamente", icon: Pill },
   { href: "/appointments", label: "Programări", icon: CalendarDays },
+  { href: "/doctors", label: "Găsește medici", icon: MapPin },
   { href: "/profile", label: "Profil", icon: User },
 ];
 

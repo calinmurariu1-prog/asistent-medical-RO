@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-1.5-pro"
 
+    # ---- Maps / provider search (Google Places) ----
+    # Server-side key (IP-restricted). Never exposed to the browser.
+    GOOGLE_MAPS_API_KEY: str = ""
+    PLACES_DEFAULT_RADIUS_M: int = 5000
+    PLACES_MAX_RESULTS: int = 10
+
     # ---- OCR ----
     OCR_LANGUAGES: str = "ron+eng"
 

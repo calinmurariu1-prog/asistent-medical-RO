@@ -102,6 +102,34 @@ export interface Chat {
   messages?: ChatMessage[];
 }
 
+export interface SpecialtySuggestion {
+  specialty: string;
+  reasons: string[];
+}
+
+export interface ProviderResult {
+  name: string;
+  specialty: string;
+  address: string | null;
+  lat: number;
+  lng: number;
+  distance_km: number | null;
+  rating: number | null;
+  ratings_total: number | null;
+  place_id: string | null;
+  phone: string | null;
+  maps_url: string | null;
+}
+
+export interface NearbyProviders {
+  specialty: string;
+  center: { lat: number; lng: number };
+  radius_m: number;
+  provider_source: string;
+  results: ProviderResult[];
+  disclaimer: string;
+}
+
 export interface Dashboard {
   lab_summary: {
     total_analytes: number;
