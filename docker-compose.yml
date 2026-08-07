@@ -55,6 +55,10 @@ services:
     restart: unless-stopped
     ports:
       - "3031:3031"
+    # z.ai credentials mounted read-only from the (git-ignored) root file.
+    # The secret stays out of the image and out of git; only the path is here.
+    volumes:
+      - ./zaiconfig.txt:/app/zaiconfig.txt:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3031/health"]
       interval: 30s
