@@ -92,6 +92,27 @@ class Settings(BaseSettings):
     # When true, AI features require an active AI_PROCESSING consent.
     REQUIRE_AI_CONSENT: bool = False
 
+    # ---- In-App Purchase (mobile subscriptions) ----
+    # Product IDs configured in the stores, mapped to plans:
+    #   "<product_id>:<plan>,<product_id>:<plan>"  (plan = premium|family)
+    IAP_PRODUCTS: str = (
+        "premium_monthly:premium,family_monthly:family"
+    )
+    # Allow the deterministic mock verifier (dev/test). Disabled in production
+    # unless explicitly turned on.
+    IAP_ALLOW_MOCK: bool = True
+
+    # Apple App Store Server API (JWT signed with an App Store Connect key).
+    APPLE_IAP_BUNDLE_ID: str = ""
+    APPLE_IAP_ISSUER_ID: str = ""
+    APPLE_IAP_KEY_ID: str = ""
+    APPLE_IAP_PRIVATE_KEY: str = ""          # PEM contents of the .p8 key
+    APPLE_IAP_ENVIRONMENT: str = "production"  # or "sandbox"
+
+    # Google Play Developer API (service-account credentials).
+    GOOGLE_PLAY_PACKAGE_NAME: str = ""
+    GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: str = ""  # raw JSON of the SA key
+
     @field_validator("DATABASE_URL", mode="after")
     @classmethod
     def _normalize_db_url(cls, v: str) -> str:

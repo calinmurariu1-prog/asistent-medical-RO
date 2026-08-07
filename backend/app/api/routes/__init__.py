@@ -15,6 +15,7 @@ from app.api.routes import (
     gdpr,
     health,
     history,
+    iap,
     labs,
     medications,
     monitoring,
@@ -43,6 +44,7 @@ api_router.include_router(providers.router)
 api_router.include_router(gdpr.router)
 api_router.include_router(health.router)
 api_router.include_router(billing.router)
+api_router.include_router(iap.router)
 api_router.include_router(ai_skills.router)
 api_router.include_router(export.router)
 api_router.include_router(feedback.router)

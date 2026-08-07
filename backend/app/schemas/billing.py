@@ -36,3 +36,15 @@ class SubscriptionOut(BaseModel):
 
 class ChangePlanRequest(BaseModel):
     plan: SubscriptionPlan
+
+
+class IapVerifyRequest(BaseModel):
+    """Sent by the mobile app after a native purchase.
+
+    `platform` must be apple or google; `token` is the store receipt/purchase
+    token (StoreKit 2 transactionId on iOS, purchase token on Android).
+    """
+
+    platform: BillingProvider
+    product_id: str
+    token: str

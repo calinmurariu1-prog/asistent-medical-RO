@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Sparkles } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
+import { iapAvailable, purchasePlan } from "@/lib/iap";
 import type { Plan, PlanId, Subscription } from "@/lib/types";
 import { Badge, Button, Card, Spinner } from "@/components/ui";
 
@@ -11,12 +12,27 @@ export default function SubscriptionPage() {
   const plans = useFetch<Plan[]>("/billing/plans");
   const sub = useFetch<Subscription>("/billing/subscription");
   const [busy, setBusy] = useState<PlanId | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [iap, setIap] = useState(false);
+
+  useEffect(() => {
+    iapAvailable().then(setIap);
+  }, []);
 
   async function choose(plan: PlanId) {
     setBusy(plan);
+    setError(null);
     try {
-      await api.post("/billing/subscription", { plan });
+      if (plan !== "free" && iap) {
+        // Native app: real store purchase, validated by the backend.
+        await purchasePlan(plan);
+      } else {
+        // Web / downgrade: interim direct plan change (Stripe comes next).
+        await api.post("/billing/subscription", { plan });
+      }
       sub.reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Operațiune eșuată");
     } finally {
       setBusy(null);
     }
@@ -106,9 +122,12 @@ export default function SubscriptionPage() {
         </div>
       )}
 
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
       <p className="text-xs text-muted">
-        Plățile reale (card pe web, In-App Purchase pe telefon) se activează în
-        curând. Momentan schimbarea planului este în modul de testare.
+        {iap
+          ? "Abonamentele se achiziționează prin App Store / Google Play și sunt validate securizat pe server."
+          : "Pe telefon, abonarea se face prin App Store / Google Play. Pe web, plata cu cardul (Stripe) se activează în curând — momentan schimbarea planului este în modul de testare."}
       </p>
     </div>
   );
