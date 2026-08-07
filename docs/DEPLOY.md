@@ -45,6 +45,27 @@ z.ai montat ca Secret File `.z-ai-config`.
 Setează `GOOGLE_MAPS_API_KEY` pe backend (Places activat, restricționat pe IP).
 Fără cheie, funcția rulează pe providerul mock.
 
+## Deploy automat din GitHub (CI/CD)
+
+Workflow-ul `.github/workflows/ci.yml` rulează la fiecare push: **testează
+backend-ul (lint + pytest) și construiește frontend-ul**, apoi — dacă ambele
+trec — declanșează deploy-ul pe Render. Astfel se publică doar cod „verde".
+
+Setup (o singură dată):
+
+1. În Render, pentru fiecare serviciu (backend + frontend):
+   **Settings → Deploy Hook** → copiază URL-ul.
+2. (Opțional) Dezactivează *Auto-Deploy* pe Render, ca deploy-ul să vină doar
+   prin GitHub Actions (după teste).
+3. În GitHub: **Settings → Secrets and variables → Actions → New secret**:
+   - `RENDER_DEPLOY_HOOK_BACKEND` = hook-ul serviciului backend
+   - `RENDER_DEPLOY_HOOK_FRONTEND` = hook-ul serviciului frontend
+
+Fără aceste secrete, jobul de deploy pur și simplu se sare (CI rămâne verde).
+
+**Dependabot** (`.github/dependabot.yml`) deschide săptămânal PR-uri de
+actualizare pentru pip, npm, GitHub Actions și Docker.
+
 ## Note free tier
 Serviciile free Render „adorm" după inactivitate (primul request după pauză e
 mai lent). Postgres free are limită de stocare/retenție — potrivit pentru test,
