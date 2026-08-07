@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import {
   AlertTriangle,
   Bell,
@@ -8,10 +9,12 @@ import {
   FileText,
   Lightbulb,
   Pill,
+  Sparkles,
 } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
+import { api } from "@/lib/api";
 import type { Dashboard } from "@/lib/types";
-import { Badge, Card, Spinner } from "@/components/ui";
+import { Badge, Button, Card, Spinner } from "@/components/ui";
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -24,13 +27,40 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 export default function DashboardPage() {
   const { data, loading } = useFetch<Dashboard>("/dashboard");
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summarizing, setSummarizing] = useState(false);
+
+  async function summarize() {
+    setSummarizing(true);
+    try {
+      const r = await api.post<{ result: string }>("/ai/summarize-record");
+      setSummary(r.result);
+    } finally {
+      setSummarizing(false);
+    }
+  }
 
   if (loading) return <Spinner />;
   if (!data) return <p className="text-muted">Nu s-au putut încărca datele.</p>;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <Button variant="outline" onClick={summarize} disabled={summarizing}>
+          <Sparkles size={16} />
+          {summarizing ? "Se generează…" : "Rezumat AI al dosarului"}
+        </Button>
+      </div>
+
+      {summary && (
+        <Card className="border-brand-violet/30 bg-brand-violet/5">
+          <div className="mb-2 flex items-center gap-2 font-semibold text-brand-violet">
+            <Sparkles size={18} /> Rezumat AI
+          </div>
+          <p className="whitespace-pre-wrap text-sm">{summary}</p>
+        </Card>
+      )}
 
       {data.alerts.length > 0 && (
         <Card className="border-red-500/30 bg-red-500/5">

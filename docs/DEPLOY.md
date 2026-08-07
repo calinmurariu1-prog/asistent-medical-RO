@@ -66,6 +66,28 @@ Fără aceste secrete, jobul de deploy pur și simplu se sare (CI rămâne verde
 **Dependabot** (`.github/dependabot.yml`) deschide săptămânal PR-uri de
 actualizare pentru pip, npm, GitHub Actions și Docker.
 
+## IP-uri de ieșire Render (allowlist)
+
+Serviciile de pe Render fac request-uri externe de la aceste intervale de IP:
+
+```
+74.220.50.0/24
+74.220.58.0/24
+```
+
+Folosește-le pentru a **restricționa** accesul acolo unde e cazul:
+
+- **Google Maps / Places API key** (server-side): în Google Cloud Console →
+  Credentials → cheia → *Application restrictions* → **IP addresses** → adaugă
+  cele două intervale. Astfel cheia funcționează doar din backend-ul de pe Render.
+- **Bază de date externă / API-uri terțe / SMTP**: adaugă aceste intervale în
+  firewall-ul/allowlist-ul furnizorului, ca doar Render să poată accesa.
+- **Micro-serviciul z.ai (med-llm)**: dacă `internal-api.z.ai` are allowlist pe
+  IP, adaugă aceste intervale.
+
+> Notă: intervalele de IP Render pot fi actualizate de Render în timp —
+> verifică periodic în dashboard-ul Render (Connections / Outbound IPs).
+
 ## Note free tier
 Serviciile free Render „adorm" după inactivitate (primul request după pauză e
 mai lent). Postgres free are limită de stocare/retenție — potrivit pentru test,

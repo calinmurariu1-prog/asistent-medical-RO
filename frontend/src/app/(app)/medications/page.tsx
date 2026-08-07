@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, Plus, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import type { Medication } from "@/lib/types";
@@ -19,6 +19,20 @@ export default function MedicationsPage() {
   const [substance, setSubstance] = useState("");
   const [dose, setDose] = useState("");
   const [check, setCheck] = useState<CheckResult | null>(null);
+  const [explains, setExplains] = useState<Record<number, string>>({});
+  const [explaining, setExplaining] = useState<number | null>(null);
+
+  async function explain(med: Medication) {
+    setExplaining(med.id);
+    try {
+      const r = await api.post<{ result: string }>("/ai/skills/explain_medication", {
+        inputs: { name: med.name },
+      });
+      setExplains((e) => ({ ...e, [med.id]: r.result }));
+    } finally {
+      setExplaining(null);
+    }
+  }
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -110,19 +124,37 @@ export default function MedicationsPage() {
       ) : (
         <div className="space-y-2">
           {(data || []).map((m) => (
-            <Card key={m.id} className="flex items-center justify-between">
-              <div>
-                <span className="font-medium">{m.name}</span>{" "}
-                {m.dose && <span className="text-muted">· {m.dose}</span>}
-                {!m.is_active && <Badge>inactiv</Badge>}
+            <Card key={m.id}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="font-medium">{m.name}</span>{" "}
+                  {m.dose && <span className="text-muted">· {m.dose}</span>}
+                  {!m.is_active && <Badge>inactiv</Badge>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    className="px-2.5 py-1.5"
+                    onClick={() => explain(m)}
+                    disabled={explaining === m.id}
+                  >
+                    <Sparkles size={15} />
+                    {explaining === m.id ? "…" : "Explică"}
+                  </Button>
+                  <button
+                    onClick={() => remove(m.id)}
+                    className="text-muted hover:text-red-600"
+                    aria-label="Șterge"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => remove(m.id)}
-                className="text-muted hover:text-red-600"
-                aria-label="Șterge"
-              >
-                <Trash2 size={16} />
-              </button>
+              {explains[m.id] && (
+                <div className="mt-3 whitespace-pre-wrap rounded-lg bg-bg p-3 text-sm">
+                  {explains[m.id]}
+                </div>
+              )}
             </Card>
           ))}
         </div>

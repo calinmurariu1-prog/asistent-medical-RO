@@ -57,3 +57,38 @@ def test_prepare_doctor_visit(client):
     )
     assert r.status_code == 200
     assert "dureri de cap" in r.json()["result"]
+
+
+def test_summarize_record(client):
+    h = _auth(client)
+    client.post(f"{API}/labs", headers=h, json={
+        "analyte": "Glicemie", "value": 150, "unit": "mg/dL",
+        "ref_low": 70, "ref_high": 99, "measured_on": "2026-01-10"})
+    client.post(f"{API}/medications", headers=h, json={"name": "Metformin"})
+
+    r = client.post(f"{API}/ai/summarize-record", headers=h)
+    assert r.status_code == 200, r.text
+    result = r.json()["result"]
+    assert "Glicemie" in result and "Metformin" in result
+    assert "orientativ" in result.lower()
+
+
+def test_compare_analyte(client):
+    h = _auth(client)
+    for v, d in ((150, "2026-01-10"), (120, "2026-03-10")):
+        client.post(f"{API}/labs", headers=h, json={
+            "analyte": "Glicemie", "value": v, "unit": "mg/dL",
+            "ref_low": 70, "ref_high": 99, "measured_on": d})
+
+    r = client.post(f"{API}/ai/compare-analyte", headers=h, json={"analyte": "Glicemie"})
+    assert r.status_code == 200, r.text
+    assert "Glicemie" in r.json()["result"]
+
+
+def test_compare_analyte_single_value(client):
+    h = _auth(client)
+    client.post(f"{API}/labs", headers=h, json={
+        "analyte": "TSH", "value": 2.0, "unit": "uUI/mL", "measured_on": "2026-01-10"})
+    r = client.post(f"{API}/ai/compare-analyte", headers=h, json={"analyte": "TSH"})
+    assert r.status_code == 200
+    assert "o singură măsurătoare" in r.json()["result"]

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, TrendingUp } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import type { LabResult } from "@/lib/types";
@@ -18,6 +18,8 @@ const FLAG_LABEL: Record<string, string> = {
 export default function LabsPage() {
   const { data, loading, setData } = useFetch<LabResult[]>("/labs");
   const [explaining, setExplaining] = useState<number | null>(null);
+  const [trends, setTrends] = useState<Record<string, string>>({});
+  const [trending, setTrending] = useState<string | null>(null);
 
   async function explain(id: number) {
     setExplaining(id);
@@ -28,6 +30,18 @@ export default function LabsPage() {
       );
     } finally {
       setExplaining(null);
+    }
+  }
+
+  async function trend(analyte: string) {
+    setTrending(analyte);
+    try {
+      const r = await api.post<{ result: string }>("/ai/compare-analyte", {
+        analyte,
+      });
+      setTrends((t) => ({ ...t, [analyte]: r.result }));
+    } finally {
+      setTrending(null);
     }
   }
 
@@ -63,7 +77,7 @@ export default function LabsPage() {
                     {r.measured_on && <span> · {r.measured_on}</span>}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <Badge tone={flagTone(r.flag)}>{FLAG_LABEL[r.flag]}</Badge>
                   <Button
                     variant="outline"
@@ -73,11 +87,24 @@ export default function LabsPage() {
                     <Sparkles size={16} />
                     {explaining === r.id ? "…" : "Explică"}
                   </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => trend(r.analyte)}
+                    disabled={trending === r.analyte}
+                  >
+                    <TrendingUp size={16} />
+                    {trending === r.analyte ? "…" : "Evoluție AI"}
+                  </Button>
                 </div>
               </div>
               {r.ai_explanation && (
                 <p className="mt-3 rounded-lg bg-bg p-3 text-sm text-fg/80">
                   {r.ai_explanation}
+                </p>
+              )}
+              {trends[r.analyte] && (
+                <p className="mt-3 whitespace-pre-wrap rounded-lg bg-brand-violet/5 p-3 text-sm">
+                  {trends[r.analyte]}
                 </p>
               )}
             </Card>

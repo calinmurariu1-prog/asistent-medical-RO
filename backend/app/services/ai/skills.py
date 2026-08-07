@@ -150,6 +150,30 @@ register(
 
 register(
     Skill(
+        name="review_prescription",
+        title="Verifică o rețetă",
+        description="Trecere în revistă orientativă a unei liste de medicamente.",
+        inputs=["medications"],
+        prompt=lambda d: (
+            _GUARD,
+            "Pacientul are următoarea listă de medicamente:\n"
+            f"{d['medications']}\n"
+            "Explică orientativ pentru ce se folosesc, semnalează posibile "
+            "interacțiuni sau dubluri de care să întrebe medicul/farmacistul. "
+            "Nu recomanda doze.",
+        ),
+        mock=lambda d: (
+            "Trecere în revistă orientativă a medicamentelor:\n"
+            f"{d['medications']}\n"
+            "Verifică cu medicul sau farmacistul dacă există interacțiuni, "
+            "dubluri terapeutice sau contraindicații pentru situația ta. Respectă "
+            "dozele și programul indicate de medic."
+        ),
+    )
+)
+
+register(
+    Skill(
         name="symptom_info",
         title="Informații despre un simptom",
         description="Explică orientativ un simptom și semnele care cer urgență.",
