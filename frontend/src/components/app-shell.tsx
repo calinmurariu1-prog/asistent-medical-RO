@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Activity,
   CalendarDays,
@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   MapPin,
+  Menu,
   MessageSquare,
   Pill,
   Sparkles,
@@ -36,27 +37,46 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
   }, [loading, user, router]);
 
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   if (loading || !user) return <Spinner />;
 
   return (
     <div className="flex min-h-screen">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface p-4 sm:flex">
+      {mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 z-30 bg-black/50 sm:hidden"
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col border-r border-border bg-surface p-4 transition-transform sm:static sm:translate-x-0 ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
         <div className="mb-6 flex items-center gap-2 px-2 font-semibold">
           <Stethoscope className="text-brand-blue" size={20} />
           <span className="text-sm">Asistent Medical</span>
         </div>
-        <nav className="flex flex-1 flex-col gap-1">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
           {nav.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => setMobileOpen(false)}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
                   active
                     ? "brand-gradient text-white"
@@ -78,12 +98,21 @@ export function AppShell({ children }: { children: ReactNode }) {
         </button>
       </aside>
 
-      <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border bg-surface px-6 py-3">
-          <div className="text-sm text-muted">{user.email}</div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex items-center justify-between border-b border-border bg-surface px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileOpen(true)}
+              aria-label="Deschide meniul"
+              className="rounded-lg border border-border p-2 text-fg/70 transition hover:bg-bg sm:hidden"
+            >
+              <Menu size={18} />
+            </button>
+            <div className="truncate text-sm text-muted">{user.email}</div>
+          </div>
           <ThemeToggle />
         </header>
-        <main className="flex-1 overflow-x-hidden p-6">{children}</main>
+        <main className="flex-1 overflow-x-hidden p-4 sm:p-6">{children}</main>
       </div>
     </div>
   );
