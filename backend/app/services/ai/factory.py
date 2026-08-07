@@ -2,12 +2,29 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from app.core.config import settings
 from app.services.ai.base import AIProvider
 from app.services.ai.mock import MockProvider
 
 logger = logging.getLogger(__name__)
+
+# TTL-cached MedLLM health so we don't ping the micro-service on every request.
+_health_cache: dict[str, float | bool] = {"ts": 0.0, "ok": False}
+
+
+def reset_medllm_health_cache() -> None:
+    _health_cache.update(ts=0.0, ok=False)
+
+
+def _medllm_healthy(provider) -> bool:
+    now = time.monotonic()
+    if now - float(_health_cache["ts"]) < settings.MED_LLM_HEALTH_TTL:
+        return bool(_health_cache["ok"])
+    ok = provider.health_check()
+    _health_cache.update(ts=now, ok=ok)
+    return ok
 
 _KEY_BY_PROVIDER = {
     "anthropic": lambda: settings.ANTHROPIC_API_KEY,
@@ -25,10 +42,14 @@ def get_ai_provider() -> AIProvider:
         try:
             from app.services.ai.med_llm import MedLLMProvider
 
-            return MedLLMProvider()
+            med = MedLLMProvider()
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to init MedLLM provider: %s; using mock.", exc)
             return MockProvider()
+        if settings.MED_LLM_FALLBACK_MOCK and not _medllm_healthy(med):
+            logger.info("MedLLM micro-service unreachable; using offline mock.")
+            return MockProvider()
+        return med
 
     key_getter = _KEY_BY_PROVIDER.get(provider)
 

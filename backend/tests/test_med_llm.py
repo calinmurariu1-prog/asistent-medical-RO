@@ -89,9 +89,33 @@ def test_empty_response_returns_disclaimer(monkeypatch):
     ) == DISCLAIMER
 
 
-def test_factory_selects_medllm(monkeypatch):
+def test_factory_selects_medllm_when_healthy(monkeypatch):
     from app.services.ai import factory
 
     monkeypatch.setattr(factory.settings, "AI_DEFAULT_PROVIDER", "medllm")
-    provider = factory.get_ai_provider()
-    assert provider.__class__.__name__ == "MedLLMProvider"
+    monkeypatch.setattr(MedLLMProvider, "health_check", lambda self: True)
+    factory.reset_medllm_health_cache()
+    assert factory.get_ai_provider().__class__.__name__ == "MedLLMProvider"
+
+
+def test_factory_falls_back_to_mock_when_medllm_down(monkeypatch):
+    from app.services.ai import factory
+
+    monkeypatch.setattr(factory.settings, "AI_DEFAULT_PROVIDER", "medllm")
+    monkeypatch.setattr(MedLLMProvider, "health_check", lambda self: False)
+    factory.reset_medllm_health_cache()
+    assert factory.get_ai_provider().__class__.__name__ == "MockProvider"
+
+
+def test_health_check(monkeypatch):
+    class _R:
+        status_code = 200
+
+    monkeypatch.setattr("app.services.ai.med_llm.httpx.get", lambda url, timeout: _R())
+    assert MedLLMProvider().health_check() is True
+
+    def boom(url, timeout):
+        raise httpx.RequestError("down")
+
+    monkeypatch.setattr("app.services.ai.med_llm.httpx.get", boom)
+    assert MedLLMProvider().health_check() is False

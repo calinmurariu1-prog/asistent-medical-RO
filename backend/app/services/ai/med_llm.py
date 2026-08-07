@@ -34,6 +34,15 @@ class MedLLMProvider:
     timeout: float = field(default_factory=lambda: settings.MED_LLM_TIMEOUT)
 
     # ------------------------------------------------------------------
+    def health_check(self) -> bool:
+        """Return True if the micro-service answers GET /health."""
+        try:
+            resp = httpx.get(f"{self.base_url}/health", timeout=2.0)
+            return resp.status_code == 200
+        except httpx.RequestError:
+            return False
+
+    # ------------------------------------------------------------------
     def _complete(self, system: str, user: str) -> str:
         """Call the micro-service POST /complete; fall back to the disclaimer."""
         try:

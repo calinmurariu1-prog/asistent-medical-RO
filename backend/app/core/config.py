@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     # micro-service handles credentials. Reachable by service name in Docker.
     MED_LLM_URL: str = "http://med-llm:3031"
     MED_LLM_TIMEOUT: float = 90.0
+    # If the micro-service is unreachable, fall back to the offline mock instead
+    # of returning the disclaimer for every call (smoother dev experience).
+    MED_LLM_FALLBACK_MOCK: bool = True
+    MED_LLM_HEALTH_TTL: float = 30.0
 
     # ---- Maps / provider search (Google Places) ----
     # Server-side key (IP-restricted). Never exposed to the browser.
