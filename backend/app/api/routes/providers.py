@@ -15,6 +15,7 @@ from app.schemas.provider import (
 )
 from app.services import specialty_map
 from app.services.places import PlacesProvider, get_places_provider
+from app.services.places.scoring import quality
 
 router = APIRouter(prefix="/providers", tags=["providers"])
 
@@ -42,6 +43,7 @@ def nearby(
     city: str | None = None,
     specialty: str | None = None,
     radius_m: int | None = Query(default=None, ge=100, le=50000),
+    sort: str = Query(default="distance", pattern="^(distance|score)$"),
     patient: Patient = Depends(get_current_patient),
     db: Session = Depends(get_db),
     places: PlacesProvider = Depends(get_places_provider),
@@ -67,6 +69,14 @@ def nearby(
     results = places.search_nearby(
         lat=lat, lng=lng, radius_m=radius, specialty=specialty
     )
+
+    # Attach a transparent quality score to each result.
+    for r in results:
+        r.score, r.score_label = quality(r.rating, r.ratings_total)
+
+    if sort == "score":
+        results.sort(key=lambda r: (r.score is None, -(r.score or 0)))
+
     return NearbyProvidersOut(
         specialty=specialty,
         center={"lat": lat, "lng": lng},

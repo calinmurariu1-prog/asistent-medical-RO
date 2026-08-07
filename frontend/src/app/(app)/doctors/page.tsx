@@ -12,9 +12,20 @@ export default function DoctorsPage() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [city, setCity] = useState("");
   const [radius, setRadius] = useState(5000);
+  const [sort, setSort] = useState<"distance" | "score">("distance");
   const [data, setData] = useState<NearbyProviders | null>(null);
   const [loading, setLoading] = useState(false);
   const [geoState, setGeoState] = useState<"idle" | "asking" | "denied" | "ok">("idle");
+
+  const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
+
+  function scoreTone(score: number | null): "green" | "blue" | "amber" | "neutral" {
+    if (score == null) return "neutral";
+    if (score >= 85) return "green";
+    if (score >= 70) return "blue";
+    if (score >= 55) return "amber";
+    return "neutral";
+  }
 
   useEffect(() => {
     api
@@ -42,25 +53,29 @@ export default function DoctorsPage() {
     );
   }
 
-  async function search() {
+  async function search(sortArg: "distance" | "score" = sort) {
+    if (!coords && !city.trim()) return;
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (coords) {
         params.set("lat", String(coords.lat));
         params.set("lng", String(coords.lng));
-      } else if (city.trim()) {
-        params.set("city", city.trim());
       } else {
-        setLoading(false);
-        return;
+        params.set("city", city.trim());
       }
       if (specialty) params.set("specialty", specialty);
       params.set("radius_m", String(radius));
+      params.set("sort", sortArg);
       setData(await api.get<NearbyProviders>(`/providers/nearby?${params}`));
     } finally {
       setLoading(false);
     }
+  }
+
+  function changeSort(s: "distance" | "score") {
+    setSort(s);
+    if (data) search(s);
   }
 
   return (
@@ -124,7 +139,7 @@ export default function DoctorsPage() {
               <option value={25000}>25 km</option>
             </select>
           </label>
-          <Button onClick={search} disabled={loading || (!coords && !city.trim())}>
+          <Button onClick={() => search()} disabled={loading || (!coords && !city.trim())}>
             <MapPin size={16} /> Caută
           </Button>
         </div>
@@ -143,27 +158,71 @@ export default function DoctorsPage() {
 
       {data && !loading && (
         <div className="space-y-3">
-          <div className="text-sm text-muted">
-            {data.results.length} rezultate pentru{" "}
-            <strong className="text-fg">{data.specialty}</strong>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm text-muted">
+              {data.results.length} rezultate pentru{" "}
+              <strong className="text-fg">{data.specialty}</strong>
+            </div>
+            <div className="flex items-center gap-1 text-sm">
+              <span className="text-muted">Sortează:</span>
+              <button
+                onClick={() => changeSort("distance")}
+                className={`rounded-md px-2 py-1 ${sort === "distance" ? "brand-gradient text-white" : "text-muted hover:bg-bg"}`}
+              >
+                Distanță
+              </button>
+              <button
+                onClick={() => changeSort("score")}
+                className={`rounded-md px-2 py-1 ${sort === "score" ? "brand-gradient text-white" : "text-muted hover:bg-bg"}`}
+              >
+                Scor
+              </button>
+            </div>
           </div>
+
+          {mapsKey && (
+            <div className="overflow-hidden rounded-2xl border border-border">
+              <iframe
+                title="Hartă medici"
+                width="100%"
+                height="320"
+                style={{ border: 0 }}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                src={`https://www.google.com/maps/embed/v1/search?key=${mapsKey}&q=${encodeURIComponent(
+                  data.specialty,
+                )}&center=${data.center.lat},${data.center.lng}&zoom=13`}
+              />
+            </div>
+          )}
+
           {data.results.map((p, i) => (
             <Card key={p.place_id || i} className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="font-semibold">{p.name}</div>
-                <div className="text-sm text-muted">{p.address}</div>
-                <div className="mt-1 flex items-center gap-3 text-sm">
-                  {p.distance_km != null && (
-                    <Badge tone="blue">{p.distance_km} km</Badge>
-                  )}
-                  {p.rating != null && (
-                    <span className="inline-flex items-center gap-1 text-amber-500">
-                      <Star size={14} fill="currentColor" /> {p.rating}
-                      {p.ratings_total != null && (
-                        <span className="text-muted"> ({p.ratings_total})</span>
-                      )}
-                    </span>
-                  )}
+              <div className="flex items-start gap-4">
+                {p.score != null && (
+                  <div className="text-center">
+                    <div className="text-2xl font-bold brand-text-gradient tnum">
+                      {p.score}%
+                    </div>
+                    <Badge tone={scoreTone(p.score)}>{p.score_label}</Badge>
+                  </div>
+                )}
+                <div>
+                  <div className="font-semibold">{p.name}</div>
+                  <div className="text-sm text-muted">{p.address}</div>
+                  <div className="mt-1 flex items-center gap-3 text-sm">
+                    {p.distance_km != null && (
+                      <Badge tone="blue">{p.distance_km} km</Badge>
+                    )}
+                    {p.rating != null && (
+                      <span className="inline-flex items-center gap-1 text-amber-500">
+                        <Star size={14} fill="currentColor" /> {p.rating}
+                        {p.ratings_total != null && (
+                          <span className="text-muted"> ({p.ratings_total})</span>
+                        )}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -184,7 +243,10 @@ export default function DoctorsPage() {
               </div>
             </Card>
           ))}
-          <p className="text-xs text-muted">{data.disclaimer}</p>
+          <p className="text-xs text-muted">
+            Scorul (0–100%) combină ratingul cu numărul de recenzii — este un
+            ajutor de orientare, nu o garanție medicală. {data.disclaimer}
+          </p>
         </div>
       )}
     </div>

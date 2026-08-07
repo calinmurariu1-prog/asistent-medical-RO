@@ -18,6 +18,8 @@ class PlaceResult:
     place_id: str | None = None
     phone: str | None = None
     maps_url: str | None = None
+    score: int | None = None
+    score_label: str | None = None
 
 
 class PlacesProvider(Protocol):

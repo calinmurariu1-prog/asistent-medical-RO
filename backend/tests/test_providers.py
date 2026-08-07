@@ -72,3 +72,33 @@ def test_nearby_requires_location(client):
     h = _auth(client)
     r = client.get(f"{API}/providers/nearby?specialty=Cardiolog", headers=h)
     assert r.status_code == 400
+
+
+def test_providers_have_quality_score(client):
+    h = _auth(client)
+    r = client.get(
+        f"{API}/providers/nearby?lat=44.43&lng=26.10&specialty=Cardiolog", headers=h
+    )
+    for p in r.json()["results"]:
+        assert 0 <= p["score"] <= 100
+        assert p["score_label"] in {"Excelent", "Foarte bun", "Bun", "Acceptabil"}
+
+
+def test_nearby_sort_by_score(client):
+    h = _auth(client)
+    r = client.get(
+        f"{API}/providers/nearby?lat=44.43&lng=26.10&specialty=Cardiolog&sort=score",
+        headers=h,
+    )
+    scores = [p["score"] for p in r.json()["results"]]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_quality_scoring_helper():
+    from app.services.places.scoring import quality
+
+    assert quality(None, None) == (None, "Fără evaluări")
+    high, hlabel = quality(4.9, 500)
+    low, llabel = quality(3.0, 2)
+    assert high > low
+    assert hlabel == "Excelent"

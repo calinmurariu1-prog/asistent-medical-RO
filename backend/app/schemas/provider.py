@@ -21,6 +21,8 @@ class ProviderOut(BaseModel):
     place_id: str | None
     phone: str | None
     maps_url: str | None
+    score: int | None
+    score_label: str | None
 
 
 class NearbyProvidersOut(BaseModel):

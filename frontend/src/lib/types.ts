@@ -119,6 +119,8 @@ export interface ProviderResult {
   place_id: string | null;
   phone: string | null;
   maps_url: string | null;
+  score: number | null;
+  score_label: string | null;
 }
 
 export interface NearbyProviders {
