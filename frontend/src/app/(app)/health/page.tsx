@@ -8,11 +8,18 @@ import {
   Smartphone,
   Trash2,
   Upload,
+  Watch,
 } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
-import { healthNativeAvailable, syncNativeHealth } from "@/lib/health-native";
+import {
+  healthNativeAvailable,
+  isAutoSyncEnabled,
+  setAutoSyncEnabled,
+  syncNativeHealth,
+} from "@/lib/health-native";
 import type {
+  HealthDevice,
   HealthImportResult,
   HealthSourceId,
   HealthSourceInfo,
@@ -118,18 +125,29 @@ function SourceCard({
 export default function HealthPage() {
   const sources = useFetch<HealthSourceInfo[]>("/health-data/sources");
   const summary = useFetch<HealthSummary>("/health-data/summary");
+  const devices = useFetch<HealthDevice[]>("/health-data/devices");
   const [native, setNative] = useState(false);
+  const [autoSync, setAutoSync] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [syncErr, setSyncErr] = useState<string | null>(null);
 
   useEffect(() => {
     healthNativeAvailable().then(setNative);
+    isAutoSyncEnabled().then(setAutoSync);
   }, []);
+
+  async function toggleAutoSync() {
+    const next = !autoSync;
+    setAutoSync(next);
+    await setAutoSyncEnabled(next);
+    if (next) syncPhone();
+  }
 
   function reloadAll() {
     sources.reload();
     summary.reload();
+    devices.reload();
   }
 
   async function loadSample() {
@@ -167,25 +185,61 @@ export default function HealthPage() {
       </p>
 
       {native && (
-        <Card className="flex flex-wrap items-center justify-between gap-3 ring-2 ring-brand-blue/30">
-          <div className="flex items-start gap-2">
-            <Smartphone size={18} className="mt-0.5 text-brand-blue" />
-            <div>
-              <p className="font-semibold">Sincronizare directă de pe telefon</p>
-              <p className="text-sm text-muted">
-                Citește automat din Sănătate (HealthKit) / Health Connect —
-                fără export de fișiere.
-              </p>
+        <Card className="space-y-3 ring-2 ring-brand-blue/30">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-2">
+              <Smartphone size={18} className="mt-0.5 text-brand-blue" />
+              <div>
+                <p className="font-semibold">Sincronizare directă de pe telefon</p>
+                <p className="text-sm text-muted">
+                  Citește automat din Sănătate (HealthKit) / Health Connect și
+                  detectează ceasul — fără export de fișiere.
+                </p>
+              </div>
             </div>
+            <Button onClick={syncPhone} disabled={syncing}>
+              <HeartPulse size={16} />
+              {syncing ? "Se sincronizează…" : "Sincronizează acum"}
+            </Button>
           </div>
-          <Button onClick={syncPhone} disabled={syncing}>
-            <HeartPulse size={16} />
-            {syncing ? "Se sincronizează…" : "Sincronizează acum"}
-          </Button>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={autoSync}
+              onChange={toggleAutoSync}
+              className="h-4 w-4 accent-brand-blue"
+            />
+            Sincronizare automată la deschiderea aplicației
+          </label>
         </Card>
       )}
       {syncMsg && <p className="text-sm text-brand-green">{syncMsg}</p>}
       {syncErr && <p className="text-sm text-red-600">{syncErr}</p>}
+
+      {(devices.data || []).length > 0 && (
+        <Card className="space-y-3">
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <Watch size={18} className="text-brand-violet" /> Dispozitive detectate
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(devices.data || []).map((d) => (
+              <div
+                key={`${d.source}-${d.name}`}
+                className="flex items-center justify-between rounded-lg border border-border p-3"
+              >
+                <div>
+                  <p className="font-medium">{d.name}</p>
+                  <p className="text-xs text-muted">
+                    {d.vendor ? `${d.vendor} · ` : ""}
+                    {d.metrics.length} metrici
+                  </p>
+                </div>
+                <Badge tone="green">activ</Badge>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {sources.loading ? (

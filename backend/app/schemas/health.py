@@ -53,11 +53,28 @@ class HealthSampleIn(BaseModel):
     recorded_at: datetime
 
 
+class HealthDeviceIn(BaseModel):
+    name: str                       # e.g. "Apple Watch Series 9"
+    model: str | None = None
+    vendor: str | None = None       # inferred server-side if omitted
+    metrics: list[str] = []         # metric types this device provides
+
+
 class HealthImportJsonRequest(BaseModel):
     """Normalized samples pushed directly (e.g. from native HealthKit / Health
-    Connect on the mobile app)."""
+    Connect on the mobile app), plus the wearables that produced them."""
 
     samples: list[HealthSampleIn]
+    devices: list[HealthDeviceIn] = []
+
+
+class HealthDeviceOut(BaseModel):
+    source: HealthSource
+    name: str
+    model: str | None = None
+    vendor: str | None = None
+    metrics: list[str] = []
+    last_seen_at: str
 
 
 class HealthSourceInfo(BaseModel):

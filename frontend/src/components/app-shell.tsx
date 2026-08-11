@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useNativeShell } from "@/lib/native";
+import { useHealthAutoSync } from "@/lib/health-native";
 import { Spinner } from "@/components/ui";
 import { LogoMark } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-provider";
@@ -44,6 +45,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   useNativeShell();
+  useHealthAutoSync(); // native: auto-import wearable data on open/resume
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");

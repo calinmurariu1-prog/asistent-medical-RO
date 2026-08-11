@@ -1,23 +1,25 @@
 "use client";
 
+import { useEffect } from "react";
 import { api } from "@/lib/api";
 import { isNative } from "@/lib/native";
 import type { HealthImportResult } from "@/lib/types";
 
 /**
  * Native health integration: reads on-device data from **HealthKit** (iOS) and
- * **Health Connect** (Android), maps it to our canonical metric types, and pushes
- * it to `POST /health-data/import-json/{source}` — the same normalized pipeline
- * as the file import.
+ * **Health Connect** (Android), auto-detects the wearable that produced it
+ * (e.g. Apple Watch), and pushes both to the backend — no file upload.
  *
- * The native plugin is resolved via Capacitor's `registerPlugin`, so there is no
- * hard npm dependency and the web build is unaffected. Install the plugin on the
- * native side (see docs/MOBILE.md), e.g. `capacitor-health`:
- *   npm i capacitor-health && npx cap sync
+ * Sync runs automatically when the app opens/resumes (`useHealthAutoSync`),
+ * gated by a user preference. The native plugin is resolved via Capacitor's
+ * `registerPlugin`, so there is no hard npm dependency (web build unaffected).
+ * Install on the native side (see docs/MOBILE.md), e.g. `capacitor-health`.
  *
- * `readSamples()` is the single seam that talks to the plugin — adapt its method
- * names/shape to the plugin you pick.
+ * `readData()` is the single seam that talks to the plugin — adapt its
+ * method/field names to the plugin you pick.
  */
+
+const AUTOSYNC_KEY = "health_autosync_enabled";
 
 // Our canonical metric -> the native plugin's data-type identifier.
 const METRIC_DATATYPES: Record<string, string> = {
@@ -33,10 +35,16 @@ const METRIC_DATATYPES: Record<string, string> = {
 };
 
 interface NativeSample {
-  type: string; // canonical metric type
+  type: string;
   value: number;
   unit?: string;
-  recorded_at: string; // ISO 8601
+  recorded_at: string;
+}
+
+interface DeviceInfo {
+  name: string;
+  model?: string;
+  metrics: string[];
 }
 
 async function plugin(): Promise<any | null> {
@@ -89,18 +97,19 @@ export async function requestHealthPermissions(): Promise<boolean> {
 }
 
 /**
- * Read the requested metrics from the device for the last `daysBack` days.
- *
- * This is the plugin-specific seam. It queries a daily aggregate per metric and
- * returns normalized samples; adjust the call to match your plugin's API.
+ * Read metrics + the source device for the last `daysBack` days.
+ * Plugin-specific seam — adjust to your plugin's query API and field names.
  */
-async function readSamples(daysBack: number): Promise<NativeSample[]> {
+async function readData(
+  daysBack: number,
+): Promise<{ samples: NativeSample[]; devices: DeviceInfo[] }> {
   const p = await plugin();
-  if (!p) return [];
+  if (!p) return { samples: [], devices: [] };
 
   const end = new Date();
   const start = new Date(end.getTime() - daysBack * 24 * 60 * 60 * 1000);
-  const out: NativeSample[] = [];
+  const samples: NativeSample[] = [];
+  const deviceMetrics = new Map<string, Set<string>>();
 
   for (const [metric, dataType] of Object.entries(METRIC_DATATYPES)) {
     try {
@@ -114,24 +123,34 @@ async function readSamples(daysBack: number): Promise<NativeSample[]> {
         const value = Number(row.value ?? row.total ?? row.sum);
         const when = row.startDate ?? row.date ?? row.startTime;
         if (Number.isFinite(value) && when) {
-          out.push({
+          samples.push({
             type: metric,
             value,
             unit: row.unit,
             recorded_at: new Date(when).toISOString(),
           });
+          // Source device off the sample metadata (name varies by plugin).
+          const dev = row.sourceName ?? row.device ?? row.source ?? row.sourceBundleId;
+          if (dev) {
+            if (!deviceMetrics.has(dev)) deviceMetrics.set(dev, new Set());
+            deviceMetrics.get(dev)!.add(metric);
+          }
         }
       }
     } catch {
-      /* metric unsupported by the plugin / no permission — skip */
+      /* metric unsupported / no permission — skip */
     }
   }
-  return out;
+
+  const devices: DeviceInfo[] = [...deviceMetrics.entries()].map(
+    ([name, metrics]) => ({ name, metrics: [...metrics] }),
+  );
+  return { samples, devices };
 }
 
 /**
- * Full native sync: request permissions, read samples, push to the backend.
- * Returns the import result, or throws with a user-friendly message.
+ * Full native sync: request permissions, read samples + devices, push to the
+ * backend. Returns the import result, or throws with a user-friendly message.
  */
 export async function syncNativeHealth(
   daysBack = 30,
@@ -140,7 +159,7 @@ export async function syncNativeHealth(
   if (!source) throw new Error("Sincronizarea nativă nu este disponibilă aici.");
 
   await requestHealthPermissions();
-  const samples = await readSamples(daysBack);
+  const { samples, devices } = await readData(daysBack);
   if (samples.length === 0) {
     throw new Error(
       "Nicio valoare de citit. Verifică permisiunile pentru aplicațiile de sănătate.",
@@ -148,5 +167,80 @@ export async function syncNativeHealth(
   }
   return api.post<HealthImportResult>(`/health-data/import-json/${source}`, {
     samples,
+    devices,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Auto-sync preference + on-open/resume trigger
+// ---------------------------------------------------------------------------
+async function prefs(): Promise<any | null> {
+  try {
+    const { Preferences } = await import("@capacitor/preferences");
+    return Preferences;
+  } catch {
+    return null;
+  }
+}
+
+export async function isAutoSyncEnabled(): Promise<boolean> {
+  const P = await prefs();
+  if (!P) return true; // default on when preferences unavailable
+  try {
+    const { value } = await P.get({ key: AUTOSYNC_KEY });
+    return value !== "false";
+  } catch {
+    return true;
+  }
+}
+
+export async function setAutoSyncEnabled(enabled: boolean): Promise<void> {
+  const P = await prefs();
+  if (!P) return;
+  try {
+    await P.set({ key: AUTOSYNC_KEY, value: enabled ? "true" : "false" });
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Automatically sync health data when the app opens and every time it resumes
+ * from the background — no manual action, no file upload. No-op on web or when
+ * auto-sync is disabled.
+ */
+export function useHealthAutoSync(onResult?: (r: HealthImportResult) => void): void {
+  useEffect(() => {
+    let removeListener: (() => void) | undefined;
+    let cancelled = false;
+
+    (async () => {
+      if (!(await healthNativeAvailable())) return;
+      if (!(await isAutoSyncEnabled())) return;
+
+      const run = async () => {
+        try {
+          const r = await syncNativeHealth(30);
+          if (!cancelled) onResult?.(r);
+        } catch {
+          /* silent: background sync shouldn't interrupt the user */
+        }
+      };
+
+      await run(); // initial sync on open
+
+      try {
+        const { App } = await import("@capacitor/app");
+        const handle = await App.addListener("resume", run);
+        removeListener = () => handle.remove();
+      } catch {
+        /* App plugin unavailable */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      removeListener?.();
+    };
+  }, [onResult]);
 }

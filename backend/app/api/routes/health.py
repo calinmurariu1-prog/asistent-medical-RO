@@ -17,14 +17,17 @@ from app.models.enums import HealthMetricType, HealthSource
 from app.models.health import HealthSample
 from app.models.patient import Patient
 from app.schemas.health import (
+    HealthDeviceOut,
     HealthImportJsonRequest,
     HealthSampleOut,
     HealthSourceInfo,
     HealthSummaryOut,
     ImportResultOut,
 )
+from app.services.health import devices as devices_service
 from app.services.health import get_importer, service
 from app.services.health.base import parse_generic_samples
+from app.services.health.devices import DetectedDevice
 from app.services.health.mock import sample_series
 
 router = APIRouter(prefix="/health-data", tags=["health-data"])
@@ -82,6 +85,29 @@ def list_sources(
                 sample_count=n,
                 how_to=meta["how_to"],
                 accepts=meta["accepts"],
+            )
+        )
+    return out
+
+
+@router.get("/devices", response_model=list[HealthDeviceOut])
+def list_devices(
+    patient: Patient = Depends(get_current_patient),
+    db: Session = Depends(get_db),
+) -> list[HealthDeviceOut]:
+    """Wearables auto-detected from the synced data (e.g. Apple Watch)."""
+    import json
+
+    out = []
+    for d in devices_service.list_devices(db, patient.id):
+        out.append(
+            HealthDeviceOut(
+                source=d.source,
+                name=d.name,
+                model=d.model,
+                vendor=d.vendor,
+                metrics=json.loads(d.metrics) if d.metrics else [],
+                last_seen_at=d.last_seen_at.isoformat(),
             )
         )
     return out
@@ -165,6 +191,21 @@ def import_health_json(
         {"samples": [s.model_dump() for s in payload.samples]}
     )
     result = service.persist_samples(db, patient.id, source, samples)
+
+    # Auto-detect the wearables that produced the data.
+    if payload.devices:
+        devices_service.upsert_devices(
+            db,
+            patient.id,
+            source,
+            [
+                DetectedDevice(
+                    name=d.name, model=d.model, vendor=d.vendor, metrics=d.metrics
+                )
+                for d in payload.devices
+            ],
+        )
+
     message = (
         f"{result.imported} valori sincronizate"
         + (f", {result.duplicates} deja existente" if result.duplicates else "")

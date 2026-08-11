@@ -82,6 +82,17 @@ de fișiere) și le trimite în același pipeline normalizat (`/health-data`).
 Datele native se mapează pe aceleași `HealthMetricType` și se trimit la
 `POST /health-data/import-json/{apple_health|google_health}` (import idempotent).
 
+**Detectare automată a ceasului + auto-sync.** Fiecare probă din HealthKit /
+Health Connect poartă dispozitivul-sursă (ex. „Apple Watch Series 9"). Clientul
+îl citește și îl trimite în câmpul `devices`; backend-ul deduce brandul
+(`infer_vendor`) și îl afișează la `GET /health-data/devices` („Dispozitive
+detectate" în UI). `useHealthAutoSync()` (montat în `AppShell`) sincronizează
+automat la **deschiderea** aplicației și la fiecare **resume** din fundal, gated
+de o preferință (`@capacitor/preferences`) — fără upload de fișiere, fără acțiune
+din partea utilizatorului. Sincronizarea reală în **background** (iOS
+`HKObserverQuery` + background delivery, Android WorkManager / Health Connect
+background reads) se activează în codul nativ al pluginului ales.
+
 ## Ce urmează (upgrade-uri native)
 - **Push notifications:** `@capacitor/push-notifications` + FCM/APNs.
 - **Stocare sigură:** token-urile pot trece de la `localStorage` la

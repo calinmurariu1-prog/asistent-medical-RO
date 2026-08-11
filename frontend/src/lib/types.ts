@@ -172,6 +172,15 @@ export interface HealthSummary {
   metrics: HealthMetricSummary[];
 }
 
+export interface HealthDevice {
+  source: HealthSourceId;
+  name: string;
+  model: string | null;
+  vendor: string | null;
+  metrics: string[];
+  last_seen_at: string;
+}
+
 export interface HealthImportResult {
   source: HealthSourceId;
   imported: number;

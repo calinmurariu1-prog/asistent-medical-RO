@@ -163,6 +163,41 @@ def test_import_json_native_sync(client):
     assert "apple_health" in summary["connected_sources"]
 
 
+def test_native_sync_detects_wearable(client):
+    h = _auth(client, email="watch@example.com")
+    payload = {
+        "samples": [
+            {"type": "steps", "value": 5000, "recorded_at": "2024-04-01T07:00:00Z"},
+            {"type": "heart_rate", "value": 61, "recorded_at": "2024-04-01T07:01:00Z"},
+        ],
+        "devices": [
+            {"name": "Apple Watch Series 9", "metrics": ["steps", "heart_rate"]},
+        ],
+    }
+    r = client.post(
+        f"{API}/health-data/import-json/apple_health", headers=h, json=payload
+    )
+    assert r.status_code == 200, r.text
+
+    devices = client.get(f"{API}/health-data/devices", headers=h).json()
+    assert len(devices) == 1
+    dev = devices[0]
+    assert dev["name"] == "Apple Watch Series 9"
+    assert dev["vendor"] == "Apple"  # inferred server-side
+    assert set(dev["metrics"]) == {"steps", "heart_rate"}
+    assert dev["source"] == "apple_health"
+
+    # Re-sync merges metrics and updates last_seen (no duplicate device).
+    payload["devices"][0]["metrics"] = ["sleep"]
+    payload["samples"] = [
+        {"type": "sleep", "value": 400, "recorded_at": "2024-04-02T07:00:00Z"}
+    ]
+    client.post(f"{API}/health-data/import-json/apple_health", headers=h, json=payload)
+    devices = client.get(f"{API}/health-data/devices", headers=h).json()
+    assert len(devices) == 1
+    assert set(devices[0]["metrics"]) == {"steps", "heart_rate", "sleep"}
+
+
 def test_import_json_rejects_manual_source(client):
     h = _auth(client, email="native2@example.com")
     r = client.post(
