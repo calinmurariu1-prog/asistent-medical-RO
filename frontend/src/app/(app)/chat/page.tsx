@@ -42,12 +42,12 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-8rem)] max-w-3xl flex-col">
+    <div className="mx-auto flex h-full max-w-3xl flex-col">
       <div className="mb-4">
         <PageHeader title="Chat Medical AI" icon={MessageSquare} />
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
         {messages.length === 0 && (
           <EmptyState
             icon={MessageSquare}

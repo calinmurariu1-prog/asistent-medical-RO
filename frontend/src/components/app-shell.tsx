@@ -60,7 +60,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (loading || !user) return <Spinner />;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-[100dvh] overflow-hidden">
       {mobileOpen && (
         <div
           onClick={() => setMobileOpen(false)}
@@ -108,7 +108,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border/70 bg-surface/80 px-4 py-3 backdrop-blur sm:px-6">
+        <header className="flex items-center justify-between border-b border-border/70 bg-surface px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileOpen(true)}
@@ -121,7 +121,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <ThemeToggle />
         </header>
-        <main className="flex-1 overflow-x-hidden p-4 pb-24 sm:p-6 sm:pb-6">
+        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 sm:p-6 sm:pb-6">
           {children}
         </main>
       </div>
