@@ -36,7 +36,7 @@ pdf2image==1.17.0
 pydicom==3.0.1
 
 # ---- Reports / export ----
-reportlab==4.2.5
+reportlab==5.0.0
 python-docx==1.1.2
 
 # ---- Payments ----
