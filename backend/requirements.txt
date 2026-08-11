@@ -29,7 +29,7 @@ openai==1.59.6
 google-generativeai==0.8.3
 
 # ---- OCR / documents ----
-pypdf==5.1.0
+pypdf==6.14.2
 pillow==11.0.0
 pytesseract==0.3.13
 pdf2image==1.17.0
