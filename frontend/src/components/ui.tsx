@@ -1,5 +1,6 @@
 import type {
   ButtonHTMLAttributes,
+  ElementType,
   HTMLAttributes,
   InputHTMLAttributes,
   ReactNode,
@@ -7,6 +8,62 @@ import type {
 
 function cx(...parts: Array<string | false | undefined>): string {
   return parts.filter(Boolean).join(" ");
+}
+
+/** Consistent page heading: gradient icon chip + title + optional subtitle/action. */
+export function PageHeader({
+  title,
+  subtitle,
+  icon: Icon,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: ElementType;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        {Icon && (
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl brand-gradient text-white shadow-soft">
+            <Icon size={20} />
+          </span>
+        )}
+        <div>
+          <h1 className="text-2xl font-bold leading-tight">{title}</h1>
+          {subtitle && <p className="text-sm text-muted">{subtitle}</p>}
+        </div>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+/** Friendly empty state with an icon chip, message and optional action. */
+export function EmptyState({
+  icon: Icon,
+  title,
+  hint,
+  action,
+}: {
+  icon?: ElementType;
+  title: string;
+  hint?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <Card className="flex flex-col items-center gap-3 py-10 text-center">
+      {Icon && (
+        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-2 text-brand-blue">
+          <Icon size={24} />
+        </span>
+      )}
+      <p className="font-semibold">{title}</p>
+      {hint && <p className="max-w-sm text-sm text-muted">{hint}</p>}
+      {action}
+    </Card>
+  );
 }
 
 export function Button({

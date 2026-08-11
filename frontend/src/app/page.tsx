@@ -71,7 +71,7 @@ export default function LandingPage() {
         {features.map((f) => (
           <div
             key={f.title}
-            className="rounded-2xl border border-border bg-surface p-6 shadow-sm"
+            className="rounded-3xl border border-border/70 bg-surface p-6 shadow-soft"
           >
             <f.icon className="mb-3 text-brand-violet" />
             <h3 className="font-semibold">{f.title}</h3>

@@ -1,11 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { CalendarDays, Plus, Trash2 } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import type { Appointment } from "@/lib/types";
-import { Badge, Button, Card, Input, Spinner } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  PageHeader,
+  Spinner,
+} from "@/components/ui";
 
 export default function AppointmentsPage() {
   const { data, loading, reload } = useFetch<Appointment[]>("/appointments");
@@ -31,7 +39,11 @@ export default function AppointmentsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Programări</h1>
+      <PageHeader
+        title="Programări"
+        subtitle="Ține evidența consultațiilor și investigațiilor."
+        icon={CalendarDays}
+      />
 
       <Card>
         <form onSubmit={add} className="flex flex-wrap gap-2">
@@ -56,7 +68,11 @@ export default function AppointmentsPage() {
       {loading ? (
         <Spinner />
       ) : (data || []).length === 0 ? (
-        <p className="text-sm text-muted">Nicio programare.</p>
+        <EmptyState
+          icon={CalendarDays}
+          title="Nicio programare"
+          hint="Adaugă o programare ca să o ai la îndemână și să primești memento-uri."
+        />
       ) : (
         <div className="space-y-2">
           {(data || []).map((a) => (

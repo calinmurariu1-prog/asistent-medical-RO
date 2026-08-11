@@ -1,11 +1,18 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Upload } from "lucide-react";
+import { FileText, Upload } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import type { DocumentItem } from "@/lib/types";
-import { Badge, Button, Card, Spinner } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  PageHeader,
+  Spinner,
+} from "@/components/ui";
 
 const CATEGORIES = [
   ["lab", "Analize laborator"],
@@ -48,7 +55,11 @@ export default function DocumentsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Documente</h1>
+      <PageHeader
+        title="Documente"
+        subtitle="Încarcă analize și scrisori — AI extrage textul și valorile."
+        icon={FileText}
+      />
 
       <Card>
         <form onSubmit={onUpload} className="flex flex-wrap items-center gap-3">
@@ -84,7 +95,11 @@ export default function DocumentsPage() {
       {loading ? (
         <Spinner />
       ) : (data || []).length === 0 ? (
-        <p className="text-sm text-muted">Niciun document încărcat.</p>
+        <EmptyState
+          icon={FileText}
+          title="Niciun document încărcat"
+          hint="Încarcă primul tău document (PDF, poză sau DICOM) pentru a începe."
+        />
       ) : (
         <div className="space-y-3">
           {(data || []).map((d) => (
@@ -104,7 +119,7 @@ export default function DocumentsPage() {
                 </Badge>
               </div>
               {d.ai_summary && (
-                <p className="mt-3 rounded-lg bg-bg p-3 text-sm text-fg/80">
+                <p className="mt-3 rounded-2xl bg-surface-2 p-3 text-sm text-fg/80">
                   {d.ai_summary}
                 </p>
               )}

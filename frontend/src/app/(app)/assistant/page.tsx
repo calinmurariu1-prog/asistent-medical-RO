@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
 import type { AiSkill } from "@/lib/types";
-import { Button, Card, Input, Spinner } from "@/components/ui";
+import { Button, Card, Input, PageHeader, Spinner } from "@/components/ui";
 
 const INPUT_LABELS: Record<string, string> = {
   name: "Denumire medicament",
@@ -52,12 +52,11 @@ export default function AssistantPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Asistent AI</h1>
-        <p className="text-muted text-sm">
-          Capabilități AI orientative — alege una și completează câmpurile.
-        </p>
-      </div>
+      <PageHeader
+        title="Asistent AI"
+        subtitle="Capabilități AI orientative — alege una și completează câmpurile."
+        icon={Sparkles}
+      />
 
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
         <div className="space-y-2">
@@ -65,10 +64,10 @@ export default function AssistantPage() {
             <button
               key={s.name}
               onClick={() => select(s)}
-              className={`w-full rounded-xl border p-3 text-left text-sm transition ${
+              className={`w-full rounded-2xl border p-3 text-left text-sm transition ${
                 active?.name === s.name
                   ? "border-brand-blue bg-brand-blue/5"
-                  : "border-border hover:bg-bg"
+                  : "border-border hover:bg-surface-2"
               }`}
             >
               <div className="font-medium">{s.title}</div>
@@ -93,7 +92,7 @@ export default function AssistantPage() {
                     value={values[key] || ""}
                     onChange={(e) => setValues({ ...values, [key]: e.target.value })}
                     rows={5}
-                    className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20"
                   />
                 ) : (
                   <Input
@@ -110,7 +109,7 @@ export default function AssistantPage() {
 
               {loading && <Spinner />}
               {result && (
-                <div className="whitespace-pre-wrap rounded-lg bg-bg p-4 text-sm">
+                <div className="whitespace-pre-wrap rounded-2xl bg-surface-2 p-4 text-sm">
                   {result}
                 </div>
               )}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { MapPin, Navigation, Phone, Star } from "lucide-react";
 import { api } from "@/lib/api";
 import type { NearbyProviders, SpecialtySuggestion } from "@/lib/types";
-import { Badge, Button, Card, Input, Spinner } from "@/components/ui";
+import { Badge, Button, Card, Input, PageHeader, Spinner } from "@/components/ui";
 
 export default function DoctorsPage() {
   const [specialties, setSpecialties] = useState<SpecialtySuggestion[]>([]);
@@ -80,11 +80,11 @@ export default function DoctorsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Găsește medici în apropiere</h1>
-      <p className="text-muted -mt-3 text-sm">
-        Pe baza problemelor detectate în dosarul tău, îți sugerăm specialitatea
-        potrivită și medici din raza aleasă.
-      </p>
+      <PageHeader
+        title="Găsește medici"
+        subtitle="Îți sugerăm specialitatea potrivită și medici din raza aleasă."
+        icon={MapPin}
+      />
 
       <Card className="space-y-4">
         {specialties.length > 0 && (

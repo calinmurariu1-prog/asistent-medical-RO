@@ -25,7 +25,7 @@ import type {
   HealthSourceInfo,
   HealthSummary,
 } from "@/lib/types";
-import { Badge, Button, Card, Spinner } from "@/components/ui";
+import { Badge, Button, Card, PageHeader, Spinner } from "@/components/ui";
 
 const ACCEPT: Record<HealthSourceId, string> = {
   apple_health: ".zip,.xml",
@@ -172,17 +172,16 @@ export default function HealthPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Date de sănătate</h1>
-        <Button variant="outline" onClick={loadSample}>
-          <Activity size={16} /> Încarcă date demo
-        </Button>
-      </div>
-
-      <p className="text-sm text-muted">
-        Importă măsurătorile din aplicațiile de sănătate (pași, puls, somn,
-        greutate, SpO₂ etc.). Datele sunt normalizate și urmărite în timp.
-      </p>
+      <PageHeader
+        title="Date de sănătate"
+        subtitle="Pași, puls, somn, greutate, SpO₂ — normalizate și urmărite în timp."
+        icon={HeartPulse}
+        action={
+          <Button variant="outline" onClick={loadSample}>
+            <Activity size={16} /> Date demo
+          </Button>
+        }
+      />
 
       {native && (
         <Card className="space-y-3 ring-2 ring-brand-blue/30">

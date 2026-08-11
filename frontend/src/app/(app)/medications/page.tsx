@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Plus, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { AlertTriangle, Pill, Plus, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import type { Medication } from "@/lib/types";
-import { Badge, Button, Card, Input, Spinner } from "@/components/ui";
+import { Badge, Button, Card, Input, PageHeader, Spinner } from "@/components/ui";
 
 interface CheckResult {
   interactions: { drug_a: string; drug_b: string; severity: string; description: string }[];
@@ -59,12 +59,16 @@ export default function MedicationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Medicamente</h1>
-        <Button variant="outline" onClick={runCheck}>
-          <ShieldCheck size={16} /> Verifică interacțiuni
-        </Button>
-      </div>
+      <PageHeader
+        title="Medicamente"
+        subtitle="Tratamentele tale active, cu verificare de interacțiuni."
+        icon={Pill}
+        action={
+          <Button variant="outline" onClick={runCheck}>
+            <ShieldCheck size={16} /> Verifică interacțiuni
+          </Button>
+        }
+      />
 
       <Card>
         <form onSubmit={add} className="flex flex-wrap gap-2">

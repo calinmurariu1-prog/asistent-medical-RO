@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, User } from "lucide-react";
 import { api, downloadFile } from "@/lib/api";
 import type { PatientProfile } from "@/lib/types";
-import { Button, Card, Input, Spinner } from "@/components/ui";
+import { Button, Card, Input, PageHeader, Spinner } from "@/components/ui";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<PatientProfile | null>(null);
@@ -58,7 +58,11 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold">Profil</h1>
+      <PageHeader
+        title="Profil"
+        subtitle="Datele tale de bază și exportul dosarului medical."
+        icon={User}
+      />
 
       <Card>
         <form onSubmit={save} className="grid gap-4 sm:grid-cols-2">
@@ -89,7 +93,7 @@ export default function ProfilePage() {
             <select
               value={profile.sex || ""}
               onChange={(e) => update("sex", e.target.value)}
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm"
             >
               <option value="">-</option>
               <option value="male">Masculin</option>

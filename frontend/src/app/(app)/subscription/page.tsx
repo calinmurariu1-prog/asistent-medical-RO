@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Sparkles } from "lucide-react";
+import { Check, CreditCard, Sparkles } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import { iapAvailable, purchasePlan } from "@/lib/iap";
 import type { Plan, PlanId, Subscription } from "@/lib/types";
-import { Badge, Button, Card, Spinner } from "@/components/ui";
+import { Badge, Button, Card, PageHeader, Spinner } from "@/components/ui";
 
 export default function SubscriptionPage() {
   const plans = useFetch<Plan[]>("/billing/plans");
@@ -77,12 +77,11 @@ export default function SubscriptionPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Abonament</h1>
-        <p className="mt-1 text-sm text-muted">
-          Alege planul potrivit. Poți schimba oricând.
-        </p>
-      </div>
+      <PageHeader
+        title="Abonament"
+        subtitle="Alege planul potrivit. Poți schimba oricând."
+        icon={CreditCard}
+      />
 
       {sub.data && (
         <Card className="flex flex-wrap items-center justify-between gap-3">

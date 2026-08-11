@@ -1,11 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, TrendingUp } from "lucide-react";
+import { Activity, Sparkles, TrendingUp } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import type { LabResult } from "@/lib/types";
-import { Badge, Button, Card, Spinner, flagTone } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  PageHeader,
+  Spinner,
+  flagTone,
+} from "@/components/ui";
 
 const FLAG_LABEL: Record<string, string> = {
   normal: "Normal",
@@ -50,15 +58,18 @@ export default function LabsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Analize</h1>
+      <PageHeader
+        title="Analize"
+        subtitle="Valorile tale, explicate și urmărite în timp."
+        icon={Activity}
+      />
 
       {results.length === 0 ? (
-        <Card>
-          <p className="text-sm text-muted">
-            Nu ai analize încă. Încarcă un document în secțiunea Documente sau
-            adaugă manual.
-          </p>
-        </Card>
+        <EmptyState
+          icon={Activity}
+          title="Nu ai analize încă"
+          hint="Încarcă un document în secțiunea Documente și AI extrage automat valorile."
+        />
       ) : (
         <div className="space-y-3">
           {results.map((r) => (
@@ -98,7 +109,7 @@ export default function LabsPage() {
                 </div>
               </div>
               {r.ai_explanation && (
-                <p className="mt-3 rounded-lg bg-bg p-3 text-sm text-fg/80">
+                <p className="mt-3 rounded-2xl bg-surface-2 p-3 text-sm text-fg/80">
                   {r.ai_explanation}
                 </p>
               )}
