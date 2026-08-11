@@ -113,6 +113,17 @@ class Settings(BaseSettings):
     GOOGLE_PLAY_PACKAGE_NAME: str = ""
     GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: str = ""  # raw JSON of the SA key
 
+    # ---- Stripe (web subscriptions) ----
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    # plan -> Stripe Price ID: "premium:price_xxx,family:price_yyy"
+    STRIPE_PRICES: str = ""
+    STRIPE_SUCCESS_URL: str = ""   # defaults to FRONTEND_URL + /subscription?status=success
+    STRIPE_CANCEL_URL: str = ""    # defaults to FRONTEND_URL + /subscription?status=cancel
+    STRIPE_PORTAL_RETURN_URL: str = ""  # defaults to FRONTEND_URL + /subscription
+    # Allow the mock gateway (dev/test) when no secret key is set.
+    STRIPE_ALLOW_MOCK: bool = True
+
     @field_validator("DATABASE_URL", mode="after")
     @classmethod
     def _normalize_db_url(cls, v: str) -> str:

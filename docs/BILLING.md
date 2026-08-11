@@ -24,7 +24,50 @@ providerii AI: `apple`, `google` și un **mock determinist**. Fără credențial
 store, factory-ul cade pe mock (`IAP_ALLOW_MOCK=true`), deci fluxul complet
 poate fi testat offline.
 
-## Produse & planuri
+## Stripe (web)
+Pe web, abonamentele se plătesc cu cardul prin **Stripe Checkout**, iar starea se
+sincronizează prin **webhook** (exact ca la IAP pe mobil).
+
+```
+Web app ─POST /billing/stripe/checkout─► URL Checkout ─► pagina Stripe ─► card
+   ▲                                                                       │
+   └────── /subscription?status=success ◄── redirect ◄────────────────────┘
+Stripe ─webhook─► POST /billing/stripe/webhook ─► actualizează Subscription
+```
+
+**Endpoint-uri:**
+| Metodă | Rută | Rol |
+|---|---|---|
+| POST | `/billing/stripe/checkout` | Creează o sesiune Checkout (`{plan}`) → `{url}`. |
+| POST | `/billing/stripe/portal` | Portal de facturare (gestionează/anulează) → `{url}`. |
+| POST | `/billing/stripe/webhook` | Evenimente Stripe (checkout completat, reînnoire, anulare). |
+
+**Configurare (o singură dată):**
+1. În Stripe Dashboard creează **Produse + Prețuri recurente** (Premium, Familie).
+2. Setează pe backend:
+   ```
+   STRIPE_SECRET_KEY=sk_live_...            # sau sk_test_... la testare
+   STRIPE_WEBHOOK_SECRET=whsec_...
+   STRIPE_PRICES="premium:price_xxx,family:price_yyy"
+   # opțional (au default pe FRONTEND_URL):
+   STRIPE_SUCCESS_URL=https://<web>/subscription?status=success
+   STRIPE_CANCEL_URL=https://<web>/subscription?status=cancel
+   STRIPE_PORTAL_RETURN_URL=https://<web>/subscription
+   ```
+3. În Stripe → Developers → Webhooks, adaugă endpoint-ul
+   `https://<backend>/api/v1/billing/stripe/webhook` cu evenimentele
+   `checkout.session.completed`, `customer.subscription.updated`,
+   `customer.subscription.deleted`. Copiază *Signing secret* în
+   `STRIPE_WEBHOOK_SECRET`.
+
+**Fără chei (dev):** cu `STRIPE_ALLOW_MOCK=true` (implicit), `checkout`/`portal`
+întorc URL-uri mock, iar pagina „Abonament" aplică planul direct pentru demo;
+webhook-ul acceptă evenimente JSON fără verificarea semnăturii. Testele
+(`tests/test_stripe.py`) acoperă checkout, portal și sincronizarea din webhook
+(activare, anulare, schimbare de preț). **Dezactivează `STRIPE_ALLOW_MOCK` în
+producție.**
+
+## Produse & planuri (mobil)
 Product-ID-urile din store se mapează pe planuri prin `IAP_PRODUCTS`:
 ```
 IAP_PRODUCTS="premium_monthly:premium,family_monthly:family"

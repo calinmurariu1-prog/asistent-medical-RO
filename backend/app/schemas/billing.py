@@ -38,6 +38,14 @@ class ChangePlanRequest(BaseModel):
     plan: SubscriptionPlan
 
 
+class CheckoutRequest(BaseModel):
+    plan: SubscriptionPlan
+
+
+class CheckoutResponse(BaseModel):
+    url: str
+
+
 class IapVerifyRequest(BaseModel):
     """Sent by the mobile app after a native purchase.
 

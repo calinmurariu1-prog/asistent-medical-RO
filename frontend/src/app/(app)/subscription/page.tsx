@@ -17,20 +17,40 @@ export default function SubscriptionPage() {
 
   useEffect(() => {
     iapAvailable().then(setIap);
+    // Returning from Stripe Checkout — refresh the subscription.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("status") === "success") {
+      sub.reload();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function choose(plan: PlanId) {
     setBusy(plan);
     setError(null);
     try {
-      if (plan !== "free" && iap) {
+      if (plan === "free") {
+        // Downgrade / cancel — direct change (real cancel goes via the portal).
+        await api.post("/billing/subscription", { plan });
+        sub.reload();
+      } else if (iap) {
         // Native app: real store purchase, validated by the backend.
         await purchasePlan(plan);
+        sub.reload();
       } else {
-        // Web / downgrade: interim direct plan change (Stripe comes next).
-        await api.post("/billing/subscription", { plan });
+        // Web: Stripe Checkout.
+        const { url } = await api.post<{ url: string }>(
+          "/billing/stripe/checkout",
+          { plan },
+        );
+        if (url.includes("mock=1")) {
+          // Stripe not configured yet — apply directly so the demo works.
+          await api.post("/billing/subscription", { plan });
+          sub.reload();
+        } else {
+          window.location.href = url; // redirect to Stripe-hosted checkout
+        }
       }
-      sub.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Operațiune eșuată");
     } finally {
@@ -38,7 +58,22 @@ export default function SubscriptionPage() {
     }
   }
 
+  async function openPortal() {
+    setError(null);
+    try {
+      const { url } = await api.post<{ url: string }>("/billing/stripe/portal");
+      if (url.includes("mock=portal")) {
+        setError("Portalul de facturare se activează după configurarea Stripe.");
+        return;
+      }
+      window.location.href = url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Nu am putut deschide portalul");
+    }
+  }
+
   const current = sub.data?.plan;
+  const isStripe = sub.data?.provider === "stripe";
 
   return (
     <div className="space-y-6">
@@ -50,14 +85,21 @@ export default function SubscriptionPage() {
       </div>
 
       {sub.data && (
-        <Card className="flex items-center justify-between">
+        <Card className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm text-muted">Planul tău curent</p>
             <p className="text-lg font-semibold">{sub.data.plan_name}</p>
           </div>
-          <Badge tone={current === "free" ? "neutral" : "green"}>
-            {sub.data.status}
-          </Badge>
+          <div className="flex items-center gap-3">
+            {current !== "free" && isStripe && (
+              <Button variant="outline" onClick={openPortal}>
+                Gestionează / anulează
+              </Button>
+            )}
+            <Badge tone={current === "free" ? "neutral" : "green"}>
+              {sub.data.status}
+            </Badge>
+          </div>
         </Card>
       )}
 
@@ -127,7 +169,7 @@ export default function SubscriptionPage() {
       <p className="text-xs text-muted">
         {iap
           ? "Abonamentele se achiziționează prin App Store / Google Play și sunt validate securizat pe server."
-          : "Pe telefon, abonarea se face prin App Store / Google Play. Pe web, plata cu cardul (Stripe) se activează în curând — momentan schimbarea planului este în modul de testare."}
+          : "Pe web, plata cu cardul se face securizat prin Stripe. Pe telefon, abonarea se face prin App Store / Google Play."}
       </p>
     </div>
   );

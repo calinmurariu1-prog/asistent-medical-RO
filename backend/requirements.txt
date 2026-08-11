@@ -39,6 +39,9 @@ pydicom==3.0.1
 reportlab==4.2.5
 python-docx==1.1.2
 
+# ---- Payments ----
+stripe==11.4.1
+
 # ---- Utils ----
 httpx==0.28.1
 python-dateutil==2.9.0.post0

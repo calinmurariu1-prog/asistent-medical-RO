@@ -6,6 +6,7 @@ built and tested end-to-end.
 """
 from __future__ import annotations
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.enums import (
@@ -31,6 +32,15 @@ def ensure_subscription(db: Session, user: User) -> Subscription:
     db.commit()
     db.refresh(sub)
     return sub
+
+
+def find_by_customer(db: Session, customer_id: str) -> Subscription | None:
+    """Locate a subscription by its Stripe customer id (for webhooks)."""
+    return db.scalar(
+        select(Subscription).where(
+            Subscription.external_customer_id == customer_id
+        )
+    )
 
 
 def set_plan(
