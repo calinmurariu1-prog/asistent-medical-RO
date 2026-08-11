@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Activity, FileText, MessageSquare, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui";
 import { LogoMark } from "@/components/logo";
+import { GradientBlobs } from "@/components/decor";
 import { ThemeToggle } from "@/components/theme-provider";
 
 const features = [
@@ -30,9 +31,10 @@ const features = [
 export default function LandingPage() {
   return (
     <main className="min-h-screen">
+      <GradientBlobs />
       <header className="mx-auto flex max-w-6xl items-center justify-between p-6">
-        <div className="flex items-center gap-2 font-semibold">
-          <LogoMark />
+        <div className="flex items-center gap-2 text-lg font-semibold">
+          <LogoMark size={34} />
           Asistent Medical AI
         </div>
         <div className="flex items-center gap-3">
@@ -44,6 +46,10 @@ export default function LandingPage() {
       </header>
 
       <section className="mx-auto max-w-4xl px-6 py-20 text-center">
+        <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/70 bg-surface/70 px-4 py-1.5 text-sm font-medium shadow-soft backdrop-blur">
+          <span className="h-2 w-2 rounded-full bg-brand-green" />
+          Sănătatea ta, pe înțelesul tău
+        </span>
         <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
           Dosarul tău medical,{" "}
           <span className="brand-text-gradient">înțeles pe limba ta</span>

@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 import { Button, Card, Input } from "@/components/ui";
 import { LogoMark } from "@/components/logo";
+import { GradientBlobs } from "@/components/decor";
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -33,11 +34,17 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
+    <main className="flex min-h-[100dvh] items-center justify-center p-6">
+      <GradientBlobs />
       <Card className="w-full max-w-md">
-        <div className="mb-6 flex items-center gap-2 font-semibold">
-          <LogoMark />
-          Asistent Medical AI
+        <div className="mb-6 flex flex-col items-center gap-3 text-center">
+          <LogoMark size={56} />
+          <div>
+            <div className="text-lg font-bold">Asistent Medical AI</div>
+            <p className="text-sm text-muted">
+              Începe să-ți înțelegi sănătatea, gratuit.
+            </p>
+          </div>
         </div>
         <h1 className="text-xl font-bold">Creează cont</h1>
         <form onSubmit={onSubmit} className="mt-5 space-y-3">
