@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, User } from "lucide-react";
+import { Bell, Download, User } from "lucide-react";
 import { api, downloadFile } from "@/lib/api";
+import { sendTestPush } from "@/lib/push";
 import type { PatientProfile } from "@/lib/types";
 import { Button, Card, Input, PageHeader, Spinner } from "@/components/ui";
 
@@ -41,6 +42,17 @@ export default function ProfilePage() {
     setProfile(updated);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  }
+
+  const [pushMsg, setPushMsg] = useState<string | null>(null);
+  async function testPush() {
+    setPushMsg(null);
+    const n = await sendTestPush();
+    setPushMsg(
+      n > 0
+        ? `Notificare trimisă către ${n} dispozitiv(e).`
+        : "Niciun dispozitiv înregistrat. Deschide aplicația pe telefon și acceptă notificările.",
+    );
   }
 
   async function exportReport(fmt: "pdf" | "docx") {
@@ -129,6 +141,19 @@ export default function ProfilePage() {
             {saved && <span className="text-sm text-brand-green">Salvat ✓</span>}
           </div>
         </form>
+      </Card>
+
+      <Card>
+        <div className="mb-3 flex items-center gap-2 font-semibold">
+          <Bell size={18} className="text-brand-violet" /> Notificări push
+        </div>
+        <p className="mb-3 text-sm text-muted">
+          Primește memento-uri pentru medicamente și programări direct pe telefon.
+        </p>
+        <Button variant="outline" onClick={testPush}>
+          <Bell size={16} /> Trimite o notificare de test
+        </Button>
+        {pushMsg && <p className="mt-2 text-sm text-brand-green">{pushMsg}</p>}
       </Card>
 
       <Card>

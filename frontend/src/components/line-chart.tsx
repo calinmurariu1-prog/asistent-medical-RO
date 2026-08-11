@@ -7,6 +7,51 @@ export interface ChartPoint {
   value: number;
 }
 
+/** Tiny label-free line+area chart for compact spaces (e.g. under a ring). */
+export function Sparkline({
+  values,
+  color = "#ffffff",
+  width = 120,
+  height = 32,
+}: {
+  values: number[];
+  color?: string;
+  width?: number;
+  height?: number;
+}) {
+  const gid = useId().replace(/[:]/g, "");
+  if (values.length < 2) return null;
+  let min = Math.min(...values);
+  let max = Math.max(...values);
+  if (min === max) {
+    min -= 1;
+    max += 1;
+  }
+  const x = (i: number) => (i * width) / (values.length - 1);
+  const y = (v: number) => height - 3 - ((v - min) * (height - 6)) / (max - min);
+  const line = values.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  const area = `0,${height} ${line} ${width},${height}`;
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
+      <defs>
+        <linearGradient id={`s${gid}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={color} stopOpacity="0.5" />
+          <stop offset="1" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={area} fill={`url(#s${gid})`} />
+      <polyline
+        points={line}
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /**
  * Lightweight responsive line/area chart (pure SVG, no dependencies).
  * Optionally draws a reference band (refLow–refHigh) for lab values.

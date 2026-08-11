@@ -21,6 +21,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useNativeShell } from "@/lib/native";
 import { useHealthAutoSync } from "@/lib/health-native";
+import { usePushRegistration } from "@/lib/push";
 import { Spinner } from "@/components/ui";
 import { LogoMark } from "@/components/logo";
 import { BottomNav } from "@/components/bottom-nav";
@@ -47,6 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   useNativeShell();
   useHealthAutoSync(); // native: auto-import wearable data on open/resume
+  usePushRegistration(); // native: register for push notifications
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");

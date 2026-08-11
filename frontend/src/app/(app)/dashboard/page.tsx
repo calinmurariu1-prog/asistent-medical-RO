@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -19,6 +19,7 @@ import { useAuth } from "@/lib/auth";
 import type { Dashboard, HealthSummary } from "@/lib/types";
 import { Badge, Button, Card, Spinner } from "@/components/ui";
 import { HealthRing } from "@/components/health-ring";
+import { Sparkline } from "@/components/line-chart";
 
 const STAT_STYLES = [
   { tint: "bg-brand-blue/10", fg: "text-brand-blue" },
@@ -75,6 +76,31 @@ export default function DashboardPage() {
   const health = useFetch<HealthSummary>("/health-data/summary");
   const [summary, setSummary] = useState<string | null>(null);
   const [summarizing, setSummarizing] = useState(false);
+  const [sparks, setSparks] = useState<Record<string, number[]>>({});
+
+  const rings = (health.data?.metrics || [])
+    .filter((m) => RING_CONFIG[m.metric_type] && m.latest_value != null)
+    .sort((a, b) => RING_CONFIG[a.metric_type].order - RING_CONFIG[b.metric_type].order)
+    .slice(0, 4);
+  const ringKey = rings.map((r) => r.metric_type).join(",");
+
+  useEffect(() => {
+    if (!ringKey) return;
+    let cancelled = false;
+    Promise.all(
+      ringKey.split(",").map((metric) =>
+        api
+          .get<{ value: number }[]>(`/health-data/metrics/${metric}`)
+          .then((rows) => [metric, rows.map((r) => r.value)] as const)
+          .catch(() => [metric, []] as const),
+      ),
+    ).then((entries) => {
+      if (!cancelled) setSparks(Object.fromEntries(entries));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ringKey]);
 
   async function summarize() {
     setSummarizing(true);
@@ -90,10 +116,6 @@ export default function DashboardPage() {
   if (!data) return <p className="text-muted">Nu s-au putut încărca datele.</p>;
 
   const name = user?.full_name?.split(" ")[0] || user?.email?.split("@")[0] || "";
-  const rings = (health.data?.metrics || [])
-    .filter((m) => RING_CONFIG[m.metric_type] && m.latest_value != null)
-    .sort((a, b) => RING_CONFIG[a.metric_type].order - RING_CONFIG[b.metric_type].order)
-    .slice(0, 4);
 
   return (
     <div className="space-y-6">
@@ -129,9 +151,10 @@ export default function DashboardPage() {
             {rings.map((m) => {
               const cfg = RING_CONFIG[m.metric_type];
               return (
-                <div
+                <Link
                   key={m.metric_type}
-                  className="rounded-2xl bg-white/15 py-4 backdrop-blur"
+                  href={`/health/${m.metric_type}`}
+                  className="rounded-2xl bg-white/15 py-4 backdrop-blur transition hover:bg-white/25"
                 >
                   <HealthRing
                     value={m.latest_value as number}
@@ -141,7 +164,12 @@ export default function DashboardPage() {
                     unit={cfg.unit}
                     displayValue={cfg.display?.(m.latest_value as number)}
                   />
-                </div>
+                  {sparks[m.metric_type] && sparks[m.metric_type].length > 1 && (
+                    <div className="mt-2 px-3">
+                      <Sparkline values={sparks[m.metric_type]} color="#ffffff" />
+                    </div>
+                  )}
+                </Link>
               );
             })}
           </div>

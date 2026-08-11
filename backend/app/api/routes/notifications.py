@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_patient, get_current_user
@@ -11,8 +12,47 @@ from app.models.patient import Patient
 from app.models.user import User
 from app.schemas.notification import NotificationCreate, NotificationOut
 from app.services import notification_service
+from app.services.push import service as push_service
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
+
+
+class PushTokenIn(BaseModel):
+    token: str
+    platform: str = "android"  # ios | android | web
+
+
+@router.post("/push-token", status_code=status.HTTP_204_NO_CONTENT)
+def register_push_token(
+    payload: PushTokenIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Register this device's push token (called by the mobile app on launch)."""
+    push_service.register_token(db, user, payload.token.strip(), payload.platform)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/push-token", status_code=status.HTTP_204_NO_CONTENT)
+def delete_push_token(
+    payload: PushTokenIn,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    push_service.unregister_token(db, payload.token.strip())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/test-push", response_model=dict[str, int])
+def send_test_push(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, int]:
+    """Send a test push to the user's registered devices."""
+    delivered = push_service.send_to_user(
+        db, user, "Asistent Medical AI", "Notificările push funcționează! 🎉"
+    )
+    return {"delivered": delivered}
 
 
 @router.get("", response_model=list[NotificationOut])
@@ -46,9 +86,13 @@ def generate_appointment_reminders(
     patient: Patient = Depends(get_current_patient),
     db: Session = Depends(get_db),
 ) -> list[Notification]:
-    return notification_service.generate_appointment_reminders(
+    reminders = notification_service.generate_appointment_reminders(
         db, user_id=user.id, patient_id=patient.id
     )
+    # Best-effort push for each new reminder (no-op if no devices registered).
+    for reminder in reminders:
+        push_service.send_notification(db, reminder)
+    return reminders
 
 
 @router.post("/read-all", response_model=dict[str, int])

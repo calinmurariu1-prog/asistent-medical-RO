@@ -124,6 +124,12 @@ class Settings(BaseSettings):
     # Allow the mock gateway (dev/test) when no secret key is set.
     STRIPE_ALLOW_MOCK: bool = True
 
+    # ---- Push notifications (Firebase Cloud Messaging) ----
+    FCM_PROJECT_ID: str = ""
+    FCM_SERVICE_ACCOUNT_JSON: str = ""  # raw JSON of the SA key
+    # Allow the mock sender (dev/test) when FCM isn't configured.
+    PUSH_ALLOW_MOCK: bool = True
+
     @field_validator("DATABASE_URL", mode="after")
     @classmethod
     def _normalize_db_url(cls, v: str) -> str:

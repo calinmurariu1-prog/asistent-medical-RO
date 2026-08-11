@@ -20,6 +20,7 @@ from app.models.patient import (
     Patient,
     Vaccine,
 )
+from app.models.push_token import PushToken
 from app.models.subscription import Subscription
 from app.models.user import AuditLog, Consent, User
 
@@ -47,4 +48,5 @@ __all__ = [
     "HealthSample",
     "HealthDevice",
     "Subscription",
+    "PushToken",
 ]
