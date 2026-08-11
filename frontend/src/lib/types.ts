@@ -159,6 +159,7 @@ export type HealthSourceId =
   | "apple_health"
   | "google_health"
   | "huawei_health"
+  | "bluetooth"
   | "manual";
 
 export interface HealthSourceInfo {

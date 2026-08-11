@@ -15,6 +15,7 @@ import {
   Menu,
   MessageSquare,
   Pill,
+  Settings,
   Sparkles,
   User,
 } from "lucide-react";
@@ -38,6 +39,7 @@ const nav = [
   { href: "/appointments", label: "Programări", icon: CalendarDays },
   { href: "/doctors", label: "Găsește medici", icon: MapPin },
   { href: "/subscription", label: "Abonament", icon: CreditCard },
+  { href: "/settings", label: "Setări", icon: Settings },
   { href: "/profile", label: "Profil", icon: User },
 ];
 

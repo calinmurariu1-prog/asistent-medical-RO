@@ -32,6 +32,7 @@ const ACCEPT: Record<HealthSourceId, string> = {
   apple_health: ".zip,.xml",
   google_health: ".json",
   huawei_health: ".json",
+  bluetooth: "",
   manual: "",
 };
 

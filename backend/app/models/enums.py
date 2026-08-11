@@ -143,6 +143,7 @@ class HealthSource(str, enum.Enum):
     APPLE_HEALTH = "apple_health"
     GOOGLE_HEALTH = "google_health"       # Google Fit / Health Connect / Takeout
     HUAWEI_HEALTH = "huawei_health"
+    BLUETOOTH = "bluetooth"               # BLE health device (GATT)
     MANUAL = "manual"
 
 
