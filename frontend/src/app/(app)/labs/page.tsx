@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, Sparkles, TrendingUp } from "lucide-react";
+import { Activity, LineChart as LineChartIcon, Sparkles, TrendingUp } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
-import type { LabResult } from "@/lib/types";
+import type { LabResult, LabSeries } from "@/lib/types";
 import {
   Badge,
   Button,
@@ -14,6 +14,11 @@ import {
   Spinner,
   flagTone,
 } from "@/components/ui";
+import { LineChart } from "@/components/line-chart";
+
+function shortDate(d: string | null): string {
+  return d ? new Date(d).toLocaleDateString("ro-RO", { day: "2-digit", month: "short" }) : "";
+}
 
 const FLAG_LABEL: Record<string, string> = {
   normal: "Normal",
@@ -28,6 +33,29 @@ export default function LabsPage() {
   const [explaining, setExplaining] = useState<number | null>(null);
   const [trends, setTrends] = useState<Record<string, string>>({});
   const [trending, setTrending] = useState<string | null>(null);
+  const [charts, setCharts] = useState<Record<string, LabSeries | null>>({});
+  const [charting, setCharting] = useState<string | null>(null);
+
+  async function chart(analyte: string) {
+    if (charts[analyte] !== undefined) {
+      // toggle off
+      setCharts((c) => {
+        const next = { ...c };
+        delete next[analyte];
+        return next;
+      });
+      return;
+    }
+    setCharting(analyte);
+    try {
+      const s = await api.get<LabSeries>(`/labs/series/${encodeURIComponent(analyte)}`);
+      setCharts((c) => ({ ...c, [analyte]: s }));
+    } catch {
+      setCharts((c) => ({ ...c, [analyte]: null }));
+    } finally {
+      setCharting(null);
+    }
+  }
 
   async function explain(id: number) {
     setExplaining(id);
@@ -100,6 +128,14 @@ export default function LabsPage() {
                   </Button>
                   <Button
                     variant="outline"
+                    onClick={() => chart(r.analyte)}
+                    disabled={charting === r.analyte}
+                  >
+                    <LineChartIcon size={16} />
+                    {charting === r.analyte ? "…" : "Grafic"}
+                  </Button>
+                  <Button
+                    variant="outline"
                     onClick={() => trend(r.analyte)}
                     disabled={trending === r.analyte}
                   >
@@ -108,6 +144,27 @@ export default function LabsPage() {
                   </Button>
                 </div>
               </div>
+
+              {charts[r.analyte] !== undefined &&
+                (charts[r.analyte] === null ? (
+                  <p className="mt-3 text-sm text-muted">
+                    Nu există suficiente date pentru un grafic.
+                  </p>
+                ) : (
+                  <div className="mt-3 rounded-2xl bg-surface-2 p-3">
+                    <LineChart
+                      unit={charts[r.analyte]!.unit}
+                      refLow={charts[r.analyte]!.ref_low}
+                      refHigh={charts[r.analyte]!.ref_high}
+                      points={charts[r.analyte]!.points
+                        .filter((p) => p.value != null)
+                        .map((p) => ({
+                          label: shortDate(p.measured_on),
+                          value: p.value as number,
+                        }))}
+                    />
+                  </div>
+                ))}
               {r.ai_explanation && (
                 <p className="mt-3 rounded-2xl bg-surface-2 p-3 text-sm text-fg/80">
                   {r.ai_explanation}

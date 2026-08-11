@@ -26,6 +26,7 @@ import type {
   HealthSummary,
 } from "@/lib/types";
 import { Badge, Button, Card, PageHeader, Spinner } from "@/components/ui";
+import { LineChart } from "@/components/line-chart";
 
 const ACCEPT: Record<HealthSourceId, string> = {
   apple_health: ".zip,.xml",
@@ -144,10 +145,39 @@ export default function HealthPage() {
     if (next) syncPhone();
   }
 
+  const [openChart, setOpenChart] = useState<string | null>(null);
+  const [chartData, setChartData] = useState<
+    Record<string, { label: string; value: number }[]>
+  >({});
+
+  async function toggleChart(metric: string) {
+    if (openChart === metric) {
+      setOpenChart(null);
+      return;
+    }
+    setOpenChart(metric);
+    if (!chartData[metric]) {
+      const rows = await api.get<{ value: number; recorded_at: string }[]>(
+        `/health-data/metrics/${metric}`,
+      );
+      setChartData((c) => ({
+        ...c,
+        [metric]: rows.map((r) => ({
+          label: new Date(r.recorded_at).toLocaleDateString("ro-RO", {
+            day: "2-digit",
+            month: "short",
+          }),
+          value: r.value,
+        })),
+      }));
+    }
+  }
+
   function reloadAll() {
     sources.reload();
     summary.reload();
     devices.reload();
+    setChartData({});
   }
 
   async function loadSample() {
@@ -264,33 +294,53 @@ export default function HealthPage() {
             Nicio măsurătoare încă. Importă un export sau încarcă date demo.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-muted">
-                  <th className="py-2 pr-4 font-medium">Metrică</th>
-                  <th className="py-2 pr-4 font-medium">Ultima</th>
-                  <th className="py-2 pr-4 font-medium">Medie</th>
-                  <th className="py-2 pr-4 font-medium">Min–Max</th>
-                  <th className="py-2 pr-4 font-medium">Nr.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.data.metrics.map((m) => (
-                  <tr key={m.metric_type} className="border-b border-border/60">
-                    <td className="py-2 pr-4 font-medium">{m.label}</td>
-                    <td className="py-2 pr-4">
-                      {m.latest_value ?? "—"} {m.unit}
-                    </td>
-                    <td className="py-2 pr-4">{m.avg ?? "—"}</td>
-                    <td className="py-2 pr-4 text-muted">
-                      {m.min ?? "—"}–{m.max ?? "—"}
-                    </td>
-                    <td className="py-2 pr-4 text-muted">{m.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-2">
+            {summary.data.metrics.map((m) => {
+              const open = openChart === m.metric_type;
+              return (
+                <div
+                  key={m.metric_type}
+                  className="rounded-2xl border border-border/70"
+                >
+                  <button
+                    onClick={() => toggleChart(m.metric_type)}
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-surface-2"
+                  >
+                    <span className="font-medium">{m.label}</span>
+                    <span className="flex items-center gap-3 text-sm">
+                      <span className="font-semibold">
+                        {m.latest_value ?? "—"} {m.unit}
+                      </span>
+                      <span className="text-xs text-muted">
+                        medie {m.avg ?? "—"} · {m.count} măs.
+                      </span>
+                      <span
+                        className={`text-muted transition ${open ? "rotate-90" : ""}`}
+                      >
+                        ›
+                      </span>
+                    </span>
+                  </button>
+                  {open && (
+                    <div className="px-3 pb-3">
+                      {!chartData[m.metric_type] ? (
+                        <Spinner />
+                      ) : chartData[m.metric_type].length < 2 ? (
+                        <p className="px-1 pb-2 text-sm text-muted">
+                          Este nevoie de cel puțin două măsurători pentru grafic.
+                        </p>
+                      ) : (
+                        <LineChart
+                          unit={m.unit}
+                          color="rgb(var(--brand-violet))"
+                          points={chartData[m.metric_type]}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </Card>

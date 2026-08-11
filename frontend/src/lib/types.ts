@@ -49,6 +49,22 @@ export interface LabResult {
   ai_explanation: string | null;
 }
 
+export interface LabSeriesPoint {
+  measured_on: string | null;
+  value: number | null;
+  unit: string | null;
+  flag: LabFlag;
+}
+
+export interface LabSeries {
+  analyte: string;
+  unit: string | null;
+  ref_low: number | null;
+  ref_high: number | null;
+  trend: string | null;
+  points: LabSeriesPoint[];
+}
+
 export interface DocumentItem {
   id: number;
   category: string;
