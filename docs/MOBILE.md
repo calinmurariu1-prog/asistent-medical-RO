@@ -21,32 +21,43 @@ Next.js (static export → out/)  ──►  Capacitor WebView  ──►  APK/A
 Din `frontend/`:
 
 ```bash
-# 1. Construiește exportul static (out/) cu URL-ul backend-ului de producție
-npm run build:mobile
-
-# 2. Adaugă platformele native (creează folderele android/ și ios/)
-npx cap add android
-npx cap add ios          # doar pe macOS
+# iOS (doar pe macOS) — Android e deja în repo (frontend/android/)
+npx cap add ios
 ```
 
-Folderele `android/` și `ios/` se **comit** în repo (convenția Capacitor):
-conțin configul proiectului, iconițele și setările de semnare. Doar output-urile
-de build (`android/app/build`, `ios/App/build`, `Pods/`) rămân ignorate.
+Proiectul nativ **Android este deja generat și comis** în `frontend/android/`
+(appId `ro.asistentmedical.app`). Nu mai rulezi `npx cap add android`. Folderul
+`ios/` se adaugă pe macOS. Output-urile de build și asset-urile web copiate
+(`android/app/build`, `android/app/src/main/assets/public`, `ios/App/build`,
+`Pods/`) sunt ignorate — se regenerează cu `cap sync`.
 
-## Dezvoltare & rulare
+## Test rapid pe Android Studio (pas cu pas)
 ```bash
-npm run mobile:sync        # build:mobile + cap sync (copiază web-ul în native)
-npx cap open android       # deschide în Android Studio → Run
-npx cap open ios           # deschide în Xcode → Run   (macOS)
+cd frontend
+npm ci                 # instalează dependențele (o singură dată)
+npm run mobile:sync    # build:mobile + cap sync → copiază web-ul în android/
+npx cap open android   # deschide proiectul în Android Studio
 ```
-Scurtături: `npm run mobile:android`, `npm run mobile:ios`.
+În Android Studio: așteaptă Gradle sync (prima dată descarcă dependențele),
+alege un emulator (Device Manager → creează un Pixel cu Google Play) sau un
+telefon cu USB debugging, apoi **Run ▶**.
+
+> Prima sincronizare Gradle are nevoie de internet (descarcă Gradle + SDK-urile).
+> Ai nevoie de Android SDK instalat din Android Studio (SDK Manager).
+
+Scurtături: `npm run mobile:android` (sync + open), `npm run mobile:ios`.
 
 ## URL-ul backend-ului
 `NEXT_PUBLIC_API_URL` e „copt" în build. Implicit folosește backend-ul de pe
-Render:
+Render (merge din emulator, care are internet):
 ```bash
 NEXT_PUBLIC_API_URL=https://asistent-medical-backend.onrender.com npm run mobile:sync
 ```
+> ⚠️ Un backend local pe `localhost:8000` **nu** e vizibil din emulatorul
+> Android ca `localhost` (acela e emulatorul însuși). Folosește
+> `http://10.0.2.2:8000` pentru backend-ul de pe mașina gazdă, sau URL-ul de pe
+> Render. Pentru `http://` (necriptat) în emulator, adaugă
+> `android:usesCleartextTraffic="true"` în `AndroidManifest.xml`.
 Backend-ul acceptă deja originile WebView-ului Capacitor
 (`capacitor://localhost`, `https://localhost`, …) în CORS — vezi
 `settings.cors_origins`. Autentificarea folosește token Bearer (nu cookie-uri),
