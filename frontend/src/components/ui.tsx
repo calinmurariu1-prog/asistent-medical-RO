@@ -17,11 +17,11 @@ export function Button({
   variant?: "primary" | "ghost" | "outline" | "danger";
 }) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-50 disabled:pointer-events-none";
+    "inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none";
   const variants = {
-    primary: "brand-gradient text-white hover:opacity-90 shadow-sm",
-    ghost: "text-fg/80 hover:bg-bg",
-    outline: "border border-border text-fg hover:bg-bg",
+    primary: "brand-gradient text-white shadow-soft hover:brightness-105",
+    ghost: "text-fg/80 hover:bg-surface-2",
+    outline: "border border-border bg-surface text-fg hover:bg-surface-2",
     danger: "bg-red-600 text-white hover:bg-red-700",
   };
   return <button className={cx(base, variants[variant], className)} {...props} />;
@@ -34,7 +34,7 @@ export function Input({
   return (
     <input
       className={cx(
-        "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-fg outline-none transition placeholder:text-muted focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20",
+        "w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm text-fg outline-none transition placeholder:text-muted focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20",
         className,
       )}
       {...props}
@@ -50,7 +50,7 @@ export function Card({
   return (
     <div
       className={cx(
-        "rounded-2xl border border-border bg-surface p-5 shadow-sm",
+        "rounded-3xl border border-border/70 bg-surface p-5 shadow-soft",
         className,
       )}
       {...props}

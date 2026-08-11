@@ -23,6 +23,7 @@ import { useNativeShell } from "@/lib/native";
 import { useHealthAutoSync } from "@/lib/health-native";
 import { Spinner } from "@/components/ui";
 import { LogoMark } from "@/components/logo";
+import { BottomNav } from "@/components/bottom-nav";
 import { ThemeToggle } from "@/components/theme-provider";
 
 const nav = [
@@ -107,12 +108,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border bg-surface px-4 py-3 sm:px-6">
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border/70 bg-surface/80 px-4 py-3 backdrop-blur sm:px-6">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileOpen(true)}
               aria-label="Deschide meniul"
-              className="rounded-lg border border-border p-2 text-fg/70 transition hover:bg-bg sm:hidden"
+              className="rounded-xl border border-border p-2 text-fg/70 transition hover:bg-surface-2 sm:hidden"
             >
               <Menu size={18} />
             </button>
@@ -120,8 +121,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <ThemeToggle />
         </header>
-        <main className="flex-1 overflow-x-hidden p-4 sm:p-6">{children}</main>
+        <main className="flex-1 overflow-x-hidden p-4 pb-24 sm:p-6 sm:pb-6">
+          {children}
+        </main>
       </div>
+
+      <BottomNav />
     </div>
   );
 }
