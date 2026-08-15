@@ -54,6 +54,28 @@ Play cere **Android App Bundle (.aab)**, semnat, nu APK.
 
 **DoD:** `app-release.aab` semnat, instalabil, se urcă în Play Console fără erori.
 
+### Build de release — cum (deja configurat)
+- `frontend/android` e pe **AGP 8.6 / Gradle 8.7 / targetSdk 35**, `versionName 1.0.0`.
+- `app/build.gradle` semnează release-ul citind din env/props:
+  `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` (fără ele,
+  build-ul rămâne nesemnat — debug-ul nu e afectat).
+- Workflow **`.github/workflows/android-release.yml`** (rulare manuală: Actions →
+  *Android Release (AAB)* → Run) construiește `bundleRelease` și urcă
+  `app-release.aab` ca artifact.
+
+**Secrete de adăugat** (GitHub → Settings → Secrets and variables → Actions):
+`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
+
+Keystore-ul de upload îl poți regenera oricând cu:
+```bash
+keytool -genkeypair -v -keystore upload.jks -alias asistent-upload \
+  -keyalg RSA -keysize 2048 -validity 10000
+base64 -w0 upload.jks   # -> valoarea pentru KEYSTORE_BASE64
+```
+> Cu **Play App Signing**, cheia de upload e recuperabilă dacă o pierzi; totuși
+> fă backup. La fiecare release nou, **crește `versionCode`** în
+> `android/app/build.gradle`.
+
 ---
 
 ## Faza 3 — Conformitate & politici Google Play (critic pentru sănătate)

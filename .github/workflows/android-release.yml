@@ -1,0 +1,71 @@
+name: Android Release (AAB)
+
+# Builds a SIGNED Android App Bundle (.aab) for Google Play upload.
+# Requires these repository secrets (see docs/LAUNCH_ANDROID.md):
+#   KEYSTORE_BASE64    - base64 of the upload keystore (.jks)
+#   KEYSTORE_PASSWORD  - keystore password
+#   KEY_ALIAS          - key alias
+#   KEY_PASSWORD       - key password
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "Backend URL baked into the app"
+        required: false
+        default: "https://asistent-medical-backend.onrender.com"
+
+jobs:
+  release-aab:
+    name: Build signed AAB
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify signing secrets
+        run: |
+          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "::error::Missing KEYSTORE_BASE64 secret. Add the 4 signing secrets (see docs/LAUNCH_ANDROID.md)."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Build web assets + Capacitor sync
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: ${{ github.event.inputs.api_url || 'https://asistent-medical-backend.onrender.com' }}
+        run: |
+          npm ci
+          npm run mobile:sync
+
+      - name: Decode upload keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/upload.jks"
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses >/dev/null 2>&1 || true
+
+      - name: Build signed AAB
+        working-directory: frontend/android
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/upload.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew bundleRelease --no-daemon --stacktrace
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: frontend/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
