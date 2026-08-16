@@ -33,16 +33,28 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        env:
+          # Also read the Variables tab, to detect a "stored as Variable" mistake.
+          V_KEYSTORE_BASE64: ${{ vars.KEYSTORE_BASE64 }}
+          V_KEYSTORE_PASSWORD: ${{ vars.KEYSTORE_PASSWORD }}
+          V_KEY_ALIAS: ${{ vars.KEY_ALIAS }}
+          V_KEY_PASSWORD: ${{ vars.KEY_PASSWORD }}
         run: |
           # Lengths only — never the values (safe to print).
+          echo "== secrets.* =="
           echo "KEYSTORE_BASE64   length: ${#KEYSTORE_BASE64}"
           echo "KEYSTORE_PASSWORD length: ${#KEYSTORE_PASSWORD}"
           echo "KEY_ALIAS         length: ${#KEY_ALIAS}"
           echo "KEY_PASSWORD      length: ${#KEY_PASSWORD}"
+          echo "== vars.* (should all be 0 if stored correctly as secrets) =="
+          echo "KEYSTORE_BASE64   length: ${#V_KEYSTORE_BASE64}"
+          echo "KEYSTORE_PASSWORD length: ${#V_KEYSTORE_PASSWORD}"
+          echo "KEY_ALIAS         length: ${#V_KEY_ALIAS}"
+          echo "KEY_PASSWORD      length: ${#V_KEY_PASSWORD}"
           missing=0
           for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
             if [ -z "${!name}" ]; then
-              echo "::error::Missing $name secret (empty on runner). Add it under Settings → Secrets and variables → Actions → Repository secrets."
+              echo "::error::Missing $name secret (empty on runner). Add it under Settings → Secrets and variables → Actions → Repository secrets (the 'Secrets' tab, not 'Variables')."
               missing=1
             fi
           done
