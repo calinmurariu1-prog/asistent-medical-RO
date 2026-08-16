@@ -5,6 +5,7 @@ import { MapPin, Navigation, Phone, Star } from "lucide-react";
 import { api } from "@/lib/api";
 import type { NearbyProviders, SpecialtySuggestion } from "@/lib/types";
 import { Badge, Button, Card, Input, PageHeader, Spinner } from "@/components/ui";
+import { ProviderMap } from "@/components/provider-map";
 
 export default function DoctorsPage() {
   const [specialties, setSpecialties] = useState<SpecialtySuggestion[]>([]);
@@ -16,8 +17,12 @@ export default function DoctorsPage() {
   const [data, setData] = useState<NearbyProviders | null>(null);
   const [loading, setLoading] = useState(false);
   const [geoState, setGeoState] = useState<"idle" | "asking" | "denied" | "ok">("idle");
+  const [activeKey, setActiveKey] = useState<string | null>(null);
 
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
+
+  const keyFor = (p: NearbyProviders["results"][number], i: number) =>
+    p.place_id || `${p.lat},${p.lng},${i}`;
 
   function scoreTone(score: number | null): "green" | "blue" | "amber" | "neutral" {
     if (score == null) return "neutral";
@@ -180,24 +185,27 @@ export default function DoctorsPage() {
             </div>
           </div>
 
-          {mapsKey && (
+          {mapsKey && data.results.length > 0 && (
             <div className="overflow-hidden rounded-2xl border border-border">
-              <iframe
-                title="Hartă medici"
-                width="100%"
-                height="320"
-                style={{ border: 0 }}
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                src={`https://www.google.com/maps/embed/v1/search?key=${mapsKey}&q=${encodeURIComponent(
-                  data.specialty,
-                )}&center=${data.center.lat},${data.center.lng}&zoom=13`}
+              <ProviderMap
+                apiKey={mapsKey}
+                center={data.center}
+                userLocation={coords}
+                points={data.results}
+                activeKey={activeKey}
+                onSelect={setActiveKey}
               />
             </div>
           )}
 
           {data.results.map((p, i) => (
-            <Card key={p.place_id || i} className="flex flex-wrap items-center justify-between gap-3">
+            <Card
+              key={keyFor(p, i)}
+              onClick={() => setActiveKey(keyFor(p, i))}
+              className={`flex flex-wrap items-center justify-between gap-3 ${
+                mapsKey ? "cursor-pointer transition hover:border-brand-violet/50" : ""
+              } ${activeKey === keyFor(p, i) ? "ring-2 ring-brand-violet" : ""}`}
+            >
               <div className="flex items-start gap-4">
                 {p.score != null && (
                   <div className="text-center">

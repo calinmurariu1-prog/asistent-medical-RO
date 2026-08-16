@@ -48,13 +48,15 @@ class Settings(BaseSettings):
     S3_USE_SSL: bool = False
 
     # ---- AI ----
-    AI_DEFAULT_PROVIDER: str = "anthropic"
+    # Default provider is Gemini (generous free tier). With no GEMINI_API_KEY
+    # set, the factory transparently falls back to the offline mock.
+    AI_DEFAULT_PROVIDER: str = "gemini"
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_MODEL: str = "claude-sonnet-5"
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-1.5-pro"
+    GEMINI_MODEL: str = "gemini-2.0-flash"
 
     # MedLLM micro-service (z-ai CLI wrapper). No API key needed here; the
     # micro-service handles credentials. Reachable by service name in Docker.

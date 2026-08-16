@@ -215,7 +215,21 @@ class GeminiProvider(LLMProvider):
         import google.generativeai as genai
 
         genai.configure(api_key=settings.GEMINI_API_KEY)
+        # Relax safety filters: clinical text (diagnoses, medication, dosages)
+        # can otherwise be false-flagged and returned empty.
+        safety = {
+            "HARASSMENT": "BLOCK_NONE",
+            "HATE_SPEECH": "BLOCK_NONE",
+            "SEXUALLY_EXPLICIT": "BLOCK_NONE",
+            "DANGEROUS": "BLOCK_NONE",
+        }
         model = genai.GenerativeModel(
-            settings.GEMINI_MODEL, system_instruction=system
+            settings.GEMINI_MODEL,
+            system_instruction=system,
+            safety_settings=safety,
         )
-        return model.generate_content(user).text or "{}"
+        resp = model.generate_content(user)
+        try:
+            return resp.text or "{}"
+        except Exception:  # noqa: BLE001  (blocked / no candidate)
+            return "{}"
