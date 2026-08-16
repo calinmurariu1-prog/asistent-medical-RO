@@ -13,6 +13,11 @@ on:
         description: "Backend URL baked into the app"
         required: false
         default: "https://asistent-medical-backend.onrender.com"
+  # Build a release AAB whenever the release workflow itself is touched.
+  # (Deliberate trigger — ordinary code pushes do NOT build a release.)
+  push:
+    paths:
+      - ".github/workflows/android-release.yml"
 
 jobs:
   release-aab:
