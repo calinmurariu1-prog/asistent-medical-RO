@@ -1,6 +1,7 @@
 name: Android Release (AAB)
 
 # Builds a SIGNED Android App Bundle (.aab) for Google Play upload.
+# Re-run: 2026-08-16 (secrets re-added).
 # Requires these repository secrets (see docs/LAUNCH_ANDROID.md):
 #   KEYSTORE_BASE64    - base64 of the upload keystore (.jks)
 #   KEYSTORE_PASSWORD  - keystore password
