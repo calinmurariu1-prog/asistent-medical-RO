@@ -23,6 +23,8 @@ from app.services.ai.base import (
     DocumentExtraction,
     ExtractedLabValue,
 )
+from app.services.ai.confidence import reconcile_confidence
+from app.services.ai.lab_parser import parse_lab_values
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +109,9 @@ class MedLLMProvider:
             for lv in (data.get("lab_values") or [])
             if lv.get("analyte")
         ]
+        # Verify LLM numbers against the deterministic parser reading raw text.
+        reconcile_confidence(lab_values, parse_lab_values(text))
+
         return DocumentExtraction(
             summary=str(data.get("summary", "")),
             diagnoses=[str(d) for d in data.get("diagnoses", [])],

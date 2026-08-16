@@ -22,6 +22,7 @@ class LabResultOut(BaseModel):
     flag: LabFlag
     measured_on: date | None
     ai_explanation: str | None = None
+    confidence: str = "verified"
 
 
 class ManualLabIn(BaseModel):

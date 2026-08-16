@@ -89,6 +89,10 @@ class LabResult(Base, TimestampMixin):
     )
     measured_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     ai_explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # "verified" (parser/manual) or "unverified" (AI-only → shown "de confirmat").
+    confidence: Mapped[str] = mapped_column(
+        String(20), default="verified", server_default="verified", nullable=False
+    )
 
     patient: Mapped[Patient] = relationship(back_populates="lab_results")
     document: Mapped[Document | None] = relationship(back_populates="lab_results")

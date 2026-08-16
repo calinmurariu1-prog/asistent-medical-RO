@@ -60,6 +60,7 @@ def _persist_lab_values(
                 ref_high=v.ref_high,
                 flag=compute_flag(v.value, v.ref_low, v.ref_high),
                 measured_on=document.document_date,
+                confidence=getattr(v, "confidence", "verified"),
             )
         )
 

@@ -47,6 +47,7 @@ export interface LabResult {
   flag: LabFlag;
   measured_on: string | null;
   ai_explanation: string | null;
+  confidence: "verified" | "unverified";
 }
 
 export interface LabSeriesPoint {

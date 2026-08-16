@@ -19,6 +19,10 @@ class ExtractedLabValue:
     unit: str | None = None
     ref_low: float | None = None
     ref_high: float | None = None
+    # "verified"   -> confirmed by the deterministic parser reading the raw text
+    # "unverified" -> produced by the LLM only; surfaced to the user as
+    #                 "de confirmat" so an AI-invented number is never trusted.
+    confidence: str = "unverified"
 
 
 @dataclass

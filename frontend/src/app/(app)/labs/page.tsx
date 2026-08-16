@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, LineChart as LineChartIcon, Sparkles, TrendingUp } from "lucide-react";
+import { Activity, AlertTriangle, LineChart as LineChartIcon, Sparkles, TrendingUp } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import type { LabResult, LabSeries } from "@/lib/types";
@@ -104,7 +104,17 @@ export default function LabsPage() {
             <Card key={r.id}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="font-semibold">{r.analyte}</div>
+                  <div className="flex items-center gap-2 font-semibold">
+                    {r.analyte}
+                    {r.confidence === "unverified" && (
+                      <span
+                        title="Valoare extrasă automat de AI, neconfirmată din text. Verifică pe documentul original."
+                        className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-600"
+                      >
+                        <AlertTriangle size={11} /> De confirmat
+                      </span>
+                    )}
+                  </div>
                   <div className="text-sm text-muted">
                     {r.value ?? r.value_text} {r.unit}
                     {r.ref_low != null && r.ref_high != null && (

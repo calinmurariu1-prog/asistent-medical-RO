@@ -11,6 +11,7 @@ import logging
 
 from app.core.config import settings
 from app.services.ai.base import DISCLAIMER, DocumentExtraction, ExtractedLabValue
+from app.services.ai.confidence import reconcile_confidence
 from app.services.ai.lab_parser import parse_lab_values
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,10 @@ class LLMProvider:
             for lv in data.get("lab_values", [])
             if lv.get("analyte")
         ] or fallback_labs
+
+        # Mark each value verified/unverified using the deterministic parser as
+        # ground truth, so AI-invented numbers surface as "de confirmat".
+        reconcile_confidence(lab_values, fallback_labs)
 
         return DocumentExtraction(
             summary=str(data.get("summary", "")).strip(),

@@ -56,6 +56,8 @@ def parse_lab_values(text: str) -> list[ExtractedLabValue]:
                 unit=(m.group("unit") or None),
                 ref_low=_to_float(m.group("low")),
                 ref_high=_to_float(m.group("high")),
+                # Read straight from the document text — inherently trusted.
+                confidence="verified",
             )
         )
     return results
