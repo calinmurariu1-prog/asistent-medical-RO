@@ -1,10 +1,13 @@
 name: Android Release (AAB)
 
 # Builds a SIGNED Android App Bundle (.aab) for Google Play upload.
-# Re-run: 2026-08-16 (KEYSTORE_BASE64 updated).
+#
+# The upload keystore is committed AES-256 encrypted at
+# frontend/android/keystore/upload.jks.gpg and decrypted at build time with
+# the KEYSTORE_PASSWORD secret — so no giant base64 secret is needed.
+#
 # Requires these repository secrets (see docs/LAUNCH_ANDROID.md):
-#   KEYSTORE_BASE64    - base64 of the upload keystore (.jks)
-#   KEYSTORE_PASSWORD  - keystore password
+#   KEYSTORE_PASSWORD  - keystore password (also decrypts upload.jks.gpg)
 #   KEY_ALIAS          - key alias
 #   KEY_PASSWORD       - key password
 on:
@@ -29,34 +32,25 @@ jobs:
 
       - name: Verify signing secrets
         env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          # Also read the Variables tab, to detect a "stored as Variable" mistake.
-          V_KEYSTORE_BASE64: ${{ vars.KEYSTORE_BASE64 }}
-          V_KEYSTORE_PASSWORD: ${{ vars.KEYSTORE_PASSWORD }}
-          V_KEY_ALIAS: ${{ vars.KEY_ALIAS }}
-          V_KEY_PASSWORD: ${{ vars.KEY_PASSWORD }}
         run: |
           # Lengths only — never the values (safe to print).
-          echo "== secrets.* =="
-          echo "KEYSTORE_BASE64   length: ${#KEYSTORE_BASE64}"
           echo "KEYSTORE_PASSWORD length: ${#KEYSTORE_PASSWORD}"
           echo "KEY_ALIAS         length: ${#KEY_ALIAS}"
           echo "KEY_PASSWORD      length: ${#KEY_PASSWORD}"
-          echo "== vars.* (should all be 0 if stored correctly as secrets) =="
-          echo "KEYSTORE_BASE64   length: ${#V_KEYSTORE_BASE64}"
-          echo "KEYSTORE_PASSWORD length: ${#V_KEYSTORE_PASSWORD}"
-          echo "KEY_ALIAS         length: ${#V_KEY_ALIAS}"
-          echo "KEY_PASSWORD      length: ${#V_KEY_PASSWORD}"
           missing=0
-          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+          for name in KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
             if [ -z "${!name}" ]; then
-              echo "::error::Missing $name secret (empty on runner). Add it under Settings → Secrets and variables → Actions → Repository secrets (the 'Secrets' tab, not 'Variables')."
+              echo "::error::Missing $name secret. Add it under Settings → Secrets and variables → Actions → Repository secrets."
               missing=1
             fi
           done
+          if [ ! -f frontend/android/keystore/upload.jks.gpg ]; then
+            echo "::error::Missing encrypted keystore frontend/android/keystore/upload.jks.gpg"
+            missing=1
+          fi
           [ "$missing" = "0" ] || exit 1
 
       - uses: actions/setup-node@v4
@@ -79,8 +73,15 @@ jobs:
           npm ci
           npm run mobile:sync
 
-      - name: Decode upload keystore
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/upload.jks"
+      - name: Decrypt upload keystore
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          gpg --batch --yes --pinentry-mode loopback \
+              --passphrase "$KEYSTORE_PASSWORD" \
+              -o "$RUNNER_TEMP/upload.jks" \
+              -d frontend/android/keystore/upload.jks.gpg
+          echo "Decrypted keystore bytes: $(wc -c < "$RUNNER_TEMP/upload.jks")"
 
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses >/dev/null 2>&1 || true
