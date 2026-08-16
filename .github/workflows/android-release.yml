@@ -33,7 +33,6 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        env:
           # Also read the Variables tab, to detect a "stored as Variable" mistake.
           V_KEYSTORE_BASE64: ${{ vars.KEYSTORE_BASE64 }}
           V_KEYSTORE_PASSWORD: ${{ vars.KEYSTORE_PASSWORD }}
