@@ -20,6 +20,7 @@ import type { Dashboard, HealthSummary } from "@/lib/types";
 import { Badge, Button, Card, Spinner } from "@/components/ui";
 import { HealthRing } from "@/components/health-ring";
 import { Sparkline } from "@/components/line-chart";
+import { Reveal } from "@/components/motion";
 
 const STAT_STYLES = [
   { tint: "bg-brand-blue/10", fg: "text-brand-blue" },
@@ -46,7 +47,7 @@ function Stat({
         <Icon size={20} />
       </span>
       <div>
-        <div className="text-2xl font-bold leading-none">{value}</div>
+        <div className="text-2xl font-bold leading-none tabular-nums">{value}</div>
         <div className="mt-1 text-xs text-muted">{label}</div>
       </div>
     </Card>
@@ -142,7 +143,8 @@ export default function DashboardPage() {
       )}
 
       {/* Health rings */}
-      <Card className="brand-gradient-3 border-0 text-white">
+      <Reveal className="brand-gradient-3 rounded-3xl border-0 text-white shadow-soft">
+      <Card className="border-0 bg-transparent text-white shadow-none">
         <div className="mb-4 flex items-center gap-2 font-semibold">
           <HeartPulse size={18} /> Activitatea ta
         </div>
@@ -186,6 +188,7 @@ export default function DashboardPage() {
           </div>
         )}
       </Card>
+      </Reveal>
 
       {data.alerts.length > 0 && (
         <Card className="border-red-500/30 bg-red-500/5">

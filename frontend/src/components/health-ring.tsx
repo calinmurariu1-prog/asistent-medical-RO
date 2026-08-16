@@ -1,5 +1,7 @@
 "use client";
 
+import { motion } from "framer-motion";
+
 /**
  * A soft circular progress ring for a health metric (steps, sleep, SpO₂, …).
  * `value`/`goal` drive the arc; `color` is a CSS color (brand tokens work).
@@ -41,7 +43,7 @@ export function HealthRing({
             stroke="rgb(var(--border))"
             strokeWidth={stroke}
           />
-          <circle
+          <motion.circle
             cx={size / 2}
             cy={size / 2}
             r={r}
@@ -50,11 +52,15 @@ export function HealthRing({
             strokeWidth={stroke}
             strokeLinecap="round"
             strokeDasharray={c}
-            strokeDashoffset={c * (1 - pct)}
+            initial={{ strokeDashoffset: c }}
+            animate={{ strokeDashoffset: c * (1 - pct) }}
+            transition={{ duration: 0.9, ease: "easeOut" }}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-lg font-bold leading-none">{display}</span>
+          <span className="text-lg font-bold leading-none tabular-nums">
+            {display}
+          </span>
           {unit && <span className="text-[10px] text-muted">{unit}</span>}
         </div>
       </div>

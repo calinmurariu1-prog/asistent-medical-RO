@@ -74,12 +74,14 @@ export function Button({
   variant?: "primary" | "ghost" | "outline" | "danger";
 }) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none";
+    "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none";
   const variants = {
-    primary: "brand-gradient text-white shadow-soft hover:brightness-105",
+    // Brand-tinted shadow (guideline: tint shadows to the element, not gray/black).
+    primary:
+      "brand-gradient text-white shadow-[0_8px_20px_-8px_rgb(99_58_200_/_0.55)] hover:brightness-105",
     ghost: "text-fg/80 hover:bg-surface-2",
     outline: "border border-border bg-surface text-fg hover:bg-surface-2",
-    danger: "bg-red-600 text-white hover:bg-red-700",
+    danger: "bg-red-600 text-white shadow-[0_8px_20px_-8px_rgb(220_38_38_/_0.45)] hover:bg-red-700",
   };
   return <button className={cx(base, variants[variant], className)} {...props} />;
 }

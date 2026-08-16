@@ -125,7 +125,7 @@ export default function SubscriptionPage() {
                   )}
                 </div>
                 <p className="mt-1 text-sm text-muted">{p.tagline}</p>
-                <p className="mt-4 text-3xl font-bold">
+                <p className="mt-4 text-3xl font-bold tabular-nums">
                   {p.price_eur_month === 0
                     ? "Gratuit"
                     : `${p.price_eur_month.toFixed(2)}€`}

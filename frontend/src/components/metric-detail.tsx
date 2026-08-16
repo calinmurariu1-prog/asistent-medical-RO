@@ -73,7 +73,7 @@ export function MetricDetail({ metric }: { metric: string }) {
                 ["Maxim", info.max],
               ].map(([label, val]) => (
                 <Card key={label as string} className="p-4 text-center">
-                  <div className="text-xl font-bold">
+                  <div className="text-xl font-bold tabular-nums">
                     {val ?? "—"}
                     <span className="ml-1 text-xs font-normal text-muted">
                       {info.unit}
