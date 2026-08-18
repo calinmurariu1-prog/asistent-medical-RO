@@ -30,6 +30,7 @@ _KEY_BY_PROVIDER = {
     "anthropic": lambda: settings.ANTHROPIC_API_KEY,
     "openai": lambda: settings.OPENAI_API_KEY,
     "gemini": lambda: settings.GEMINI_API_KEY,
+    "groq": lambda: settings.GROQ_API_KEY,
 }
 
 
@@ -61,6 +62,7 @@ def get_ai_provider() -> AIProvider:
     from app.services.ai.llm import (
         AnthropicProvider,
         GeminiProvider,
+        GroqProvider,
         OpenAIProvider,
     )
 
@@ -71,6 +73,8 @@ def get_ai_provider() -> AIProvider:
             return OpenAIProvider()
         if provider == "gemini":
             return GeminiProvider()
+        if provider == "groq":
+            return GroqProvider()
     except Exception as exc:  # noqa: BLE001  (missing SDK, bad config)
         logger.warning("Failed to init provider '%s': %s; using mock.", provider, exc)
 

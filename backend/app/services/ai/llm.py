@@ -213,6 +213,27 @@ class OpenAIProvider(LLMProvider):
         return resp.choices[0].message.content or "{}"
 
 
+class GroqProvider(LLMProvider):
+    """Groq (Llama 3.3 70B) via its OpenAI-compatible endpoint. Free & fast."""
+
+    name = "groq"
+    _BASE_URL = "https://api.groq.com/openai/v1"
+
+    def _complete(self, system: str, user: str) -> str:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=settings.GROQ_API_KEY, base_url=self._BASE_URL)
+        resp = client.chat.completions.create(
+            model=settings.GROQ_MODEL,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            temperature=0.2,
+        )
+        return resp.choices[0].message.content or "{}"
+
+
 class GeminiProvider(LLMProvider):
     name = "gemini"
 

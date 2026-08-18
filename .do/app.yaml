@@ -1,0 +1,77 @@
+# DigitalOcean App Platform spec — Asistent Medical AI
+# Creates: managed PostgreSQL + backend (FastAPI, Docker) + frontend (Next.js, Docker).
+#
+# Deploy:
+#   doctl apps create --spec .do/app.yaml
+# or in the UI: Apps → Create App → (connect repo) → Edit → paste this spec.
+#
+# Set these as ENCRYPTED env vars in the dashboard after import (never commit):
+#   SECRET_KEY, DATA_ENCRYPTION_KEY, GROQ_API_KEY
+name: asistent-medical
+region: fra   # Frankfurt — closest to Romania
+
+databases:
+  - name: asistent-medical-db
+    engine: PG
+    version: "16"
+    # Dev DB (cheapest). Switch to a production cluster before real launch.
+    production: false
+
+services:
+  # ---- Backend (FastAPI + OCR; runs Alembic migrations on start) ----
+  - name: backend
+    source_dir: /backend
+    dockerfile_path: backend/Dockerfile
+    github:
+      repo: calinmurariu1-prog/asistent-medical-RO
+      branch: claude/new-isolated-project-oheqvr
+      deploy_on_push: true
+    http_port: 8000
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    health_check:
+      http_path: /health
+    envs:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        value: ${asistent-medical-db.DATABASE_URL}
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      # AI: Groq (free, fast). Add GROQ_API_KEY below to enable; else offline mock.
+      - key: AI_DEFAULT_PROVIDER
+        value: groq
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      # Allow the frontend origin (DO resolves the component's public URL).
+      - key: BACKEND_CORS_ORIGINS
+        value: ${frontend.PUBLIC_URL}
+      - key: FRONTEND_URL
+        value: ${frontend.PUBLIC_URL}
+      # ---- Set these as ENCRYPTED in the dashboard (do NOT commit real values) ----
+      - key: SECRET_KEY
+        type: SECRET
+        value: REPLACE_IN_DASHBOARD
+      - key: DATA_ENCRYPTION_KEY
+        type: SECRET
+        value: REPLACE_IN_DASHBOARD
+      - key: GROQ_API_KEY
+        type: SECRET
+        value: REPLACE_IN_DASHBOARD
+
+  # ---- Frontend (Next.js) ----
+  - name: frontend
+    source_dir: /frontend
+    dockerfile_path: frontend/Dockerfile
+    github:
+      repo: calinmurariu1-prog/asistent-medical-RO
+      branch: claude/new-isolated-project-oheqvr
+      deploy_on_push: true
+    http_port: 3000
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    envs:
+      # NEXT_PUBLIC_API_URL is inlined at BUILD time → must be BUILD_TIME scope.
+      - key: NEXT_PUBLIC_API_URL
+        scope: BUILD_TIME
+        value: ${backend.PUBLIC_URL}
