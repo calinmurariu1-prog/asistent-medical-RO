@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p ${PORT:-3000}",
     "lint": "next lint",
     "build:mobile": "MOBILE_BUILD=1 NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://asistent-medical-backend.onrender.com} next build",
     "gen:assets": "node scripts/gen-assets.mjs && capacitor-assets generate --android --splashBackgroundColor '#F4F7F6' --splashBackgroundColorDark '#060B19'",

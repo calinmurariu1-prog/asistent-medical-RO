@@ -100,3 +100,26 @@ nu pentru producție reală.
 ## Email (SMTP, opțional)
 Pentru verificare email + resetare parolă reale, setează `SMTP_HOST`,
 `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`. Fără ele, linkurile se loghează.
+
+## Troubleshooting — „aplicația nu pornește" pe Render
+
+Ordinea în care merită verificat (de la cel mai probabil), pe planul **free**:
+
+1. **Serviciul „doarme" (spin-down).** Serviciile free se opresc după ~15 min de
+   inactivitate. Primul acces le trezește, dar pornirea la rece durează
+   **~50 sec – 2 min**. Deschide URL-ul și **așteaptă/refresh** după un minut.
+2. **Baza de date free a expirat.** Pe Render, PostgreSQL **free se șterge după
+   30 de zile**. Dacă backend-ul nu mai pornește brusc după o perioadă, în
+   dashboard verifică dacă baza mai există; dacă a expirat, creeaz-o din nou și
+   re-deployează (migrațiile rulează la boot).
+3. **Ore lunare de instanță epuizate.** Free are un buget lunar de ore; dacă e
+   depășit, serviciul e suspendat până în luna următoare.
+4. **Port binding.** Serviciile trebuie să asculte pe `$PORT` (injectat de
+   Render). Backend-ul (`entrypoint.sh`) și frontend-ul (`next start -p $PORT`)
+   îl folosesc deja, cu fallback local (8000/3000).
+5. **Build/deploy eșuat.** Dashboard → serviciu → **Logs** și **Events**. Caută
+   erori de build sau `RuntimeError: Configurare nesigură...` (lipsă
+   `SECRET_KEY`/`DATA_ENCRYPTION_KEY` — normal sunt `generateValue`).
+
+Cum citești cauza reală: **Render dashboard → serviciul respectiv → tab Logs**
+(runtime) și **Events** (istoric deploy). Acolo apare mesajul exact de eroare.
