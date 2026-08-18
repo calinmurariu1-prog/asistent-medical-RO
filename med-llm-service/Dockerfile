@@ -1,4 +1,4 @@
-FROM node:22-slim
+FROM node:26-slim
 
 # z-ai CLI needs bash + curl (curl also used by the healthcheck).
 RUN apt-get update && apt-get install -y --no-install-recommends bash curl \
