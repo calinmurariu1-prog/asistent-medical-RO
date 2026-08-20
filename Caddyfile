@@ -1,0 +1,28 @@
+# Caddy reverse proxy with automatic HTTPS (Let's Encrypt).
+# Domains come from the environment (docker-compose.prod.yml).
+
+{$APP_DOMAIN} {
+	encode gzip
+
+	# API + health go to the backend (FastAPI serves /api/v1 and /health).
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+	handle /health {
+		reverse_proxy backend:8000
+	}
+
+	# Everything else is the Next.js frontend.
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
+
+# MinIO (document storage). The backend signs presigned URLs against the
+# internal host `minio:9000`, so we forward that exact Host header — otherwise
+# the S3 signature would not validate.
+{$FILES_DOMAIN} {
+	reverse_proxy minio:9000 {
+		header_up Host minio:9000
+	}
+}

@@ -1,0 +1,96 @@
+# Production stack for a single DigitalOcean Droplet.
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Caddy terminates HTTPS (auto Let's Encrypt) and routes:
+#   https://$APP_DOMAIN         -> frontend (Next.js)
+#   https://$APP_DOMAIN/api/*   -> backend  (FastAPI)
+#   https://$FILES_DOMAIN       -> MinIO     (document storage / presigned URLs)
+#
+# Copy .env.prod.example to .env and fill it in first.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # No published ports — only reachable inside the compose network.
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Exposed to the internet only through Caddy ($FILES_DOMAIN).
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      # Internal service URLs (compose network).
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_PUBLIC_URL: https://${FILES_DOMAIN}
+      S3_USE_SSL: "false"
+    # Exposed to the internet only through Caddy ($APP_DOMAIN/api).
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the browser bundle at build time. Same origin as the app,
+        # so the browser calls https://$APP_DOMAIN/api/v1/... (Caddy routes it).
+        NEXT_PUBLIC_API_URL: https://${APP_DOMAIN}
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      FILES_DOMAIN: ${FILES_DOMAIN}
+    depends_on:
+      - frontend
+      - backend
+      - minio
+
+volumes:
+  postgres-data:
+  minio-data:
+  caddy-data:
+  caddy-config:
