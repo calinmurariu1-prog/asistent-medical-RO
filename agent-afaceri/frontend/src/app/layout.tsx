@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/lib/auth";
+import Header from "@/components/header";
 
 export const metadata: Metadata = {
   title: "Agent Afaceri & Juridic AI",
   description:
-    "Asistent AI informativ pentru afaceri și juridic — contracte, înființare firmă, fiscalitate, plan de afaceri.",
+    "Asistent AI informativ pentru afaceri și juridic — contracte, înființare firmă, fiscalitate, GDPR, plan de afaceri.",
 };
 
 export default function RootLayout({
@@ -14,7 +16,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ro">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>
+          <Header />
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   );
 }

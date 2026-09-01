@@ -1,13 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   chat,
   ChatMsg,
+  exportInline,
   listSkills,
   runSkill,
+  saveDocument,
   Skill,
 } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 const INPUT_LABELS: Record<string, string> = {
   type: "Tip contract",
@@ -19,7 +23,14 @@ const INPUT_LABELS: Record<string, string> = {
   situation: "Descrie situația",
   idea: "Ideea de afacere",
   business: "Afacerea / ideea",
+  employer: "Angajator",
+  employee: "Salariat",
+  position: "Funcție / post",
+  salary: "Salariu brut",
+  data_types: "Tipuri de date prelucrate",
 };
+
+const LONG_FIELDS = new Set(["text", "situation", "terms"]);
 
 export default function Home() {
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -29,7 +40,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Chat
   const [domain, setDomain] = useState<"business" | "juridic">("business");
   const [msg, setMsg] = useState("");
   const [history, setHistory] = useState<ChatMsg[]>([]);
@@ -73,10 +83,7 @@ export default function Home() {
       const reply = await chat(q, domain, history);
       setHistory([...next, { role: "assistant", content: reply }]);
     } catch (e: any) {
-      setHistory([
-        ...next,
-        { role: "assistant", content: "Eroare: " + (e.message || e) },
-      ]);
+      setHistory([...next, { role: "assistant", content: "Eroare: " + (e.message || e) }]);
     } finally {
       setChatLoading(false);
     }
@@ -92,8 +99,8 @@ export default function Home() {
           ⚖️ Agent Afaceri &amp; Juridic AI
         </h1>
         <p className="mt-1 text-slate-600 dark:text-slate-400">
-          Asistent informativ pentru contracte, înființare firmă, fiscalitate și
-          planuri de afaceri. Context România, în limba română.
+          Contracte, înființare firmă, fiscalitate, GDPR, protecția consumatorului
+          și planuri de afaceri. Context România, în limba română.
         </p>
       </header>
 
@@ -104,15 +111,12 @@ export default function Home() {
       )}
 
       <div className="grid gap-8 md:grid-cols-2">
-        {/* Skill-uri */}
         <section>
           <h2 className="mb-3 text-lg font-semibold">Skill-uri</h2>
-
           <SkillGroup label="Juridic ⚖️" list={legal} onPick={selectSkill} active={active} />
           <SkillGroup label="Business 📈" list={biz} onPick={selectSkill} active={active} />
         </section>
 
-        {/* Panou skill activ */}
         <section>
           <h2 className="mb-3 text-lg font-semibold">
             {active ? active.title : "Alege un skill"}
@@ -128,22 +132,18 @@ export default function Home() {
                   <label className="mb-1 block text-sm font-medium">
                     {INPUT_LABELS[f] || f}
                   </label>
-                  {f === "text" || f === "situation" || f === "terms" ? (
+                  {LONG_FIELDS.has(f) ? (
                     <textarea
                       className="w-full rounded-lg border border-slate-300 bg-transparent p-2 text-sm dark:border-slate-700"
                       rows={4}
                       value={inputs[f] || ""}
-                      onChange={(e) =>
-                        setInputs({ ...inputs, [f]: e.target.value })
-                      }
+                      onChange={(e) => setInputs({ ...inputs, [f]: e.target.value })}
                     />
                   ) : (
                     <input
                       className="w-full rounded-lg border border-slate-300 bg-transparent p-2 text-sm dark:border-slate-700"
                       value={inputs[f] || ""}
-                      onChange={(e) =>
-                        setInputs({ ...inputs, [f]: e.target.value })
-                      }
+                      onChange={(e) => setInputs({ ...inputs, [f]: e.target.value })}
                     />
                   )}
                 </div>
@@ -157,16 +157,22 @@ export default function Home() {
               </button>
 
               {result && (
-                <pre className="mt-4 whitespace-pre-wrap rounded-lg bg-slate-100 p-3 text-sm dark:bg-slate-800">
-                  {result}
-                </pre>
+                <>
+                  <pre className="mt-4 whitespace-pre-wrap rounded-lg bg-slate-100 p-3 text-sm dark:bg-slate-800">
+                    {result}
+                  </pre>
+                  <ResultActions
+                    title={active.title}
+                    content={result}
+                    category={active.category}
+                  />
+                </>
               )}
             </div>
           )}
         </section>
       </div>
 
-      {/* Chat */}
       <section className="mt-10">
         <div className="mb-3 flex items-center gap-3">
           <h2 className="text-lg font-semibold">Chat cu agentul</h2>
@@ -181,17 +187,14 @@ export default function Home() {
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-          <div className="mb-3 max-h-80 space-y-3 overflow-y-auto">
+          <div className="mb-3 max-h-96 space-y-3 overflow-y-auto">
             {history.length === 0 && (
               <p className="text-sm text-slate-500">
                 Întreabă orice despre afaceri sau juridic…
               </p>
             )}
             {history.map((m, i) => (
-              <div
-                key={i}
-                className={m.role === "user" ? "text-right" : "text-left"}
-              >
+              <div key={i} className={m.role === "user" ? "text-right" : "text-left"}>
                 <span
                   className={
                     "inline-block max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm " +
@@ -202,11 +205,17 @@ export default function Home() {
                 >
                   {m.content}
                 </span>
+                {m.role === "assistant" && (
+                  <ResultActions
+                    title={`Chat ${domain}`}
+                    content={m.content}
+                    category={domain}
+                    compact
+                  />
+                )}
               </div>
             ))}
-            {chatLoading && (
-              <p className="text-sm text-slate-500">Agentul scrie…</p>
-            )}
+            {chatLoading && <p className="text-sm text-slate-500">Agentul scrie…</p>}
           </div>
           <div className="flex gap-2">
             <input
@@ -233,6 +242,86 @@ export default function Home() {
         decizii concrete.
       </footer>
     </main>
+  );
+}
+
+function ResultActions({
+  title,
+  content,
+  category,
+  compact,
+}: {
+  title: string;
+  content: string;
+  category: string;
+  compact?: boolean;
+}) {
+  const { user } = useAuth();
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+
+  if (!user) {
+    return (
+      <p className={"text-xs text-slate-500 " + (compact ? "mt-1" : "mt-3")}>
+        <Link href="/login" className="text-brand hover:underline dark:text-brand-accent">
+          Autentifică-te
+        </Link>{" "}
+        ca să salvezi sau să exporți (PDF/Word).
+      </p>
+    );
+  }
+
+  async function doExport(format: "pdf" | "docx") {
+    setBusy(format);
+    setErr("");
+    try {
+      await exportInline(title, content, format);
+    } catch (e: any) {
+      setErr(e.message || String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function doSave() {
+    setBusy("save");
+    setErr("");
+    try {
+      await saveDocument(title, content, category);
+      setSaved(true);
+    } catch (e: any) {
+      setErr(e.message || String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <div className={"flex flex-wrap items-center gap-2 " + (compact ? "mt-1" : "mt-3")}>
+      <button
+        onClick={doSave}
+        disabled={busy !== "" || saved}
+        className="rounded-lg border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+      >
+        {saved ? "✓ Salvat" : busy === "save" ? "Se salvează…" : "Salvează"}
+      </button>
+      <button
+        onClick={() => doExport("pdf")}
+        disabled={busy !== ""}
+        className="rounded-lg border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+      >
+        {busy === "pdf" ? "…" : "PDF"}
+      </button>
+      <button
+        onClick={() => doExport("docx")}
+        disabled={busy !== ""}
+        className="rounded-lg border border-slate-300 px-3 py-1 text-xs hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+      >
+        {busy === "docx" ? "…" : "Word"}
+      </button>
+      {err && <span className="text-xs text-red-600">{err}</span>}
+    </div>
   );
 }
 

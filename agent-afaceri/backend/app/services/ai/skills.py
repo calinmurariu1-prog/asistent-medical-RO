@@ -235,6 +235,110 @@ register(
 
 register(
     Skill(
+        name="employment_contract",
+        title="Contract de muncă detaliat",
+        description="Redactează un contract individual de muncă (CIM) cu clauzele cerute de Codul muncii.",
+        category="juridic",
+        inputs=["employer", "employee", "position", "salary"],
+        prompt=lambda d: (
+            _GUARD_LEGAL,
+            "Redactează un contract individual de muncă (CIM) conform Codului "
+            "muncii din România.\n"
+            f"Angajator: {d['employer']}\n"
+            f"Salariat: {d['employee']}\n"
+            f"Funcție/post: {d['position']}\n"
+            f"Salariu brut: {d.get('salary', '[___]')}\n"
+            "Include: părți, obiect, durata (determinată/nedeterminată), locul "
+            "muncii, felul muncii și atribuții, condiții de muncă, durata timpului "
+            "de muncă (8h/zi, 40h/săptămână), concediu de odihnă, salariu și "
+            "periodicitatea plății, perioada de probă, drepturile și obligațiile "
+            "părților, clauze specifice (confidențialitate, formare), încetare și "
+            "clauze finale. Marchează câmpurile de completat cu [___].",
+        ),
+        mock=lambda d: (
+            "CONTRACT INDIVIDUAL DE MUNCĂ\n"
+            f"Angajator: {d['employer']}\n"
+            f"Salariat: {d['employee']}\n"
+            f"Funcția: {d['position']}\n"
+            f"Salariu brut: {d.get('salary', '[___]')}\n\n"
+            "1. DURATA — nedeterminată/determinată [___]\n"
+            "2. LOCUL MUNCII — [___]\n"
+            "3. FELUL MUNCII ȘI ATRIBUȚII — conform fișei postului.\n"
+            "4. TIMPUL DE MUNCĂ — 8 ore/zi, 40 ore/săptămână.\n"
+            "5. CONCEDIU DE ODIHNĂ — minim 20 zile lucrătoare/an.\n"
+            "6. SALARIZARE — plătit lunar, prin virament.\n"
+            "7. PERIOADA DE PROBĂ — [___]\n"
+            "8. DREPTURI ȘI OBLIGAȚII — conform Codului muncii.\n"
+            "9. ÎNCETARE — conform art. 55 și urm. Cod muncii.\n"
+            "Verifică salariul minim în vigoare și înregistrarea în REVISAL."
+        ),
+    )
+)
+
+register(
+    Skill(
+        name="gdpr_compliance",
+        title="Conformitate GDPR",
+        description="Ghid orientativ de conformare GDPR pentru o afacere (ce trebuie făcut).",
+        category="juridic",
+        inputs=["business", "data_types"],
+        prompt=lambda d: (
+            _GUARD_LEGAL,
+            "Explică pașii de conformare cu GDPR (Regulamentul UE 2016/679) pentru "
+            f"afacerea: „{d['business']}”, care prelucrează datele: "
+            f"„{d.get('data_types', 'date cu caracter personal')}”.\n"
+            "Acoperă: temei legal al prelucrării, informarea persoanelor "
+            "(politica de confidențialitate), consimțământ, drepturile persoanelor "
+            "vizate, registrul de evidență a prelucrărilor, măsuri de securitate, "
+            "împuterniciți/contracte de prelucrare, necesitatea unui DPO și "
+            "notificarea breșelor către ANSPDCP. Prezintă ca checklist acționabil.",
+        ),
+        mock=lambda d: (
+            f"Checklist GDPR — „{d['business']}”:\n"
+            "1. Stabilește temeiul legal pentru fiecare prelucrare (consimțământ, "
+            "contract, obligație legală, interes legitim).\n"
+            "2. Publică o politică de confidențialitate clară.\n"
+            "3. Ține un registru al activităților de prelucrare.\n"
+            "4. Asigură drepturile persoanelor (acces, rectificare, ștergere, portabilitate).\n"
+            "5. Implementează măsuri de securitate (criptare, control acces, backup).\n"
+            "6. Încheie contracte de prelucrare cu împuterniciții (ex. furnizori cloud).\n"
+            "7. Evaluează dacă ai nevoie de DPO.\n"
+            "8. Ai o procedură de notificare a breșelor (72h către ANSPDCP).\n"
+            f"Date prelucrate: {d.get('data_types', 'date personale')}."
+        ),
+    )
+)
+
+register(
+    Skill(
+        name="consumer_protection",
+        title="Protecția consumatorului",
+        description="Obligații față de consumatori (retur, garanție, informare) pentru vânzări/online.",
+        category="juridic",
+        inputs=["business"],
+        prompt=lambda d: (
+            _GUARD_LEGAL,
+            "Explică obligațiile de protecția consumatorului în România/UE pentru "
+            f"afacerea: „{d['business']}”. Acoperă: dreptul de retragere (14 zile "
+            "la vânzări la distanță), garanția legală de conformitate (2 ani), "
+            "obligațiile de informare precontractuală, termeni și condiții, "
+            "soluționarea reclamațiilor și SAL/ANPC. Prezintă ca listă practică.",
+        ),
+        mock=lambda d: (
+            f"Obligații protecția consumatorului — „{d['business']}”:\n"
+            "1. Drept de retragere: 14 zile la vânzarea la distanță (online).\n"
+            "2. Garanție legală de conformitate: 2 ani pentru produse.\n"
+            "3. Informare clară: preț total, caracteristici, date firmă, livrare.\n"
+            "4. Termeni și condiții + politică de retur accesibile.\n"
+            "5. Gestionarea reclamațiilor și acces la SAL/ANPC.\n"
+            "6. Fără clauze abuzive în contractele cu consumatorii.\n"
+            "Verifică OUG 34/2014 și legislația ANPC în vigoare."
+        ),
+    )
+)
+
+register(
+    Skill(
         name="swot_analysis",
         title="Analiză SWOT",
         description="Generează o analiză SWOT pentru o afacere sau idee.",

@@ -6,17 +6,28 @@ Provider AI: Anthropic Claude (fallback offline „mock" fără cheie).
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import chat, skills
+from app.db import init_db
+from app.routers import auth, chat, documents, skills
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    init_db()
+    yield
+
 
 app = FastAPI(
     title="Agent Afaceri & Juridic AI",
     description="Asistent AI informativ pentru afaceri și juridic (România).",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -27,8 +38,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(skills.router)
 app.include_router(chat.router)
+app.include_router(documents.router)
+app.include_router(documents.export_router)
 
 
 @app.get("/health", tags=["meta"])
