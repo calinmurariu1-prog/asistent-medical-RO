@@ -202,3 +202,6 @@ Actualizările profilului validează pe server lungimea numelor (120) și a tele
 
 
 **Dosar medical → Contacte de urgență** permite adăugarea, editarea și ștergerea confirmată a numelui, relației și telefonului. API-ul `/patients/me/emergency-contacts` validează lungimile și numele obligatoriu; modificarea unui contact străin returnează 404. Operațiunile și auditul se confirmă împreună, fără datele persoanei în audit. Contactele sunt deja incluse în exportul JSON și sunt eliminate odată cu contul. Aplicația nu apelează și nu trimite mesaje automat acestor persoane.
+
+### Retenția tokenurilor expirate
+Cu `STORAGE_CLEANUP_ENABLED=true`, workerul elimină cel mult 500 de tokenuri de resetare/confirmare expirate per ciclu. `RECOVERY_TOKEN_RETENTION_HOURS=24` păstrează amprenta încă 24 de ore după expirare (configurabil 0–8760). Tokenurile valabile și codurile MFA nu sunt eliminate de acest proces. Nu reprezintă o politică de retenție pentru documente, audit, backupuri sau emailurile locale; acestea au mecanisme/cerințe separate.

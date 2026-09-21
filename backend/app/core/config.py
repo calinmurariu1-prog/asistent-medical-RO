@@ -40,6 +40,7 @@ class Settings(BaseSettings):
 
     LOCAL_DATA_DIR: str = "../.local-data"
     STORAGE_BACKEND: str = "s3"
+    RECOVERY_TOKEN_RETENTION_HOURS: int = Field(default=24, ge=0, le=8760)
     STORAGE_CLEANUP_ENABLED: bool = True
     STORAGE_CLEANUP_INTERVAL_SECONDS: int = Field(default=30, ge=5, le=3600)
 

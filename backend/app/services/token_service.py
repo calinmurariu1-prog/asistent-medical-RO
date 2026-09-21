@@ -3,9 +3,10 @@ import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.user import RecoveryToken, User
 
 EMAIL_VERIFY = "email_verify"
@@ -36,3 +37,22 @@ def consume_purpose_token(token: str, purpose: str, db: Session) -> User | None:
         RecoveryToken.consumed_at.is_(None), RecoveryToken.expires_at > now
     ).values(consumed_at=now).execution_options(synchronize_session=False))
     return user if result.rowcount == 1 else None
+
+
+def purge_expired(db: Session, *, now: datetime | None = None, batch_size: int = 500) -> int:
+    """Remove only expired recovery/verification hashes after the configured grace period."""
+    if batch_size < 1 or batch_size > 5000:
+        raise ValueError("Invalid cleanup batch size")
+    cutoff = (now or datetime.now(UTC)) - timedelta(hours=settings.RECOVERY_TOKEN_RETENTION_HOURS)
+    hashes = list(db.scalars(select(RecoveryToken.token_hash).where(
+        RecoveryToken.expires_at <= cutoff,
+        RecoveryToken.purpose.in_([PASSWORD_RESET, EMAIL_VERIFY]),
+    ).order_by(RecoveryToken.expires_at, RecoveryToken.token_hash).limit(batch_size)))
+    if not hashes:
+        return 0
+    result = db.execute(delete(RecoveryToken).where(
+        RecoveryToken.token_hash.in_(hashes), RecoveryToken.expires_at <= cutoff,
+        RecoveryToken.purpose.in_([PASSWORD_RESET, EMAIL_VERIFY]),
+    ))
+    db.commit()
+    return result.rowcount

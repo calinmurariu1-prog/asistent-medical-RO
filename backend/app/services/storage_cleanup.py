@@ -88,7 +88,10 @@ def process_pending(db: Session, storage: Storage | None, ids: list[str] | None 
 
 
 def run_batch() -> None:
+    from app.services.token_service import purge_expired
+
     with SessionLocal() as db:
+        purge_expired(db)
         exists = db.scalar(select(StorageDeletion.id).where(
             StorageDeletion.backend.in_([settings.STORAGE_BACKEND, "mailbox"])).limit(1))
         if exists:
