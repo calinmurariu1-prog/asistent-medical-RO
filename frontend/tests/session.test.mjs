@@ -100,3 +100,15 @@ test("native API refresh persists securely without localStorage tokens",async()=
  await clearTokens();assert.equal(stored,null);assert.equal(getToken(),null);
  delete globalThis.__testVault;
 });
+
+
+test("validation responses display messages without serializing sensitive input", async () => {
+ const {api}=await setup();
+ globalThis.fetch=async()=>json({detail:[{msg:"Value error, Data nașterii nu poate fi în viitor.",
+   input:"private-input-marker",ctx:{error:"private-context-marker"}},null,{input:"private"}]},422);
+ await assert.rejects(api.put("/patients/me",{}),error=>{
+   assert.equal(error.status,422);
+   assert.equal(error.message,"Data nașterii nu poate fi în viitor.");
+   assert.ok(!error.message.includes("private"));return true;
+ });
+});

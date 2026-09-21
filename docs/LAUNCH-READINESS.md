@@ -83,3 +83,5 @@ Limitare cereri: operația de verificare/adăugare este protejată între firele
 Retenție tehnică: workerul existent curăță în loturi de 500 amprentele tokenurilor resetare/confirmare după expirare plus RECOVERY_TOKEN_RETENTION_HOURS (implicit 24). Nu atinge coduri MFA, audit sau date clinice. 13 teste recuperare/curățare trecute și un test PostgreSQL omis local; Ruff trecut.
 
 Profil: telefonul și grupa sanguină pot fi completate, modificate și eliminate din interfață; câmpurile goale sunt trimise ca null. Grupa este etichetată ca informație declarată, fără confirmare medicală. Trei scenarii browser (desktop/iPhone/Android) au trecut pentru salvare, păstrare după reîncărcare și ștergere, fără depășire orizontală; build/TypeScript trecut.
+
+Validare profil: datele de naștere viitoare sunt respinse la actualizare conform zilei Europe/Bucharest, fără salvarea celorlalte câmpuri sau audit de modificare. Citirea înregistrărilor vechi rămâne posibilă. Clientul afișează mesajele de validare (maximum 5), fără câmpurile input/context din răspuns. Trei teste profil, 14 teste unitare frontend, Ruff și TypeScript trecute.

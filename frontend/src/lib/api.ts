@@ -118,7 +118,17 @@ async function response(path: string, options: RequestInit = {}): Promise<Respon
   }
   if (!res.ok) {
     let message = "Cererea nu a putut fi finalizată.";
-    try { const data = await res.json(); if (typeof data.detail === "string") message = data.detail; }
+    try {
+      const data = await res.json();
+      if (typeof data.detail === "string") message = data.detail;
+      else if (Array.isArray(data.detail)) {
+        const errors = data.detail.slice(0, 5)
+          .filter((item: unknown): item is {msg: string} =>
+            typeof item === "object" && item !== null && "msg" in item && typeof item.msg === "string")
+          .map((item: {msg: string}) => item.msg.replace(/^Value error, /, "").slice(0, 300));
+        if (errors.length) message = errors.join(" ");
+      }
+    }
     catch { /* non-JSON response */ }
     throw new ApiError(res.status, message);
   }

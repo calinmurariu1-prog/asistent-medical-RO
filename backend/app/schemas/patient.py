@@ -1,9 +1,10 @@
 """Patient profile schemas."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import AllergySeverity, BloodType, Sex
 
@@ -27,6 +28,14 @@ class PatientUpdate(PatientBase):
     family_doctor_id: int | None = Field(default=None, ge=1)
     # CNP is write-only; never returned in responses.
     cnp: str | None = Field(default=None, max_length=13)
+
+    @field_validator("birth_date")
+    @classmethod
+    def birth_date_not_future(cls, value: date | None) -> date | None:
+        if value and value > datetime.now(ZoneInfo("Europe/Bucharest")).date():
+            raise ValueError("Data nașterii nu poate fi în viitor.")
+        return value
+
 
 
 class PatientOut(PatientBase):

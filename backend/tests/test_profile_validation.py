@@ -45,3 +45,22 @@ def test_profile_identifier_clear_and_private_audit(client, db_session):
     assert json.loads(entries[0].detail) == {"fields": ["cnp", "first_name"]}
     assert all("Synthetic private name" not in entry.detail and "0000" not in entry.detail
                for entry in entries)
+
+
+def test_future_birth_date_rejects_entire_update_and_keeps_audit_clean(client, db_session):
+    from datetime import date
+
+    headers = _auth(client, "birth-validation@example.com")
+    initial = {"first_name": "Synthetic", "birth_date": "1990-01-02"}
+    assert client.put(f"{API}/patients/me", headers=headers, json=initial).status_code == 200
+    response = client.put(f"{API}/patients/me", headers=headers,
+                          json={"first_name": "Must not persist", "birth_date": "2999-01-01"})
+    assert response.status_code == 422
+    assert "Data nașterii" in response.text
+    profile = client.get(f"{API}/patients/me", headers=headers).json()
+    assert profile["birth_date"] == date(1990, 1, 2).isoformat()
+    assert profile["first_name"] == "Synthetic"
+    entries = list(db_session.scalars(select(AuditLog).where(AuditLog.action == "patient_update")))
+    assert len(entries) == 1
+    assert client.put(f"{API}/patients/me", headers=headers,
+                      json={"birth_date": None}).status_code == 200
