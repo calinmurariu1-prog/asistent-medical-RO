@@ -1,6 +1,8 @@
 """Module 2 - Patient profile endpoints."""
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -8,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_patient
 from app.core.database import get_db
 from app.core.security import encrypt_field
+from app.models.clinical import Doctor
 from app.models.patient import Allergy, Patient
 from app.schemas.patient import (
     AllergyIn,
@@ -42,13 +45,20 @@ def update_my_profile(
     db: Session = Depends(get_db),
 ) -> PatientOut:
     data = payload.model_dump(exclude_unset=True)
-    cnp = data.pop("cnp", None)
-    if cnp is not None:
-        patient.cnp_encrypted = encrypt_field(cnp)
+    changed_fields = sorted(data)
+    doctor_id = data.get("family_doctor_id")
+    if doctor_id is not None and db.get(Doctor, doctor_id) is None:
+        raise HTTPException(404, "Medicul selectat nu există.")
+    if "cnp" in data:
+        cnp = data.pop("cnp")
+        patient.cnp_encrypted = encrypt_field(cnp) if cnp else None
     for key, value in data.items():
         setattr(patient, key, value)
     db.add(patient)
-    db.commit()
+    # Field names only: profile content and the identifier never enter audit detail.
+    audit.record(db, user_id=patient.user_id, action="patient_update",
+                 resource_type="patient", resource_id=patient.id,
+                 detail=json.dumps({"fields": changed_fields}))
     db.refresh(patient)
     return _to_out(patient)
 

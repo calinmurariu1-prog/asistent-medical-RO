@@ -21,6 +21,10 @@ class PatientBase(BaseModel):
 
 
 class PatientUpdate(PatientBase):
+    first_name: str | None = Field(default=None, max_length=120)
+    last_name: str | None = Field(default=None, max_length=120)
+    phone: str | None = Field(default=None, max_length=40)
+    family_doctor_id: int | None = Field(default=None, ge=1)
     # CNP is write-only; never returned in responses.
     cnp: str | None = Field(default=None, max_length=13)
 

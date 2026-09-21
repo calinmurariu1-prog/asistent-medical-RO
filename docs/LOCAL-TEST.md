@@ -196,3 +196,6 @@ Rapoartele PDF/Word din Profil și originalele din Documente folosesc același a
 
 
 Profilul afișează acum erorile de încărcare cu buton de reîncercare. La eșecul salvării păstrează câmpurile introduse; pe durata cererii dezactivează formularul. Confirmarea salvării dispare când utilizatorul începe o nouă modificare. Data nașterii și sexul golite sunt trimise ca valori nule, astfel încât pot fi eliminate din profil. Limitele din interfață pentru greutate/înălțime corespund validării API existente.
+
+
+Actualizările profilului validează pe server lungimea numelor (120) și a telefonului (40), identificatorul pozitiv și existența medicului selectat. API-ul distinge omiterea CNP-ului de ștergerea explicită prin `null` sau șir gol. Modificarea și evenimentul de audit se confirmă în aceeași tranzacție; jurnalul păstrează numele câmpurilor trimise, fără valori personale. CNP-ul rămâne criptat și nu este returnat de profil. Testele folosesc un identificator fictiv, fără validarea unei identități reale.
