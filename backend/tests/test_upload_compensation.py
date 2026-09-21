@@ -104,3 +104,106 @@ def test_intent_commit_failure_never_writes_original(client, db_session, storage
     db_session.rollback()
     assert storage._objects == {}
     assert db_session.scalar(select(Document)) is None
+
+
+def test_interrupted_upload_cleanup_survives_reopen(tmp_path, monkeypatch):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from app.services.document_upload import persist
+
+    monkeypatch.setattr(settings, "STORAGE_BACKEND", "local")
+    monkeypatch.setattr(settings, "LOCAL_DATA_DIR", str(tmp_path / "private"))
+    local = LocalStorage()
+    real_put = local.put
+
+    def interrupted(key, data, content_type=None):
+        real_put(key, data, content_type)
+        raise KeyboardInterrupt("simulate terminated uploader")
+
+    monkeypatch.setattr(local, "put", interrupted)
+    url = f"sqlite:///{(tmp_path / 'uploads.db').as_posix()}"
+    engine = create_engine(url)
+    StorageDeletion.__table__.create(engine)
+    with Session(engine) as db:
+        with pytest.raises(KeyboardInterrupt):
+            persist(db, local, Document(storage_key="synthetic-key", content_type="text/plain"),
+                    b"synthetic original")
+    engine.dispose()
+    reopened = create_engine(url)
+    with Session(reopened) as db:
+        assert db.scalar(select(StorageDeletion)) is not None
+        assert local.get("synthetic-key") == b"synthetic original"
+        expire(db)
+        assert storage_cleanup.process_pending(db, local) == 1
+    assert list(local.root.iterdir()) == []
+    reopened.dispose()
+
+
+def test_postgres_cleanup_waits_for_upload_commit(client, db_session, storage, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    from sqlalchemy import event
+    from sqlalchemy.orm import Session
+
+    from app.models.enums import DocumentCategory
+    from app.models.patient import Patient
+    from app.services.document_upload import persist
+
+    engine = db_session.bind
+    if engine.dialect.name != "postgresql":
+        pytest.skip("Independent PostgreSQL connections required")
+    headers = auth(client, "upload-concurrent@example.com")
+    client.get(f"{API}/documents", headers=headers)
+    patient_id = db_session.scalar(select(Patient.id))
+    db_session.commit()
+    writing, release, claiming = Event(), Event(), Event()
+    real_put = storage.put
+
+    def paused_put(key, data, content_type=None):
+        real_put(key, data, content_type)
+        writing.set()
+        assert release.wait(10), "Uploader was not released"
+
+    class FutureClock:
+        @staticmethod
+        def now(tz):
+            return datetime.now(tz) + timedelta(hours=1)
+
+    def observe(connection, cursor, statement, parameters, context, executemany):
+        if context.execution_options.get("cleanup_test") and statement.startswith("UPDATE"):
+            claiming.set()
+
+    monkeypatch.setattr(storage, "put", paused_put)
+    monkeypatch.setattr(storage_cleanup, "datetime", FutureClock)
+    event.listen(engine, "before_cursor_execute", observe)
+
+    def upload():
+        with Session(engine) as db:
+            persist(db, storage, Document(patient_id=patient_id, category=DocumentCategory.OTHER,
+                    original_filename="test.pdf", content_type="application/pdf", size_bytes=4,
+                    storage_key="concurrent-synthetic-key"), b"test")
+
+    def clean():
+        with Session(engine) as db:
+            db.connection(execution_options={"cleanup_test": True})
+            return storage_cleanup.process_pending(db, storage)
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            writer = pool.submit(upload)
+            try:
+                assert writing.wait(10)
+                cleaner = pool.submit(clean)
+                assert claiming.wait(10)
+                assert not cleaner.done()  # Claim cannot pass the upload's row lock.
+            finally:
+                release.set()
+            writer.result(timeout=10)
+            assert cleaner.result(timeout=10) == 0
+    finally:
+        event.remove(engine, "before_cursor_execute", observe)
+    assert db_session.scalar(select(Document)) is not None
+    assert db_session.scalar(select(StorageDeletion)) is None
+    assert storage.get("concurrent-synthetic-key") == b"test"
