@@ -33,8 +33,9 @@ class PatientOut(PatientBase):
 
 
 class AllergyIn(BaseModel):
-    substance: str
-    reaction: str | None = None
+    model_config = ConfigDict(str_strip_whitespace=True)
+    substance: str = Field(min_length=1, max_length=200)
+    reaction: str | None = Field(default=None, max_length=10000)
     severity: AllergySeverity = AllergySeverity.UNKNOWN
 
 

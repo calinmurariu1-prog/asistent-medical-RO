@@ -7,6 +7,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 - Analizele fără interval/valoare numerică sunt neevaluabile; nu se deduc praguri critice generice. Graficele/comparațiile sunt blocate pentru unități incompatibile sau cronologie incertă; migrarea elimină clasificările și explicațiile vechi.
 - Acord AI explicit în Setări, legat de furnizor; obligatoriu înaintea tuturor apelurilor către AI extern, cu retragere și verificare pe server.
 - Ștergere cont/document cu curățarea persistentă și reîncercarea originalelor; status explicit pentru fișiere în curs, emailuri locale eliminate și relații SQLite active.
+- Dosar medical în interfață: istoric/observații, alergii și vaccinări cu creare/editare/ștergere confirmată, validare și audit fără text medical.
 - Loginul Swagger aplică verificările pentru cont activ, MFA, audit și limitarea încercărilor.
 - Recuperare parolă și confirmare email în română; tokenuri opace, hash în DB, expirare, scop și consum atomic. Resetarea revocă sesiunile.
 - Emailuri private pe disc în dezvoltare, fără tokenuri în loguri/răspunsuri. Recuperare indisponibilă uniform în producție fără SMTP.
@@ -21,9 +22,9 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 
 ## Dovezi locale
 
-- Backend: 175 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
+- Backend: 179 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
 - Ruff trecut; build Next și TypeScript trecute; zece teste unitare pentru refresh/concurență trecute.
-- Export web Capacitor: 36 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
+- Export web Capacitor: 37 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
 - Verificările browser acoperă cont, confirmare, profil, PDF, descărcare identică, analize, dashboard, refresh, resetare și deconectare pe desktop și dimensiuni iPhone/Android. Capturi în `docs/screenshots`.
 - Auditul npm complet (inclusiv dezvoltare): zero vulnerabilități raportate după actualizarea Capacitor 8.5.2 și a dependențelor indirecte. Generarea iconițelor și sincronizarea nativă au trecut local.
 - Starea CI pentru revizia publicată trebuie verificată în PR; rezultatele locale nu înlocuiesc GitHub Actions.

@@ -71,3 +71,7 @@ Setări afișează furnizorul activ și permite acordul/retragerea. Providerul m
 Procesul integrat reîncearcă la 30 de secunde (`STORAGE_CLEANUP_ENABLED=true`, `STORAGE_CLEANUP_INTERVAL_SECONDS=30`), inclusiv după repornire. O operație rezervată de un proces întrerupt poate fi reluată după două minute. Administratorul poate verifica numărul și vechimea operațiilor prin `GET /api/v1/admin/storage-cleanup`, fără expunerea cheilor sau numelor de fișiere. Nu schimba backendul de stocare și nu roti cheia de criptare cât timp coada are operații nefinalizate.
 
 Limite externe: copii de siguranță, emailuri deja trimise prin SMTP și versiuni istorice/Object Lock din S3 necesită politici separate de retenție și verificare înainte de lansare. S3 DeleteObject nu garantează eliminarea versiunilor istorice. Date orfane provenite din versiuni vechi cu cheile externe SQLite dezactivate necesită audit separat; noua configurare activează relațiile pentru operațiile viitoare.
+
+## Teste browser extinse
+
+Pentru suita automată cu multe conturi fictive, pornește temporar cu `RUN_LOCAL.ps1 -TestTraffic` (plus calea Python și `-SkipInstall`, dacă mediul este instalat). Acest mod dezactivează doar limita de autentificări în instanța locală de dezvoltare. După teste, repornește fără `-TestTraffic`; limita este reactivată. CI utilizează aceeași separare; protecția este verificată separat în testele backend.

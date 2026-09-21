@@ -15,6 +15,7 @@ from app.schemas.patient import (
     PatientOut,
     PatientUpdate,
 )
+from app.services import audit
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -71,6 +72,8 @@ def add_allergy(
     db.add(allergy)
     db.commit()
     db.refresh(allergy)
+    audit.record(db, user_id=patient.user_id, action="allergy_create",
+                 resource_type="allergy", resource_id=allergy.id)
     return allergy
 
 
@@ -85,4 +88,21 @@ def delete_allergy(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Allergy not found")
     db.delete(allergy)
     db.commit()
+    audit.record(db, user_id=patient.user_id, action="allergy_delete",
+                 resource_type="allergy", resource_id=allergy_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/me/allergies/{allergy_id}", response_model=AllergyOut)
+def update_allergy(allergy_id: int, payload: AllergyIn,
+                   patient: Patient = Depends(get_current_patient), db: Session = Depends(get_db)):
+    allergy = db.get(Allergy, allergy_id)
+    if allergy is None or allergy.patient_id != patient.id:
+        raise HTTPException(404, "Alergie inexistentă")
+    for key, value in payload.model_dump().items():
+        setattr(allergy, key, value)
+    db.commit()
+    db.refresh(allergy)
+    audit.record(db, user_id=patient.user_id, action="allergy_update",
+                 resource_type="allergy", resource_id=allergy.id)
+    return allergy

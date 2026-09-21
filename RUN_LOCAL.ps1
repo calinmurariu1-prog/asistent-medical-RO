@@ -1,4 +1,4 @@
-param([string]$Python = "python", [switch]$SkipInstall)
+param([string]$Python = "python", [switch]$SkipInstall, [switch]$TestTraffic)
 $ErrorActionPreference = "Stop"
 $projectRoot = $PSScriptRoot
 Set-Location -LiteralPath $projectRoot
@@ -18,6 +18,7 @@ $config = Get-Content -Raw -LiteralPath $configPath | ConvertFrom-Json
 $env:SECRET_KEY=$config.SECRET_KEY
 $env:DATA_ENCRYPTION_KEY=$config.DATA_ENCRYPTION_KEY
 $env:ENVIRONMENT='development'
+$env:RATE_LIMIT_ENABLED=if ($TestTraffic) {'false'} else {'true'}
 $env:LOCAL_DATA_DIR=$localDir
 $env:DATABASE_URL='sqlite:///' + (Join-Path $localDir 'medical.db').Replace('\','/')
 $env:STORAGE_BACKEND='local'

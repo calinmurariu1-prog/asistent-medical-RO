@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_patient
 from app.core.database import get_db
-from app.models.clinical import MedicalHistory
+from app.models.clinical import Diagnosis, Doctor, Hospital, MedicalHistory, Procedure
 from app.models.enums import MedicalEventType
 from app.models.patient import Patient, Vaccine
 from app.schemas.medical_history import (
@@ -17,8 +17,16 @@ from app.schemas.medical_history import (
     VaccineCreate,
     VaccineOut,
 )
+from app.services import audit
 
 router = APIRouter(prefix="/history", tags=["medical-history"])
+
+
+def validate_references(db: Session, data: dict) -> None:
+    for key, model in (("diagnosis_id", Diagnosis), ("procedure_id", Procedure),
+                       ("doctor_id", Doctor), ("hospital_id", Hospital)):
+        if data.get(key) is not None and db.get(model, data[key]) is None:
+            raise HTTPException(422, "Referința selectată nu există.")
 
 
 @router.get("", response_model=list[MedicalHistoryOut])
@@ -52,10 +60,13 @@ def add_history(
     patient: Patient = Depends(get_current_patient),
     db: Session = Depends(get_db),
 ) -> MedicalHistory:
+    validate_references(db, payload.model_dump())
     entry = MedicalHistory(patient_id=patient.id, **payload.model_dump())
     db.add(entry)
     db.commit()
     db.refresh(entry)
+    audit.record(db, user_id=patient.user_id, action="history_save",
+                 resource_type="medical_history", resource_id=entry.id)
     return entry
 
 
@@ -74,11 +85,14 @@ def update_history(
     db: Session = Depends(get_db),
 ) -> MedicalHistory:
     entry = _owned(entry_id, patient, db)
+    validate_references(db, payload.model_dump(exclude_unset=True))
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(entry, key, value)
     db.add(entry)
     db.commit()
     db.refresh(entry)
+    audit.record(db, user_id=patient.user_id, action="history_save",
+                 resource_type="medical_history", resource_id=entry.id)
     return entry
 
 
@@ -90,6 +104,8 @@ def delete_history(
 ) -> Response:
     db.delete(_owned(entry_id, patient, db))
     db.commit()
+    audit.record(db, user_id=patient.user_id, action="history_delete",
+                 resource_type="medical_history", resource_id=entry_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -114,6 +130,8 @@ def add_vaccine(
     db.add(vaccine)
     db.commit()
     db.refresh(vaccine)
+    audit.record(db, user_id=patient.user_id, action="vaccine_create",
+                 resource_type="vaccine", resource_id=vaccine.id)
     return vaccine
 
 
@@ -128,4 +146,21 @@ def delete_vaccine(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Vaccin inexistent")
     db.delete(vaccine)
     db.commit()
+    audit.record(db, user_id=patient.user_id, action="vaccine_delete",
+                 resource_type="vaccine", resource_id=vaccine_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/vaccines/{vaccine_id}", response_model=VaccineOut)
+def update_vaccine(vaccine_id: int, payload: VaccineCreate,
+                   patient: Patient = Depends(get_current_patient), db: Session = Depends(get_db)):
+    vaccine = db.get(Vaccine, vaccine_id)
+    if vaccine is None or vaccine.patient_id != patient.id:
+        raise HTTPException(404, "Vaccin inexistent")
+    for key, value in payload.model_dump().items():
+        setattr(vaccine, key, value)
+    db.commit()
+    db.refresh(vaccine)
+    audit.record(db, user_id=patient.user_id, action="vaccine_update",
+                 resource_type="vaccine", resource_id=vaccine.id)
+    return vaccine

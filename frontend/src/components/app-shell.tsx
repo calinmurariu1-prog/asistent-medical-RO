@@ -7,6 +7,7 @@ import {
   Activity,
   CalendarDays,
   CreditCard,
+  ClipboardList,
   FileText,
   HeartPulse,
   LayoutDashboard,
@@ -30,6 +31,7 @@ import { ThemeToggle } from "@/components/theme-provider";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/record", label: "Dosar medical", icon: ClipboardList },
   { href: "/labs", label: "Analize", icon: Activity },
   { href: "/health", label: "Date de sănătate", icon: HeartPulse },
   { href: "/documents", label: "Documente", icon: FileText },

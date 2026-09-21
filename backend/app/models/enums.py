@@ -59,6 +59,7 @@ class LabFlag(str, enum.Enum):
 
 
 class MedicalEventType(str, enum.Enum):
+    OBSERVATION = "observation"
     DIAGNOSIS = "diagnosis"
     PROCEDURE = "procedure"
     SURGERY = "surgery"

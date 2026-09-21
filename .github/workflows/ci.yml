@@ -79,6 +79,7 @@ jobs:
           LOCAL_DATA_DIR: /tmp/medical-ro-e2e
           STORAGE_BACKEND: local
           AI_DEFAULT_PROVIDER: mock
+          RATE_LIMIT_ENABLED: "false" # High-volume browser fixtures; rate limiting has backend tests.
           FRONTEND_URL: http://localhost:3012
           BACKEND_CORS_ORIGINS: http://localhost:3012
         run: |
