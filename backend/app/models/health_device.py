@@ -35,7 +35,7 @@ class HealthDevice(Base, TimestampMixin):
         ForeignKey("patients.id", ondelete="CASCADE"), index=True, nullable=False
     )
     source: Mapped[HealthSource] = mapped_column(
-        Enum(HealthSource, native_enum=False), nullable=False
+        Enum(HealthSource, native_enum=False, length=20), nullable=False
     )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     model: Mapped[str | None] = mapped_column(String(120), nullable=True)
