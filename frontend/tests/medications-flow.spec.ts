@@ -58,6 +58,13 @@ test("medication correction history and confirmed deletion", async ({page}, info
   await expect(page.getByRole("link", {name:"Consultă sursa: NHS — Warfarin",exact:true})).toHaveAttribute("href", "https://www.nhs.uk/medicines/warfarin/");
   await expect(page.getByText(/Mod simulat — rezumat educațional local/)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+  await page.goto("/assistant");
+  await page.getByRole("button", {name:/Informații despre un simptom/}).click();
+  await page.getByPlaceholder("Simptomul", {exact:true}).fill("Nu pot respira");
+  await page.getByRole("button", {name:"Rulează",exact:true}).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("112");
+  await expect(page.getByRole("link", {name:/E1.*Serviciul de urgență 112/})).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
   await page.goto("/settings");
   await page.getByRole("button", {name:"Șterge contul",exact:true}).click();
   await page.getByPlaceholder("Parola", {exact:true}).fill("Testing-pass-123!");

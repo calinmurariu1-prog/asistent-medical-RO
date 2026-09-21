@@ -130,3 +130,10 @@ Regulile vechi enalapril/spironolactonă, sertralină/tramadol și metformin/fur
 `/ai/skills/explain_medication` folosește un catalog inițial de trei substanțe (warfarină, aspirină, levotiroxină), cu rezumate românești din paginile NHS citate și consultate la 21 septembrie 2026. Butonul Explică folosește substanța activă declarată; denumirile comerciale și combinațiile necunoscute primesc un răspuns de informație insuficientă, fără apel la furnizorul AI. Extinderea catalogului și revizia clinică rămân necesare.
 
 În modul simulat se afișează explicit un rezumat local cu sursa, nu o interpretare AI. Furnizorul real primește numai fragmentul catalogului și denumirea canonică, fără numele comercial sau datele dosarului. Răspunsurile fără citarea M1 sau cu alte identificatoare de citare sunt înlocuite cu abstinență. Răspunsul API include sources, simulated și abstained, iar pagina Medicație oferă linkul sursei. Verificarea identificatorului nu demonstrează că fiecare afirmație este susținută de sursă; evaluarea clinică a furnizorului real rămâne obligatorie. Nu se oferă doze sau modificări autonome de tratament. Celelalte funcții AI sunt în curs de audit separat.
+
+
+## Semnale de urgență în capabilitățile AI
+
+Toate formularele `/ai/skills/{name}` verifică local câmpurile declarate de capabilitate înaintea inițializării furnizorului AI și a verificării consimțământului AI. Semnalele recunoscute primesc mesajul condițional 112, sursele publice și `emergency=true`, fără generare externă sau verificare de disponibilitate MedLLM. Autentificarea rămâne necesară. Cererile obișnuite păstrează consimțământul obligatoriu pentru furnizorul extern. Câmpurile suplimentare nu pot schimba acest comportament.
+
+Pagina Asistent afișează mesajul cu rol de alertă și linkurile surselor. Regulile lexicale sunt limitate, pot produce alerte și pentru texte citate/istorice și nu detectează toate urgențele. Lipsa alertei nu exclude o urgență. Nu reprezintă triaj clinic validat; celelalte răspunsuri medicale ale capabilităților sunt în curs de audit al surselor.

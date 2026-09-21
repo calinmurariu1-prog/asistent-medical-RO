@@ -19,10 +19,11 @@ class SkillSource(BaseModel):
     ref: str
     title: str
     url: str
-    checked_on: str
+    checked_on: str | None = None
 
 
 class SkillRunResponse(BaseModel):
+    emergency: bool = False
     skill: str
     result: str
     sources: list[SkillSource] = Field(default_factory=list)

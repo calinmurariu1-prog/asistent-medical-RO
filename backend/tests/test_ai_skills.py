@@ -140,3 +140,39 @@ def test_medication_mock_is_explicit_and_source_linked(client):
     assert body["simulated"] and not body["abstained"]
     assert "Mod simulat" in body["result"] and "[M1]" in body["result"]
     assert body["sources"][0]["url"] == "https://www.nhs.uk/medicines/levothyroxine/"
+
+
+def test_skill_emergency_without_consent_never_initializes_external_provider(client, monkeypatch):
+    from app.api.routes import ai_skills
+    from app.core.config import settings
+
+    def unavailable():
+        raise AssertionError("Emergency must bypass provider initialization and health probes")
+
+    h = _auth(client)
+    monkeypatch.setattr(settings, "REQUIRE_AI_CONSENT", True)
+    monkeypatch.setattr(ai_skills, "get_ai_provider", unavailable)
+    for skill, key in (("symptom_info", "symptom"), ("prepare_doctor_visit", "concern"),
+                       ("simplify_text", "text"), ("lifestyle_tips", "condition")):
+        r = client.post(f"{API}/ai/skills/{skill}", headers=h,
+                        json={"inputs": {key: "Nu pot respira"}})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["emergency"] and body["abstained"] and not body["simulated"]
+        assert "112" in body["result"]
+        assert {s["ref"] for s in body["sources"]} == {"E1", "E2", "E3"}
+    assert client.post(f"{API}/ai/skills/symptom_info",
+                       json={"inputs": {"symptom": "Nu pot respira"}}).status_code == 401
+
+
+def test_non_emergency_skill_still_requires_consent(client, monkeypatch):
+    from app.api.routes import ai_skills
+    from app.services.ai.mock import MockProvider
+
+    provider = MockProvider()
+    provider.name = "external"
+    monkeypatch.setattr(ai_skills, "get_ai_provider", lambda: provider)
+    h = _auth(client)
+    r = client.post(f"{API}/ai/skills/symptom_info", headers=h,
+                    json={"inputs": {"symptom": "Oboseală", "extra": "Nu pot respira"}})
+    assert r.status_code == 403

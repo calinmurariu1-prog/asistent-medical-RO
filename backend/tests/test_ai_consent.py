@@ -41,6 +41,9 @@ def test_all_external_entrypoints_require_consent_even_with_flag_off(client, mon
     monkeypatch.setattr(settings, "REQUIRE_AI_CONSENT", False)
     h = auth(client)
     provider = ExternalSpy()
+    from app.api.routes import ai_skills
+
+    monkeypatch.setattr(ai_skills, "get_ai_provider", lambda: provider)
     app.dependency_overrides[get_ai_provider] = lambda: provider
     try:
         endpoints = [

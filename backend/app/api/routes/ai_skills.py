@@ -15,6 +15,8 @@ from app.services.ai import get_ai_provider, record_ai
 from app.services.ai import skills as skills_service
 from app.services.ai.base import AIProvider
 from app.services.ai.medication_education import explain
+from app.services.ai.mock import MockProvider
+from app.services.ai.safety_router import EMERGENCY_SOURCES, emergency_reply
 
 router = APIRouter(prefix="/ai", tags=["ai-skills"])
 
@@ -49,16 +51,30 @@ def list_skills(_: User = Depends(get_current_user)) -> list[SkillOut]:
     ]
 
 
+def _skill_alert(name: str, payload: SkillRunRequest) -> str | None:
+    skill = skills_service.get_skill(name)
+    if skill is None:
+        return None
+    return emergency_reply("\n".join(payload.inputs.get(key, "") for key in skill.inputs))
+
+
+def get_skill_provider(name: str, payload: SkillRunRequest) -> AIProvider:
+    # Resolve locally before factory initialization (MedLLM may perform a health probe).
+    if _skill_alert(name, payload):
+        return MockProvider()
+    return get_ai_provider()
+
+
 @router.post(
     "/skills/{name}",
     response_model=SkillRunResponse,
-    dependencies=[Depends(require_ai_consent)],
 )
 def run_skill(
     name: str,
     payload: SkillRunRequest,
-    _: User = Depends(get_current_user),
-    ai: AIProvider = Depends(get_ai_provider),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    ai: AIProvider = Depends(get_skill_provider),
 ) -> SkillRunResponse:
     skill = skills_service.get_skill(name)
     if skill is None:
@@ -73,6 +89,13 @@ def run_skill(
             f"Câmpuri obligatorii lipsă: {', '.join(missing)}",
         )
 
+    alert = _skill_alert(name, payload)
+    if alert:
+        return SkillRunResponse(
+            skill=name, result=alert, sources=EMERGENCY_SOURCES,
+            emergency=True, simulated=False, abstained=True,
+        )
+    require_ai_consent(user, db, ai)
     if name == "explain_medication":
         return SkillRunResponse(skill=name, **explain(ai, payload.inputs["name"]))
     result = skills_service.run_skill(ai, skill, payload.inputs)
