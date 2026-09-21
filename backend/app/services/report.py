@@ -4,22 +4,63 @@
 into bytes. reportlab / python-docx are imported lazily so importing this module
 never requires them (e.g. in unrelated tests).
 """
+
 from __future__ import annotations
 
 import io
 from datetime import UTC, datetime
+from pathlib import Path
+from xml.sax.saxutils import escape
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.appointment import Appointment
 from app.models.clinical import MedicalHistory
+from app.models.document import LabResult
 from app.models.medication import Medication
-from app.models.patient import Patient
+from app.models.patient import Allergy, Patient, Vaccine
 from app.models.user import User
-from app.services import lab_analysis, recommendations
+from app.services import recommendations
 from app.services.ai.base import DISCLAIMER
 
 _TITLE = "Raport Medical - Asistent Medical AI"
+
+
+_LABELS = {
+    "male": "masculin",
+    "female": "feminin",
+    "other": "altul",
+    "unspecified": "neprecizat",
+    "unknown": "necunoscut",
+    "observation": "observație",
+    "diagnosis": "diagnostic",
+    "procedure": "procedură",
+    "surgery": "intervenție",
+    "hospitalization": "internare",
+    "vaccine": "vaccinare",
+    "treatment": "tratament",
+    "chronic_condition": "afecțiune cronică",
+    "family_history": "istoric familial",
+    "normal": "în interval",
+    "high": "peste interval",
+    "low": "sub interval",
+    "critical_high": "marcat critic ridicat",
+    "critical_low": "marcat critic scăzut",
+    "verified": "parser / manual",
+    "unverified": "de confirmat",
+    "scheduled": "programată",
+    "completed": "efectuată",
+    "cancelled": "anulată",
+    "missed": "neefectuată",
+    "mild": "ușoară",
+    "moderate": "moderată",
+    "severe": "severă",
+}
+
+
+def _label(value: str) -> str:
+    return _LABELS.get(value, value)
 
 
 def gather_report_data(db: Session, patient: Patient, user: User) -> dict:
@@ -40,12 +81,23 @@ def gather_report_data(db: Session, patient: Patient, user: User) -> dict:
         )
     ).all()
 
-    lab_summary = lab_analysis.build_summary(db, patient.id)
+    labs = db.scalars(
+        select(LabResult)
+        .where(LabResult.patient_id == patient.id)
+        .order_by(LabResult.measured_on.desc().nullslast(), LabResult.id.desc())
+    ).all()
+    allergies = db.scalars(select(Allergy).where(Allergy.patient_id == patient.id)).all()
+    vaccines = db.scalars(select(Vaccine).where(Vaccine.patient_id == patient.id)).all()
+    appointments = db.scalars(
+        select(Appointment)
+        .where(Appointment.patient_id == patient.id)
+        .order_by(Appointment.starts_at.desc())
+    ).all()
     rec = recommendations.build_recommendations(db, patient)
 
-    full_name = " ".join(
-        p for p in [patient.first_name, patient.last_name] if p
-    ) or (user.full_name or user.email)
+    full_name = " ".join(p for p in [patient.first_name, patient.last_name] if p) or (
+        user.full_name or user.email
+    )
 
     return {
         "generated_at": datetime.now(UTC).strftime("%d.%m.%Y %H:%M"),
@@ -63,21 +115,49 @@ def gather_report_data(db: Session, patient: Patient, user: User) -> dict:
                 "date": h.event_date.isoformat() if h.event_date else "-",
                 "type": h.event_type.value,
                 "title": h.title,
+                "description": h.description or "",
             }
             for h in history
         ],
         "labs": [
             {
-                "analyte": it["analyte"],
-                "value": it["latest_value"],
-                "unit": it["unit"] or "",
-                "flag": it["flag"],
+                "analyte": lab.analyte,
+                "value": lab.value if lab.value is not None else (lab.value_text or "-"),
+                "unit": lab.unit or "",
+                "flag": lab.flag.value,
+                "date": lab.measured_on.isoformat() if lab.measured_on else "Fără dată",
+                "reference": f"{lab.ref_low} - {lab.ref_high}"
+                if lab.ref_low is not None and lab.ref_high is not None
+                else "Necunoscut",
+                "confidence": lab.confidence,
             }
-            for it in lab_summary["items"]
+            for lab in labs
+        ],
+        "allergies": [
+            {"substance": a.substance, "reaction": a.reaction or "-", "severity": a.severity.value}
+            for a in allergies
+        ],
+        "vaccines": [
+            {
+                "name": v.name,
+                "dose": v.dose or "-",
+                "provider": v.provider or "-",
+                "date": v.administered_on.isoformat() if v.administered_on else "-",
+            }
+            for v in vaccines
+        ],
+        "appointments": [
+            {
+                "title": a.title,
+                "date": a.starts_at.isoformat(),
+                "status": a.status.value,
+                "location": a.location or "-",
+                "notes": a.notes or "",
+            }
+            for a in appointments
         ],
         "medications": [
-            {"name": m.name, "dose": m.dose or "", "frequency": m.frequency or ""}
-            for m in meds
+            {"name": m.name, "dose": m.dose or "", "frequency": m.frequency or ""} for m in meds
         ],
         "recommendations": {
             "alerts": rec.alerts,
@@ -92,6 +172,7 @@ def render_pdf(data: dict) -> bytes:
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.units import cm
     from reportlab.platypus import (
+        CondPageBreak,
         Paragraph,
         SimpleDocTemplate,
         Spacer,
@@ -101,7 +182,22 @@ def render_pdf(data: dict) -> bytes:
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, title=_TITLE)
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    font_name = "MedicalDejaVu"
+    if font_name not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(
+            TTFont(
+                font_name, str(Path(__file__).resolve().parents[1] / "assets/fonts/DejaVuSans.ttf")
+            )
+        )
     styles = getSampleStyleSheet()
+    for style in styles.byName.values():
+        style.fontName = font_name
+    styles["Normal"].fontSize = 9
+    styles["Normal"].leading = 13
+    styles["Heading2"].keepWithNext = True
     story = []
 
     story.append(Paragraph(_TITLE, styles["Title"]))
@@ -110,28 +206,48 @@ def render_pdf(data: dict) -> bytes:
 
     p = data["patient"]
     story.append(Paragraph("Pacient", styles["Heading2"]))
-    story.append(Paragraph(f"Nume: {p['name']}", styles["Normal"]))
+    story.append(Paragraph(f"Nume: {escape(str(p['name']))}", styles["Normal"]))
     story.append(
         Paragraph(
-            f"Naștere: {p['birth_date']} | Sex: {p['sex']} | Grup sanguin: "
-            f"{p['blood_type']} | IMC: {p['bmi'] or '-'}",
+            f"Naștere: {p['birth_date']} | Sex: {_label(p['sex'])} | Grup sanguin: "
+            f"{_label(p['blood_type'])} | IMC: {p['bmi'] or '-'}",
             styles["Normal"],
         )
     )
     story.append(Spacer(1, 0.3 * cm))
 
     def _table(title: str, header: list[str], rows: list[list], empty: str) -> None:
+        story.append(CondPageBreak(100))
         story.append(Paragraph(title, styles["Heading2"]))
         if not rows:
             story.append(Paragraph(empty, styles["Italic"]))
             story.append(Spacer(1, 0.3 * cm))
             return
-        table = Table([header, *rows], hAlign="LEFT")
+        cells = [
+            [
+                Paragraph(escape(str(value if value is not None else "-")), styles["Normal"])
+                for value in row
+            ]
+            for row in [header, *rows]
+        ]
+        table = Table(
+            cells,
+            colWidths=(
+                [doc.width * ratio for ratio in (0.2, 0.2, 0.6)]
+                if title == "Istoric medical"
+                else [doc.width / len(header)] * len(header)
+            ),
+            hAlign="LEFT",
+            repeatRows=1,
+            splitInRow=1,
+        )
         table.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4F46E5")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E0E7FF")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
                     ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
                     ("FONTSIZE", (0, 0), (-1, -1), 9),
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -144,13 +260,24 @@ def render_pdf(data: dict) -> bytes:
     _table(
         "Istoric medical",
         ["Data", "Tip", "Descriere"],
-        [[h["date"], h["type"], h["title"]] for h in data["history"]],
+        [
+            [h["date"], _label(h["type"]), f"{h['title']}\n{h.get('description', '')}"]
+            for h in data["history"]
+        ],
         "Fără intrări.",
     )
     _table(
-        "Analize (ultimele valori)",
-        ["Analit", "Valoare", "Unitate", "Status"],
-        [[lr["analyte"], lr["value"], lr["unit"], lr["flag"]] for lr in data["labs"]],
+        "Analize (istoric complet)",
+        ["Analit / data", "Valoare / unitate", "Referință", "Status / verificare"],
+        [
+            [
+                f"{lr['analyte']} / {lr.get('date', '-')}",
+                f"{lr['value']} {lr['unit']}",
+                lr.get("reference", "-"),
+                f"{_label(lr['flag'])} / {_label(lr.get('confidence', '-'))}",
+            ]
+            for lr in data["labs"]
+        ],
         "Fără analize.",
     )
     _table(
@@ -160,17 +287,45 @@ def render_pdf(data: dict) -> bytes:
         "Fără tratamente active.",
     )
 
+    _table(
+        "Alergii",
+        ["Substanță", "Reacție", "Severitate"],
+        [[a["substance"], a["reaction"], _label(a["severity"])] for a in data.get("allergies", [])],
+        "Nu sunt înregistrate alergii; aceasta nu confirmă absența lor.",
+    )
+    _table(
+        "Vaccinări",
+        ["Vaccin", "Doză", "Data", "Furnizor"],
+        [[v["name"], v["dose"], v["date"], v["provider"]] for v in data.get("vaccines", [])],
+        "Nu sunt înregistrate vaccinări.",
+    )
+    _table(
+        "Programări",
+        ["Consultație", "Data / status", "Locație / note"],
+        [
+            [a["title"], f"{a['date']} / {_label(a['status'])}", f"{a['location']} / {a['notes']}"]
+            for a in data.get("appointments", [])
+        ],
+        "Nu sunt înregistrate programări.",
+    )
+
     rec = data["recommendations"]
     story.append(Paragraph("Recomandări (orientative)", styles["Heading2"]))
     for line in rec["alerts"] + rec["questions_for_doctor"]:
-        story.append(Paragraph(f"• {line}", styles["Normal"]))
+        story.append(Paragraph(f"• {escape(str(line))}", styles["Normal"]))
     if not (rec["alerts"] or rec["questions_for_doctor"]):
         story.append(Paragraph("Fără recomandări.", styles["Italic"]))
 
     story.append(Spacer(1, 0.5 * cm))
     story.append(Paragraph(DISCLAIMER, styles["Italic"]))
 
-    doc.build(story)
+    def page_number(canvas, document):
+        canvas.saveState()
+        canvas.setFont(font_name, 8)
+        canvas.drawRightString(A4[0] - 2 * cm, 1.2 * cm, f"Pagina {document.page}")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=page_number, onLaterPages=page_number)
     return buf.getvalue()
 
 
@@ -185,8 +340,8 @@ def render_docx(data: dict) -> bytes:
     document.add_heading("Pacient", level=1)
     document.add_paragraph(f"Nume: {p['name']}")
     document.add_paragraph(
-        f"Naștere: {p['birth_date']} | Sex: {p['sex']} | "
-        f"Grup sanguin: {p['blood_type']} | IMC: {p['bmi'] or '-'}"
+        f"Naștere: {p['birth_date']} | Sex: {_label(p['sex'])} | "
+        f"Grup sanguin: {_label(p['blood_type'])} | IMC: {p['bmi'] or '-'}"
     )
 
     def _table(title: str, header: list[str], rows: list[list], empty: str) -> None:
@@ -206,13 +361,24 @@ def render_docx(data: dict) -> bytes:
     _table(
         "Istoric medical",
         ["Data", "Tip", "Descriere"],
-        [[h["date"], h["type"], h["title"]] for h in data["history"]],
+        [
+            [h["date"], _label(h["type"]), f"{h['title']}\n{h.get('description', '')}"]
+            for h in data["history"]
+        ],
         "Fără intrări.",
     )
     _table(
-        "Analize (ultimele valori)",
-        ["Analit", "Valoare", "Unitate", "Status"],
-        [[lr["analyte"], lr["value"], lr["unit"], lr["flag"]] for lr in data["labs"]],
+        "Analize (istoric complet)",
+        ["Analit / data", "Valoare / unitate", "Referință", "Status / verificare"],
+        [
+            [
+                f"{lr['analyte']} / {lr.get('date', '-')}",
+                f"{lr['value']} {lr['unit']}",
+                lr.get("reference", "-"),
+                f"{_label(lr['flag'])} / {_label(lr.get('confidence', '-'))}",
+            ]
+            for lr in data["labs"]
+        ],
         "Fără analize.",
     )
     _table(
@@ -220,6 +386,28 @@ def render_docx(data: dict) -> bytes:
         ["Medicament", "Doză", "Frecvență"],
         [[m["name"], m["dose"], m["frequency"]] for m in data["medications"]],
         "Fără tratamente active.",
+    )
+
+    _table(
+        "Alergii",
+        ["Substanță", "Reacție", "Severitate"],
+        [[a["substance"], a["reaction"], _label(a["severity"])] for a in data.get("allergies", [])],
+        "Nu sunt înregistrate alergii; aceasta nu confirmă absența lor.",
+    )
+    _table(
+        "Vaccinări",
+        ["Vaccin", "Doză", "Data", "Furnizor"],
+        [[v["name"], v["dose"], v["date"], v["provider"]] for v in data.get("vaccines", [])],
+        "Nu sunt înregistrate vaccinări.",
+    )
+    _table(
+        "Programări",
+        ["Consultație", "Data / status", "Locație / note"],
+        [
+            [a["title"], f"{a['date']} / {_label(a['status'])}", f"{a['location']} / {a['notes']}"]
+            for a in data.get("appointments", [])
+        ],
+        "Nu sunt înregistrate programări.",
     )
 
     rec = data["recommendations"]

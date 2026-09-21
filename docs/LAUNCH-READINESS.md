@@ -23,7 +23,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 
 ## Dovezi locale
 
-- Backend: 203 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
+- Backend: 205 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
 - Ruff trecut; build Next și TypeScript trecute; zece teste unitare pentru refresh/concurență trecute.
 - Export web Capacitor: 37 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
 - Verificările browser acoperă cont, confirmare, profil, PDF, descărcare identică, analize, dashboard, refresh, resetare și deconectare pe desktop și dimensiuni iPhone/Android. Capturi în `docs/screenshots`.
@@ -58,3 +58,8 @@ Expresiile explicite despre dificultăți severe de respirație, durere toracic�
 Regulile lexicale nu reprezintă triaj clinic validat: pot omite formulări, alte urgențe sau pot reacționa la descrieri istorice/negate. Absența unei alerte nu înseamnă siguranță. Acoperirea altor instrumente AI și validarea clinică rămân deschise.
 
 Surse consultate la 21 septembrie 2026: [serviciul public 112](https://serviciipublice.gov.ro/serviciu/serviciul-de-urgenta-112-asigurat-cetatenilor), [NHS – heart attack](https://www.nhs.uk/conditions/heart-attack/), [NHS – stroke symptoms](https://www.nhs.uk/conditions/stroke/symptoms/). Recomandarea telefonică este localizată pentru România; numărul britanic nu este afișat ca număr local.
+
+
+### Export PDF/Word extins
+
+Raportul include descrierile din istoric, toate măsurătorile de laborator cu data/intervalul/verificarea tehnică, alergii, vaccinări și programări, alături de tratamentele active. PDF-ul încorporează DejaVu Sans (licență inclusă), păstrează diacriticele, tratează caracterele speciale ca text și împarte celulele lungi pe pagini. Sunt verificate conținutul ambelor formate, separarea conturilor și un text de istoric care depășește o pagină. PDF-ul fictiv de control a fost randat și inspectat vizual pe ambele pagini. Raportul clinic nu înlocuiește exportul GDPR și nu încorporează fișierele originale.
