@@ -19,21 +19,32 @@ def send_email(to: str, subject: str, body: str) -> bool:
         if settings.is_production:
             logger.warning("Email delivery is not configured")
             return False
-        mailbox = Path(settings.LOCAL_DATA_DIR) / "mailbox"
-        mailbox.mkdir(mode=0o700, parents=True, exist_ok=True)
-        path = mailbox / (uuid.uuid4().hex + ".txt")
-        with path.open("x", encoding="utf-8") as output:
-            output.write(f"To: {to}\nSubject: {subject}\n\n{body}")
-        path.chmod(0o600)
-        return True
-
-    msg = EmailMessage()
-    msg["From"] = settings.SMTP_FROM
-    msg["To"] = to
-    msg["Subject"] = subject
-    msg.set_content(body)
+        temporary = None
+        try:
+            mailbox = Path(settings.LOCAL_DATA_DIR) / "mailbox"
+            mailbox.mkdir(mode=0o700, parents=True, exist_ok=True)
+            path = mailbox / (uuid.uuid4().hex + ".txt")
+            temporary = path.with_suffix(".tmp")
+            with temporary.open("x", encoding="utf-8") as output:
+                temporary.chmod(0o600)
+                output.write(f"To: {to}\nSubject: {subject}\n\n{body}")
+            temporary.replace(path)
+            return True
+        except OSError as exc:
+            logger.error("Local email delivery failed (%s)", type(exc).__name__)
+            if temporary is not None:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    logger.warning("Local email temporary cleanup deferred")
+            return False
 
     try:
+        msg = EmailMessage()
+        msg["From"] = settings.SMTP_FROM
+        msg["To"] = to
+        msg["Subject"] = subject
+        msg.set_content(body)
         with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15) as server:
             if settings.SMTP_TLS:
                 server.starttls(context=ssl.create_default_context())

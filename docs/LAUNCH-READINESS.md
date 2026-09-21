@@ -78,3 +78,5 @@ Erori de validare: handlerul API păstrează numai loc/type/msg și elimină inp
 
 Confirmare email: endpoint autentificat /auth/email/resend, limitat ca frecvență, livrează numai la adresa contului și nu returnează tokenul. Conturile confirmate nu primesc alt token. Lipsa SMTP în producție sau trimiterea eșuată este raportată ca indisponibilitate. 17 teste recuperare/autentificare trecute, un test PostgreSQL omis local; build/TypeScript trecut.
 Șase scenarii browser cont/recuperare/deconectare au trecut cu solicitarea linkului nou; aplicația locală a fost repornită cu limitările normale.
+
+Email local: mesajele sunt scrise într-un fișier temporar privat și publicate prin redenumire după scriere completă. Erorile de I/O sunt raportate fără token/adresă/cale în log; înregistrarea rămâne utilizabilă, iar răspunsul recuperării nu dezvăluie existența contului. Curățarea contului include mesajele temporare identificabile prin destinatar. 18 teste autentificare/recuperare trecute (un PostgreSQL omis local) și 6 teste curățare trecute; Ruff trecut.

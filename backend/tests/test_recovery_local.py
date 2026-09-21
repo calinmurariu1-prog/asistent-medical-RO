@@ -143,3 +143,36 @@ def test_resend_verification_is_authenticated_private_and_recoverable(client, mo
     response = client.post(API + "/auth/email/resend", headers=headers)
     assert response.status_code == 200
     assert "deja confirmată" in response.json()["detail"]
+
+
+def test_local_mail_failure_is_private_and_does_not_expose_account_existence(
+    client, tmp_path, monkeypatch, caplog,
+):
+    from pathlib import Path
+
+    monkeypatch.setattr(settings, "SMTP_HOST", "")
+    monkeypatch.setattr(settings, "LOCAL_DATA_DIR", str(tmp_path))
+    original = Path.open
+
+    def unavailable(path, *args, **kwargs):
+        if path.suffix == ".tmp":
+            raise PermissionError("private-mail-token-and-path")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", unavailable)
+    with caplog.at_level(logging.ERROR):
+        registered = client.post(API + "/auth/register", json={
+            "email": "mail-unavailable@example.com", "password": "Password1234"})
+        assert registered.status_code == 201
+        existing = client.post(API + "/auth/password-reset/request", json={
+            "email": "mail-unavailable@example.com"})
+        absent = client.post(API + "/auth/password-reset/request", json={
+            "email": "mail-absent@example.com"})
+        assert existing.status_code == absent.status_code == 200
+        assert existing.json() == absent.json()
+    assert "private-mail-token-and-path" not in caplog.text
+    assert "mail-unavailable@example.com" not in caplog.text
+    assert list((tmp_path / "mailbox").glob("*.txt")) == []
+    assert list((tmp_path / "mailbox").glob("*.tmp")) == []
+    assert client.post(API + "/auth/login", json={
+        "email": "mail-unavailable@example.com", "password": "Password1234"}).status_code == 200

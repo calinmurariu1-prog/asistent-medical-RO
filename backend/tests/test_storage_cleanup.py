@@ -138,3 +138,16 @@ def test_cleanup_claim_blocks_duplicate_work_and_expired_claim_recovers(tmp_path
         assert storage_cleanup.process_pending(db, PausedStorage()) == 1
     assert calls == ["one", "two"]
     engine.dispose()
+
+
+def test_local_mail_erasure_includes_interrupted_temporary_messages(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "LOCAL_DATA_DIR", str(tmp_path))
+    mailbox = tmp_path / "mailbox"
+    mailbox.mkdir()
+    owned = mailbox / "interrupted.tmp"
+    owned.write_text("To: owner@example.com\nSubject: Test\n\nprivate-token", encoding="utf-8")
+    other = mailbox / "other.tmp"
+    other.write_text("To: other@example.com\nSubject: Test", encoding="utf-8")
+    storage_cleanup.delete_local_mail("owner@example.com")
+    assert not owned.exists()
+    assert other.exists()

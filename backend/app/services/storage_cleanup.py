@@ -33,7 +33,7 @@ def delete_local_mail(email: str) -> None:
     root = (Path(settings.LOCAL_DATA_DIR) / "mailbox").resolve()
     if not root.exists():
         return
-    for path in root.glob("*.txt"):
+    for path in list(root.glob("*.txt")) + list(root.glob("*.tmp")):
         if path.is_symlink() or path.resolve().parent != root:
             continue
         try:
