@@ -4,6 +4,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 
 ## Implementat
 
+- Analizele fără interval/valoare numerică sunt neevaluabile; nu se deduc praguri critice generice. Graficele/comparațiile sunt blocate pentru unități incompatibile sau cronologie incertă; migrarea elimină clasificările și explicațiile vechi.
 - Loginul Swagger aplică verificările pentru cont activ, MFA, audit și limitarea încercărilor.
 - Recuperare parolă și confirmare email în română; tokenuri opace, hash în DB, expirare, scop și consum atomic. Resetarea revocă sesiunile.
 - Emailuri private pe disc în dezvoltare, fără tokenuri în loguri/răspunsuri. Recuperare indisponibilă uniform în producție fără SMTP.
@@ -18,7 +19,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 
 ## Dovezi locale
 
-- Backend: 159 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
+- Backend: 167 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
 - Ruff trecut; build Next și TypeScript trecute; zece teste unitare pentru refresh/concurență trecute.
 - Export web Capacitor: 36 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
 - Verificările browser acoperă cont, confirmare, profil, PDF, descărcare identică, analize, dashboard, refresh, resetare și deconectare pe desktop și dimensiuni iPhone/Android. Capturi în `docs/screenshots`.
@@ -28,3 +29,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 ## Rămâne înainte de lansare publică
 
 Validare pe dispozitive a stocării native securizate, configurare și verificare PostgreSQL/S3/SMTP, evaluare GDPR și retenție, consimțământ AI înainte de provider extern, evaluare medicală a RAG/safety și OCR real. AI rămâne simulat; testele nu demonstrează interpretare medicală reală. Nicio infrastructură Render nu a fost modificată.
+
+## Interpretarea intervalelor
+
+Etichetele compară valoarea exclusiv cu intervalul din rezultat, fără diagnostic sau estimare automată a urgenței. Unitățile diferite necesită conversie validată; intervalele diferite nu sunt proiectate ca o singură bandă peste întregul grafic. Aceste precauții sunt conforme cu [explicația MedlinePlus despre rezultatele de laborator](https://medlineplus.gov/lab-tests/how-to-understand-your-lab-results/). Nu există încă un catalog clinic validat de praguri critice.

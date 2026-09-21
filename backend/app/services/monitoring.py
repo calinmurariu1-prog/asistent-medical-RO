@@ -54,6 +54,7 @@ class ParamSummary:
     flag: str
     trend: str | None
     points: list[dict]
+    comparison_warning: str | None = None
 
 
 @dataclass
@@ -98,6 +99,7 @@ def build_dashboard(db: Session, patient: Patient) -> MonitoringDashboard:
         if not series:
             continue
         latest = series[-1]
+        warning = lab_analysis.comparison_warning(series)
         dashboard.groups.setdefault(group, []).append(
             ParamSummary(
                 analyte=stored,
@@ -107,6 +109,7 @@ def build_dashboard(db: Session, patient: Patient) -> MonitoringDashboard:
                 latest_value=latest.value,
                 flag=latest.flag.value,
                 trend=lab_analysis.compute_trend(series),
+                comparison_warning=warning,
                 points=[
                     {
                         "measured_on": r.measured_on.isoformat()
@@ -115,7 +118,7 @@ def build_dashboard(db: Session, patient: Patient) -> MonitoringDashboard:
                         "value": r.value,
                         "flag": r.flag.value,
                     }
-                    for r in series
+                    for r in series if warning is None
                 ],
             )
         )

@@ -21,7 +21,8 @@ function shortDate(d: string | null): string {
 }
 
 const FLAG_LABEL: Record<string, string> = {
-  normal: "Normal",
+  unknown: "Neevaluabil",
+  normal: "În interval",
   high: "Crescut",
   low: "Scăzut",
   critical_high: "Critic ↑",
@@ -162,7 +163,9 @@ export default function LabsPage() {
                   </p>
                 ) : (
                   <div className="mt-3 rounded-2xl bg-surface-2 p-3">
-                    <LineChart
+                    {charts[r.analyte]!.comparison_warning ? (
+                      <p className="text-sm text-muted">{charts[r.analyte]!.comparison_warning}</p>
+                    ) : <LineChart
                       unit={charts[r.analyte]!.unit}
                       refLow={charts[r.analyte]!.ref_low}
                       refHigh={charts[r.analyte]!.ref_high}
@@ -172,7 +175,7 @@ export default function LabsPage() {
                           label: shortDate(p.measured_on),
                           value: p.value as number,
                         }))}
-                    />
+                    />}
                   </div>
                 ))}
               {r.ai_explanation && (

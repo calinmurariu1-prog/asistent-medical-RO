@@ -50,6 +50,7 @@ class ProcessingStatus(str, enum.Enum):
 
 
 class LabFlag(str, enum.Enum):
+    UNKNOWN = "unknown"
     NORMAL = "normal"
     HIGH = "high"
     LOW = "low"

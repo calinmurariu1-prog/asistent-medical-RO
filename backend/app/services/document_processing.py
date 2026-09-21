@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from datetime import UTC, datetime
 
 from sqlalchemy import delete, update
@@ -23,22 +24,16 @@ logger = logging.getLogger(__name__)
 
 
 def compute_flag(value: float | None, low: float | None, high: float | None) -> LabFlag:
-    """Classify a lab value against its reference interval.
-
-    "Critical" uses a generic multiplicative margin relative to the exceeded
-    bound (>=50% above the upper limit, or <=50% below the lower limit), since
-    a domain-agnostic parser cannot know analyte-specific panic values. Refine
-    per-analyte thresholds later if a clinical table is added.
-    """
+    """Compare only with supplied bounds; never infer clinical critical thresholds."""
     if value is None or (low is None and high is None):
-        return LabFlag.NORMAL
+        return LabFlag.UNKNOWN
+    if any(n is not None and not math.isfinite(n) for n in (value, low, high)):
+        return LabFlag.UNKNOWN
+    if low is not None and high is not None and low > high:
+        return LabFlag.UNKNOWN
     if high is not None and value > high:
-        if high > 0 and value >= high * 1.5:
-            return LabFlag.CRITICAL_HIGH
         return LabFlag.HIGH
     if low is not None and value < low:
-        if low > 0 and value <= low * 0.5:
-            return LabFlag.CRITICAL_LOW
         return LabFlag.LOW
     return LabFlag.NORMAL
 
@@ -49,6 +44,8 @@ def _persist_lab_values(
     for v in values:
         if not v.analyte:
             continue
+        if any(n is not None and not math.isfinite(n) for n in (v.value, v.ref_low, v.ref_high)):
+            raise ValueError("non_finite_lab_value")
         db.add(
             LabResult(
                 patient_id=document.patient_id,

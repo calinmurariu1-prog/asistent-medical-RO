@@ -22,7 +22,7 @@ def test_manual_add_computes_flag(client):
     h = _auth_headers(client)
     r = _add(client, h, value=120, measured_on="2026-01-10")
     assert r.status_code == 201, r.text
-    assert r.json()["flag"] == "high"  # 120 > 99 but < 99*1.5 -> high, not critical
+    assert r.json()["flag"] == "high"  # Above the supplied upper bound.
 
 
 def test_series_and_trend(client):
@@ -78,3 +78,104 @@ def test_labs_isolated_per_patient(client):
     rid = _add(client, h1, value=120).json()["id"]
     assert client.get(f"{API}/labs", headers=h2).json() == []
     assert client.post(f"{API}/labs/{rid}/explain", headers=h2).status_code == 404
+
+
+def test_missing_reference_and_text_result_are_not_normal(client):
+    h = _auth_headers(client)
+    for payload in ({"value": 90, "ref_low": None, "ref_high": None},
+                    {"value_text": "pozitiv", "ref_low": None, "ref_high": None}):
+        result = _add(client, h, **payload)
+        assert result.status_code == 201
+        assert result.json()["flag"] == "unknown"
+        explained = client.post(f"{API}/labs/{result.json()['id']}/explain", headers=h).json()
+        assert "Nu pot evalua" in explained["ai_explanation"]
+        assert "se încadrează" not in explained["ai_explanation"]
+
+
+def test_large_deviation_does_not_infer_critical_threshold(client):
+    h = _auth_headers(client)
+    assert _add(client, h, value=400).json()["flag"] == "high"
+    assert _add(client, h, value=10).json()["flag"] == "low"
+
+
+def test_invalid_manual_values_rejected(client):
+    h = _auth_headers(client)
+    for payload in ({"value": "NaN"}, {"value": "Infinity"},
+                    {"value": 80, "ref_low": 99, "ref_high": 70},
+                    {"value": 80, "analyte": "   "}, {"value": None}):
+        assert _add(client, h, **payload).status_code == 422
+    assert client.get(f"{API}/labs", headers=h).json() == []
+
+
+def test_reference_bounds_are_inclusive_and_one_sided():
+    from app.models.enums import LabFlag
+    from app.services.document_processing import compute_flag
+
+    assert compute_flag(70, 70, 99) == LabFlag.NORMAL
+    assert compute_flag(99, 70, 99) == LabFlag.NORMAL
+    assert compute_flag(100, None, 99) == LabFlag.HIGH
+    assert compute_flag(60, 70, None) == LabFlag.LOW
+    assert compute_flag(80, 99, 70) == LabFlag.UNKNOWN
+    assert compute_flag(float("inf"), 70, 99) == LabFlag.UNKNOWN
+
+
+def test_migration_reclassifies_old_results_and_clears_stale_explanations():
+    import importlib.util
+    from pathlib import Path
+
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import create_engine, text
+
+    path = Path(__file__).parents[1] / "alembic/versions/a7c9e1f3b5d7_lab_reference_flags.py"
+    spec = importlib.util.spec_from_file_location("lab_flags_migration", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    engine = create_engine("sqlite://")
+    with engine.begin() as connection:
+        connection.execute(text(
+            "CREATE TABLE lab_results (id INTEGER, value FLOAT, ref_low FLOAT, "
+            "ref_high FLOAT, flag VARCHAR(13), ai_explanation TEXT)"))
+        connection.execute(text(
+            "INSERT INTO lab_results VALUES (1, 400, 70, 99, 'CRITICAL_HIGH', 'old'), "
+            "(2, 90, NULL, NULL, 'NORMAL', 'old'), (3, 80, 70, 99, 'NORMAL', 'old'), "
+            "(4, 10, 70, 99, 'CRITICAL_LOW', 'old')"))
+        with Operations.context(MigrationContext.configure(connection)):
+            module.upgrade()
+        rows = connection.execute(text(
+            "SELECT flag, ai_explanation FROM lab_results ORDER BY id")).all()
+        assert rows == [("HIGH", None), ("UNKNOWN", None), ("NORMAL", None), ("LOW", None)]
+
+
+def test_mixed_units_block_trend_and_ai_comparison(client):
+    h = _auth_headers(client)
+    _add(client, h, value=90, measured_on="2026-01-10")
+    _add(client, h, value=5, unit="mmol/L", measured_on="2026-02-10")
+    series = client.get(f"{API}/labs/series/Glicemie", headers=h).json()
+    assert len(series["points"]) == 2  # History retained, chart withheld.
+    assert series["trend"] is None
+    assert "unitățile diferă" in series["comparison_warning"]
+    comparison = client.post(f"{API}/ai/compare-analyte", headers=h,
+                             json={"analyte": "Glicemie"}).json()
+    assert "unitățile diferă" in comparison["result"]
+
+
+def test_missing_dates_and_units_block_comparison(client):
+    h = _auth_headers(client)
+    _add(client, h, value=90)
+    _add(client, h, value=80, measured_on="2026-02-10")
+    series = client.get(f"{API}/labs/series/Glicemie", headers=h).json()
+    assert series["trend"] is None
+    assert "date lipsă" in series["comparison_warning"]
+    _add(client, h, value=85, unit=None, measured_on="2026-03-10")
+    series = client.get(f"{API}/labs/series/Glicemie", headers=h).json()
+    assert "lipsesc unități" in series["comparison_warning"]
+
+
+def test_changing_reference_ranges_not_applied_to_whole_chart(client):
+    h = _auth_headers(client)
+    _add(client, h, value=90, measured_on="2026-01-10")
+    _add(client, h, value=85, ref_high=110, measured_on="2026-02-10")
+    series = client.get(f"{API}/labs/series/Glicemie", headers=h).json()
+    assert series["ref_low"] is None and series["ref_high"] is None
+    assert "scădere" in series["trend"]

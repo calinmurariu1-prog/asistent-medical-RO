@@ -85,7 +85,7 @@ class LabResult(Base, TimestampMixin):
     ref_low: Mapped[float | None] = mapped_column(Float, nullable=True)
     ref_high: Mapped[float | None] = mapped_column(Float, nullable=True)
     flag: Mapped[LabFlag] = mapped_column(
-        Enum(LabFlag, native_enum=False), default=LabFlag.NORMAL, nullable=False
+        Enum(LabFlag, native_enum=False), default=LabFlag.UNKNOWN, nullable=False
     )
     measured_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     ai_explanation: Mapped[str | None] = mapped_column(Text, nullable=True)

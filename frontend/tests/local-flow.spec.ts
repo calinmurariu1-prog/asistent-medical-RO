@@ -39,6 +39,8 @@ test("account, recovery, document and session lifecycle",async({page,request,con
  await expect(page.getByText("analize-fictive.docx",{exact:true})).toBeVisible();
  await page.goto("/labs");
  await expect(page.getByText("Glicemie",{exact:false}).first()).toBeVisible();
+ await page.getByRole("button",{name:"Grafic",exact:true}).first().click();
+ await expect(page.getByText("Comparație indisponibilă",{exact:false}).first()).toBeVisible();
  const cookieMode=process.env.E2E_COOKIES==="true";
  const oldToken=cookieMode ? (await context.cookies()).find(c=>c.name==="am_browser_access")?.value : await page.evaluate(()=>localStorage.getItem("am_access_token"));
  if(cookieMode) {

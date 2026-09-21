@@ -70,8 +70,9 @@ def analyte_series(
     return LabSeries(
         analyte=analyte,
         unit=latest.unit,
-        ref_low=latest.ref_low,
-        ref_high=latest.ref_high,
+        ref_low=latest.ref_low if len({(r.ref_low, r.ref_high) for r in series}) == 1 else None,
+        ref_high=latest.ref_high if len({(r.ref_low, r.ref_high) for r in series}) == 1 else None,
+        comparison_warning=lab_analysis.comparison_warning(series),
         trend=lab_analysis.compute_trend(series),
         points=[
             LabSeriesPoint(

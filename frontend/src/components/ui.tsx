@@ -146,6 +146,7 @@ export function Badge({
 }
 
 export function flagTone(flag: string): "green" | "amber" | "red" | "neutral" {
+  if (flag === "unknown") return "neutral";
   if (flag === "normal") return "green";
   if (flag === "high" || flag === "low") return "amber";
   if (flag === "critical_high" || flag === "critical_low") return "red";

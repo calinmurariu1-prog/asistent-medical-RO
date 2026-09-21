@@ -25,7 +25,7 @@ def _with_disclaimer(text: str) -> str:
 
 def _gather_record(db: Session, patient: Patient) -> dict:
     summary = lab_analysis.build_summary(db, patient.id)
-    abnormal = [i for i in summary["items"] if i["flag"] != "normal"]
+    abnormal = [i for i in summary["items"] if i["flag"] in lab_analysis.ABNORMAL_FLAGS]
     meds = db.scalars(
         select(Medication).where(
             Medication.patient_id == patient.id, Medication.is_active.is_(True)
@@ -80,6 +80,9 @@ def compare_analyte(db: Session, ai: AIProvider, patient: Patient, analyte: str)
             "Sunt necesare cel puțin două pentru comparație."
         )
 
+    warning = lab_analysis.comparison_warning(series)
+    if warning:
+        return warning
     trend = lab_analysis.compute_trend(series)
     first, last = numeric[0], numeric[-1]
     facts = (

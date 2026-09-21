@@ -29,6 +29,7 @@ export interface PatientProfile {
 }
 
 export type LabFlag =
+  | "unknown"
   | "normal"
   | "high"
   | "low"
@@ -64,6 +65,7 @@ export interface LabSeries {
   ref_high: number | null;
   trend: string | null;
   points: LabSeriesPoint[];
+  comparison_warning: string | null;
 }
 
 export interface DocumentItem {

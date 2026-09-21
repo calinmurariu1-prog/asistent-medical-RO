@@ -47,10 +47,24 @@ def build_series(db: Session, patient_id: int, analyte: str) -> list[LabResult]:
     return get_results(db, patient_id, analyte=analyte)
 
 
+def comparison_warning(series: list[LabResult]) -> str | None:
+    """Require explicit compatible units and distinct dates before comparison."""
+    numeric = [r for r in series if r.value is not None]
+    if any(not r.unit or not r.unit.strip() for r in numeric):
+        return "Comparație indisponibilă: lipsesc unități de măsură. Verifică originalele."
+    if len({r.unit.strip() for r in numeric}) > 1:
+        return "Comparație indisponibilă: unitățile diferă. Este necesară o conversie validată."
+    dates = [r.measured_on for r in numeric]
+    if any(d is None for d in dates) or len(set(dates)) != len(dates):
+        return ("Comparație indisponibilă: date lipsă sau măsurători în aceeași zi. "
+                "Verifică ordinea.")
+    return None
+
+
 def compute_trend(series: list[LabResult]) -> str | None:
     """Describe the last value relative to the previous one."""
     numeric = [r for r in series if r.value is not None]
-    if len(numeric) < 2:
+    if comparison_warning(series) or len(numeric) < 2:
         return None
     prev, last = numeric[-2].value, numeric[-1].value
     if last > prev:

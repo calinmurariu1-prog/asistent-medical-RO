@@ -35,8 +35,9 @@ def test_dashboard_aggregates_everything(client):
 
     body = client.get(f"{API}/dashboard", headers=h).json()
     assert body["lab_summary"]["total_analytes"] == 1
-    assert body["lab_summary"]["critical_count"] == 1
+    assert body["lab_summary"]["critical_count"] == 0
+    assert body["lab_summary"]["abnormal_count"] == 1
     assert len(body["active_medications"]) == 1
     assert len(body["upcoming_appointments"]) == 1
     assert body["unread_notifications"] == 1
-    assert body["alerts"]  # critical glicemie surfaces an alert
+    assert body["alerts"] == []  # No unsupported critical threshold inferred.
