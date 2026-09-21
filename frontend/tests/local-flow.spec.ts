@@ -36,10 +36,29 @@ test("account, recovery, document and session lifecycle",async({page,request,con
  await expect(page.getByText("Nu ai un acord activ",{exact:false})).toBeVisible();
  await page.goto("/profile");
  await expect(page.getByRole("heading",{name:"Profil",exact:false}).first()).toBeVisible();
+ await page.route("**/export/report.pdf", route => route.fulfill({status:503,
+   contentType:"application/json",body:JSON.stringify({detail:"Raport temporar indisponibil"})}));
+ await page.getByRole("button",{name:"PDF",exact:true}).click();
+ await expect(page.getByRole("alert").filter({hasText:"Raport temporar indisponibil"})).toBeVisible();
+ await page.unroute("**/export/report.pdf");
+ for (const [label, extension, signature] of [["PDF","pdf","%PDF"],["Word","docx","PK"]]) {
+   const pending=page.waitForEvent("download");
+   await page.getByRole("button",{name:label,exact:true}).click();
+   const report=await pending;
+   expect(report.suggestedFilename()).toBe(`raport-medical.${extension}`);
+   const bytes=await readFile((await report.path())!);
+   expect(bytes.subarray(0,signature.length).toString()).toBe(signature);
+ }
+ await expect(page.getByRole("alert").filter({hasText:"Raport temporar indisponibil"})).toHaveCount(0);
  await page.goto("/documents");
  await page.getByLabel("Document medical").setInputFiles(path.resolve("../demo/analize-fictive.pdf"));
  await page.getByRole("button",{name:"Încarcă",exact:true}).click();
  await expect(page.getByText("analize-fictive.pdf",{exact:true})).toBeVisible();
+ await page.route("**/documents/*/original",route=>route.fulfill({status:503,
+   contentType:"application/json",body:JSON.stringify({detail:"Original temporar indisponibil"})}));
+ await page.getByRole("button",{name:"Descarcă originalul"}).click();
+ await expect(page.getByRole("alert").filter({hasText:"Original temporar indisponibil"})).toBeVisible();
+ await page.unroute("**/documents/*/original");
  const downloaded=page.waitForEvent("download");
  await page.getByRole("button",{name:"Descarcă originalul"}).click();
  const file=await downloaded;

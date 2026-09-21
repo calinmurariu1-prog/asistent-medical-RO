@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Bell, Download, User } from "lucide-react";
+import { saveExport } from "@/lib/file-export";
 import { api, downloadFile } from "@/lib/api";
 import { pushDeliveryMessage, sendTestPush } from "@/lib/push";
 import type { PatientProfile } from "@/lib/types";
@@ -54,14 +55,18 @@ export default function ProfilePage() {
     }
   }
 
+  const [exporting, setExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState("");
+  const [exportError, setExportError] = useState("");
   async function exportReport(fmt: "pdf" | "docx") {
-    const blob = await downloadFile(`/export/report.${fmt}`);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `raport-medical.${fmt}`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (exporting) return;
+    setExporting(true); setExportMessage(""); setExportError("");
+    try {
+      const blob = await downloadFile(`/export/report.${fmt}`);
+      setExportMessage(await saveExport(blob, `raport-medical.${fmt}`));
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : "Raportul nu a putut fi descărcat.");
+    } finally { setExporting(false); }
   }
 
   if (loading) return <Spinner />;
@@ -157,11 +162,15 @@ export default function ProfilePage() {
 
       <Card>
         <div className="mb-3 font-semibold">Export raport medical</div>
+        <p className="mb-3 text-sm text-muted">În browser se descarcă fișierul. În aplicația mobilă alegi
+          destinația în dialogul sistemului. Raportul conține date medicale; păstrează-l în siguranță.</p>
+        {exportMessage && <p role="status" className="mb-3 text-sm">{exportMessage}</p>}
+        {exportError && <p role="alert" className="mb-3 text-sm text-red-600">{exportError}</p>}
         <div className="flex gap-3">
-          <Button variant="outline" onClick={() => exportReport("pdf")}>
+          <Button variant="outline" disabled={exporting} onClick={() => exportReport("pdf")}>
             <Download size={16} /> PDF
           </Button>
-          <Button variant="outline" onClick={() => exportReport("docx")}>
+          <Button variant="outline" disabled={exporting} onClick={() => exportReport("docx")}>
             <Download size={16} /> Word
           </Button>
         </div>

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { FileText, Upload } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
+import { saveExport } from "@/lib/file-export";
 import { api, downloadFile } from "@/lib/api";
 import type { DocumentItem } from "@/lib/types";
 import {
@@ -37,6 +38,7 @@ export default function DocumentsPage() {
   const [uploading, setUploading] = useState(false);
   const [retrying, setRetrying] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function onUpload(e: React.FormEvent) {
@@ -104,6 +106,7 @@ export default function DocumentsPage() {
         {notice && <p role="status" className="mt-2 text-sm">{notice}</p>}
         <p className="mt-2 text-xs text-muted">
           Acceptate: PDF, JPG, PNG, DOCX, DICOM. Scanările necesită OCR disponibil.
+          La descărcare, aplicația mobilă deschide dialogul sistemului pentru salvare sau partajare.
         </p>
       </Card>
 
@@ -121,11 +124,16 @@ export default function DocumentsPage() {
             <Card key={d.id}>
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <Button onClick={async()=>{try {
-                    const blob=await downloadFile(`/documents/${d.id}/original`);
-                    const url=URL.createObjectURL(blob); const a=document.createElement("a");
-                    a.href=url;a.download=d.original_filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-                  } catch(e){setError(e instanceof Error?e.message:"Descărcare eșuată");}}}>Descarcă originalul</Button>
+                  <Button disabled={downloading !== null} onClick={async () => {
+                    if (downloading !== null) return;
+                    setDownloading(d.id); setError(null); setNotice(null);
+                    try {
+                      const blob = await downloadFile(`/documents/${d.id}/original`);
+                      setNotice(await saveExport(blob, d.original_filename));
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : "Descărcare eșuată");
+                    } finally { setDownloading(null); }
+                  }}>{downloading === d.id ? "Se pregătește…" : "Descarcă originalul"}</Button>
                   <div className="truncate font-medium">
                     {d.original_filename}
                   </div>

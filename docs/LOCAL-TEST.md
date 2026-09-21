@@ -190,3 +190,6 @@ Exportul autentificat păstrează cheile existente și adaugă identificatori, d
 
 
 Exportul JSON se descarcă din **Setări → Exportă datele din dosar → Descarcă dosarul JSON**. Butonul folosește sesiunea autentificată și mecanismul de reînnoire existent, afișează erori cu posibilitate de reîncercare și precizează că inițierea descărcării nu confirmă salvarea pe disc. Numele fișierului conține doar data, fără numele pacientului. Testele de browser verifică efectiv JSON-ul descărcat și identitatea contului pe cele trei dimensiuni de ecran. În buildurile native, exportul JSON folosește acum dialogul sistemului prin adaptorul Capacitor; validarea pe dispozitive fizice rămâne necesară. Browserul mobil și PWA folosesc descărcarea web.
+
+
+Rapoartele PDF/Word din Profil și originalele din Documente folosesc același adaptor web/nativ ca exportul JSON. Erorile de descărcare sunt vizibile și permit reîncercarea, iar butoanele sunt dezactivate pe durata operațiunii. Testele browser verifică formatul PDF/DOCX descărcat, egalitatea exactă a originalului PDF cu fișierul încărcat și recuperarea după răspunsuri 503 simulate. Verificarea nativă pe dispozitiv real rămâne deschisă.
