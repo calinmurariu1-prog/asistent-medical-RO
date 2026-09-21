@@ -38,6 +38,9 @@ class Settings(BaseSettings):
         "postgresql+psycopg://medai:medai_dev_password@db:5432/asistent_medical"
     )
 
+    LOCAL_DATA_DIR: str = "../.local-data"
+    STORAGE_BACKEND: str = "s3"
+
     # ---- Object storage ----
     S3_ENDPOINT_URL: str = "http://minio:9000"
     S3_PUBLIC_URL: str = "http://localhost:9000"
@@ -186,6 +189,8 @@ def validate_production_config(s: Settings) -> None:
         problems.append("SECRET_KEY")
     if not s.DATA_ENCRYPTION_KEY or s.DATA_ENCRYPTION_KEY.startswith("change-me"):
         problems.append("DATA_ENCRYPTION_KEY")
+    if s.STORAGE_BACKEND != "s3":
+        problems.append("STORAGE_BACKEND must be s3 in production")
     if problems:
         raise RuntimeError(
             "Configurare nesigură pentru producție — setează valori reale pentru: "

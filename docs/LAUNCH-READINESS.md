@@ -1,24 +1,27 @@
-# Verificare pentru lansare — 21 septembrie 2026
+# Raport pentru versiunea locală — 21 septembrie 2026
 
-Repository: calinmurariu1-prog/asistent-medical-RO.
-Bază verificată: 62681c68e10adae324e3cf1066bab869220c6cd9, ramura claude/new-isolated-project-oheqvr.
+Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-launch-readiness`, PR #21. Vezi [instrucțiunile locale](LOCAL-TEST.md).
 
-## Rezultate locale
+## Implementat
 
-- Repository descărcat separat de versiunea asitent-ai-; aplicațiile nu au fost suprapuse.
-- Corecție: /api/v1/auth/login-form folosește verificările autentificării principale: cont activ, MFA, audit și limitarea încercărilor. Formularul OAuth nu oferă câmp TOTP; utilizatorii cu MFA folosesc ruta JSON /login cu mfa_code.
-- Cinci teste noi: cont dezactivat, MFA, autentificare validă, identificator invalid și rate limiting.
-- Suita completă a trecut cu 139 teste la prima revizie; după ultimele ajustări, toate cele 11 teste test_auth_security.py au trecut. Colecția finală are 141 teste. Testele folosesc SQLite și servicii externe simulate; nu demonstrează funcționarea S3, email sau AI real.
-- Build Next.js 14.2.15 și verificarea TypeScript au trecut (34 pagini generate). Lint este dezactivat în configurația buildului; nu este revendicat drept verificat.
+- Loginul Swagger aplică verificările pentru cont activ, MFA, audit și limitarea încercărilor.
+- Recuperare parolă și confirmare email în română; tokenuri opace, hash în DB, expirare, scop și consum atomic. Resetarea revocă sesiunile.
+- Emailuri private pe disc în dezvoltare, fără tokenuri în loguri/răspunsuri. Recuperare indisponibilă uniform în producție fără SMTP.
+- Refresh automat unic pentru cereri simultane, maximum o reluare; logout pe toate dispozitivele și avertizare la revocare neconfirmată.
+- Originale locale criptate, persistente, descărcate autentificat cu verificarea proprietarului; încărcare limitată ca dimensiune.
+- Next.js 16.3.5, React 19, compatibilitate export Capacitor; interfața existentă păstrată și antet mobil corectat.
+- Pornire separată 8012/3012, SQLite și chei persistente; PDF fictiv și banner AI simulat.
+- CI pentru toate verificările și hookuri Render limitate la ramura de lansare.
 
-## Probleme identificate înainte de lansare
+## Dovezi locale
 
-1. Pluginul GitHub refuză încă scrierea (403), dar autentificarea Git locală a fost verificată și permite publicarea în ramura codex/medical-launch-readiness. Această livrare corectează autentificarea; deployul rămâne separat.
-2. npm raportează vulnerabilitate pentru Next.js 14.2.15. Este necesară actualizarea și reverificarea dependențelor.
-3. Tokenul de resetare existent este reutilizabil până la expirare: serviciul nu consumă tokenul și confirmarea nu verifică versiunea sesiunilor din token. Necesită corecție și test concurent.
-4. Emailul fără SMTP este doar jurnalizat; în producție nu trebuie înregistrate linkurile de recuperare în loguri. Rutele frontend /reset-password și /verify-email nu apar în build.
-5. Blueprintul nu configurează serviciul S3/MinIO, deși uploadurile îl cer. Necesită stocare reală și verificarea permisiunilor pe utilizator.
-6. Frontendul păstrează tokenurile în localStorage, nu utilizează refresh-ul la expirare și logoutul șterge doar copia locală. Necesită integrarea revocării server-side și tratarea expirării.
-7. REQUIRE_AI_CONSENT este implicit false; trebuie evaluat și activat fluxul de consimțământ înaintea transmiterii datelor către un provider extern.
+- Backend: 149 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
+- Ruff trecut; build Next și TypeScript trecute; patru teste unitare pentru refresh/concurență trecute.
+- Export web Capacitor: 36 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
+- Verificările browser acoperă cont, confirmare, profil, PDF, descărcare identică, analize, dashboard, refresh, resetare și deconectare pe desktop și dimensiuni iPhone/Android. Capturi în `docs/screenshots`.
+- Auditul npm pentru dependențele de producție: zero vulnerabilități raportate la verificare. Auditul complet încă raportează șapte probleme în dependențe de dezvoltare (două moderate, cinci high).
+- Starea CI pentru revizia publicată trebuie verificată în PR; rezultatele locale nu înlocuiesc GitHub Actions.
 
-Nicio infrastructură existentă Render nu a fost modificată. Următorul increment trebuie să rezolve recuperarea contului și sesiunea, apoi uploadul real și testele browser, înainte de lansare.
+## Rămâne înainte de lansare publică
+
+Stocare sigură a sesiunilor (HttpOnly/nativ), configurare și verificare PostgreSQL/S3/SMTP, evaluare GDPR și retenție, consimțământ AI înainte de provider extern, evaluare medicală a RAG/safety și OCR real. AI rămâne simulat; testele nu demonstrează interpretare medicală reală. Nicio infrastructură Render nu a fost modificată.

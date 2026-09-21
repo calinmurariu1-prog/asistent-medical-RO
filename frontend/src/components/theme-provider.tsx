@@ -31,7 +31,7 @@ export function ThemeToggle() {
     <button
       onClick={toggle}
       aria-label="Comută tema"
-      className="rounded-lg border p-2 text-fg/70 transition hover:bg-bg hover:text-fg"
+      className="shrink-0 rounded-lg border p-2 text-fg/70 transition hover:bg-bg hover:text-fg"
     >
       {dark ? <Sun size={18} /> : <Moon size={18} />}
     </button>

@@ -1,0 +1,87 @@
+import {test,expect} from "@playwright/test";
+import {readFile,readdir} from "node:fs/promises";
+import path from "node:path";
+const api=process.env.E2E_API||"http://localhost:8012/api/v1";
+async function mailbox(email:string, kind:string) {
+  const dir=process.env.E2E_MAILBOX||path.resolve("../.local-data/mailbox");
+  for(const name of await readdir(dir)) {
+    const content=(await readFile(path.join(dir,name),"utf8")).replace(/\r/g, "");
+    if(content.includes(`To: ${email}\n`)&&content.includes(kind)) return content.match(/https?:\/\/[^\s]+/)![0];
+  }
+  throw new Error("Test mailbox message not found");
+}
+test("account, recovery, document and session lifecycle",async({page,request},info)=>{
+ const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+ const email=`browser-${Date.now()}-${info.project.name}@example.com`;
+ await page.goto("/register");
+ await page.getByPlaceholder("Nume complet").fill("Pacient Fictiv");
+ await page.getByPlaceholder("Email",{exact:true}).fill(email);
+ await page.getByPlaceholder("Parolă (min. 8 caractere)").fill("Testing-pass-123!");
+ await page.getByRole("button",{name:"Creează cont",exact:true}).click();
+ await expect(page).toHaveURL(/dashboard/);
+ await expect(page.getByText("Versiune de test",{exact:false})).toBeVisible();
+ const verify=await mailbox(email,"verify-email");
+ await page.goto(verify);
+ await page.getByRole("button",{name:"Confirmă emailul"}).click();
+ await expect(page.getByRole("status")).toContainText("confirmată");
+ await page.goto("/profile");
+ await expect(page.getByRole("heading",{name:"Profil",exact:false}).first()).toBeVisible();
+ await page.goto("/documents");
+ await page.getByLabel("Document medical").setInputFiles(path.resolve("../demo/analize-fictive.pdf"));
+ await page.getByRole("button",{name:"Încarcă",exact:true}).click();
+ await expect(page.getByText("analize-fictive.pdf",{exact:true})).toBeVisible();
+ const downloaded=page.waitForEvent("download");
+ await page.getByRole("button",{name:"Descarcă originalul"}).click();
+ const file=await downloaded;
+ expect(await readFile((await file.path())!)).toEqual(await readFile(path.resolve("../demo/analize-fictive.pdf")));
+ await page.goto("/labs");
+ await expect(page.getByText("Glicemie",{exact:false}).first()).toBeVisible();
+ const oldToken=await page.evaluate(()=>localStorage.getItem("am_access_token"));
+ let refreshCount=0;
+ page.on("request",r=>{if(r.url().endsWith("/auth/refresh"))refreshCount++;});
+ await page.evaluate(()=>localStorage.setItem("am_access_token","expired-test-token"));
+ await page.goto("/dashboard");
+ await expect(page.getByText("Versiune de test",{exact:false})).toBeVisible();
+ expect(refreshCount).toBe(1);
+ if(info.project.name!=="desktop") await page.getByRole("button",{name:"Deschide meniul"}).click();
+ await page.getByRole("button",{name:"Deconectare de pe toate dispozitivele"}).click();
+ await expect(page).toHaveURL(/login/);
+ expect((await request.get(api+"/auth/me",{headers:{Authorization:`Bearer ${oldToken}`}})).status()).toBe(401);
+ await page.getByRole("link",{name:"Am uitat parola"}).click();
+ await page.getByLabel("Email",{exact:true}).fill(email);
+ await page.getByRole("button",{name:"Trimite linkul"}).click();
+ await expect(page.getByRole("status")).toContainText("vei primi");
+ const reset=await mailbox(email,"reset-password");
+ await page.goto(reset);
+ await page.getByLabel("Parolă nouă",{exact:true}).fill("Changed-pass-123!");
+ await page.getByRole("button",{name:"Schimbă parola"}).click();
+ await expect(page.getByRole("status")).toContainText("schimbată");
+ const token=new URLSearchParams(new URL(reset).hash.slice(1)).get("token");
+ expect((await request.post(api+"/auth/password-reset/confirm",{data:{token,new_password:"Another-pass-123!"}})).status()).toBe(400);
+ await page.getByRole("link",{name:"Înapoi la autentificare"}).click();
+ await page.getByPlaceholder("Email",{exact:true}).fill(email);
+ await page.getByPlaceholder("Parolă",{exact:true}).fill("Changed-pass-123!");
+ await page.getByRole("button",{name:"Intră în cont"}).click();
+ await expect(page).toHaveURL(/dashboard/);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy();
+ await page.getByRole("button",{name:"Comută tema"}).click();
+ await expect(page.locator("html")).toHaveClass(/dark/);
+ await page.screenshot({path:`../docs/screenshots/local-${info.project.name}.png`,fullPage:true});
+ expect(errors).toEqual([]);
+});
+
+
+test("failed logout reports unconfirmed server revocation",async({page},info)=>{
+ const email=`logout-${Date.now()}-${info.project.name}@example.com`;
+ await page.goto("/register");
+ await page.getByPlaceholder("Nume complet").fill("Test Deconectare");
+ await page.getByPlaceholder("Email",{exact:true}).fill(email);
+ await page.getByPlaceholder("Parolă (min. 8 caractere)").fill("Testing-pass-123!");
+ await page.getByRole("button",{name:"Creează cont",exact:true}).click();
+ await expect(page).toHaveURL(/dashboard/);
+ await page.route("**/auth/logout-all",route=>route.abort());
+ if(info.project.name!=="desktop") await page.getByRole("button",{name:"Deschide meniul"}).click();
+ await page.getByRole("button",{name:"Deconectare de pe toate dispozitivele"}).click();
+ await expect(page.getByText("Ai ieșit de pe acest dispozitiv",{exact:false})).toBeVisible();
+ expect(await page.evaluate(()=>localStorage.getItem("am_access_token"))).toBeNull();
+});

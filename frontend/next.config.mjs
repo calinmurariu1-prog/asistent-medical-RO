@@ -7,7 +7,6 @@ const isMobile = process.env.MOBILE_BUILD === "1";
 
 const nextConfig = {
   reactStrictMode: true,
-  eslint: { ignoreDuringBuilds: true },
   ...(isMobile
     ? {
         output: "export",

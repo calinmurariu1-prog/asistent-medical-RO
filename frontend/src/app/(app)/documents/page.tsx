@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { FileText, Upload } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
-import { api } from "@/lib/api";
+import { api, downloadFile } from "@/lib/api";
 import type { DocumentItem } from "@/lib/types";
 import {
   Badge,
@@ -66,6 +66,7 @@ export default function DocumentsPage() {
           <input
             ref={fileRef}
             type="file"
+            aria-label="Document medical"
             accept=".pdf,.jpg,.jpeg,.png,.dcm"
             className="text-sm"
             required
@@ -106,6 +107,11 @@ export default function DocumentsPage() {
             <Card key={d.id}>
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
+                  <Button onClick={async()=>{try {
+                    const blob=await downloadFile(`/documents/${d.id}/original`);
+                    const url=URL.createObjectURL(blob); const a=document.createElement("a");
+                    a.href=url;a.download=d.original_filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+                  } catch(e){setError(e instanceof Error?e.message:"Descărcare eșuată");}}}>Descarcă originalul</Button>
                   <div className="truncate font-medium">
                     {d.original_filename}
                   </div>

@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import jwt
 import pyotp
-from pydantic import ValidationError
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -42,8 +42,8 @@ from app.services.email import send_password_reset_email, send_verification_emai
 from app.services.token_service import (
     EMAIL_VERIFY,
     PASSWORD_RESET,
+    consume_purpose_token,
     create_purpose_token,
-    verify_purpose_token,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -82,7 +82,8 @@ def register(
     db.commit()
     db.refresh(user)
 
-    token = create_purpose_token(str(user.id), EMAIL_VERIFY)
+    token = create_purpose_token(str(user.id), EMAIL_VERIFY, db=db)
+    db.commit()
     send_verification_email(user.email, token)
     audit.record(db, user_id=user.id, action="register", ip_address=_client_ip(request))
     return user
@@ -143,9 +144,12 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)) -> TokenPair
 def password_reset_request(
     payload: PasswordResetRequest, db: Session = Depends(get_db)
 ) -> dict[str, str]:
+    if settings.is_production and not settings.SMTP_HOST:
+        raise HTTPException(503, "Recuperarea parolei este temporar indisponibilă.")
     user = db.scalar(select(User).where(User.email == payload.email))
-    if user:
-        token = create_purpose_token(str(user.id), PASSWORD_RESET, hours=2)
+    if user and user.is_active:
+        token = create_purpose_token(str(user.id), PASSWORD_RESET, hours=2, db=db)
+        db.commit()
         send_password_reset_email(user.email, token)
     # Always 200 to prevent account enumeration.
     return {"detail": "If the email exists, a reset link has been sent."}
@@ -155,15 +159,21 @@ def password_reset_request(
 def password_reset_confirm(
     payload: PasswordResetConfirm, db: Session = Depends(get_db)
 ) -> dict[str, str]:
-    sub = verify_purpose_token(payload.token, PASSWORD_RESET)
-    if sub is None:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid or expired token")
-    user = db.get(User, int(sub))
+    user = consume_purpose_token(payload.token, PASSWORD_RESET, db)
     if user is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+        db.rollback()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Link invalid, expirat sau deja folosit.")
     user.hashed_password = hash_password(payload.new_password)
     # Invalidate all existing sessions after a password reset.
     user.token_version += 1
+    from datetime import UTC, datetime
+
+    from sqlalchemy import update
+
+    from app.models.user import RecoveryToken
+    db.execute(update(RecoveryToken).where(
+        RecoveryToken.user_id == user.id, RecoveryToken.purpose == PASSWORD_RESET,
+        RecoveryToken.consumed_at.is_(None)).values(consumed_at=datetime.now(UTC)))
     db.commit()
     return {"detail": "Password updated"}
 
@@ -172,12 +182,10 @@ def password_reset_confirm(
 def verify_email(
     payload: EmailVerifyRequest, db: Session = Depends(get_db)
 ) -> dict[str, str]:
-    sub = verify_purpose_token(payload.token, EMAIL_VERIFY)
-    if sub is None:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid or expired token")
-    user = db.get(User, int(sub))
+    user = consume_purpose_token(payload.token, EMAIL_VERIFY, db)
     if user is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+        db.rollback()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Link invalid, expirat sau deja folosit.")
     user.is_email_verified = True
     db.commit()
     return {"detail": "Email verified"}

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date
+from urllib.parse import quote
 
 from fastapi import (
     APIRouter,
@@ -76,7 +77,7 @@ def upload_document(
             "Fă upgrade la Premium pentru documente nelimitate.",
         )
 
-    data = file.file.read()
+    data = file.file.read(MAX_SIZE_BYTES + 1)
     if len(data) == 0:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Fișier gol")
     if len(data) > MAX_SIZE_BYTES:
@@ -133,6 +134,23 @@ def get_document(
     return _owned_document(document_id, patient, db)
 
 
+@router.get("/{document_id}/original")
+def original_document(
+    document_id: int, patient: Patient = Depends(get_current_patient),
+    db: Session = Depends(get_db), storage: Storage = Depends(get_storage),
+) -> Response:
+    document = _owned_document(document_id, patient, db)
+    try:
+        data = storage.get(document.storage_key)
+    except FileNotFoundError:
+        raise HTTPException(404, "Original indisponibil") from None
+    return Response(data, media_type="application/octet-stream", headers={
+        "Content-Disposition": ("attachment; filename*=UTF-8''"
+                                + quote(document.original_filename, safe="")),
+        "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+    })
+
+
 @router.get("/{document_id}/download", response_model=DocumentDownloadOut)
 def download_document(
     document_id: int,
@@ -141,6 +159,9 @@ def download_document(
     storage: Storage = Depends(get_storage),
 ) -> DocumentDownloadOut:
     document = _owned_document(document_id, patient, db)
+    from app.core.config import settings
+    if settings.STORAGE_BACKEND == "local":
+        raise HTTPException(409, "Folosește descărcarea autentificată a originalului.")
     url = storage.presigned_url(document.storage_key, expires=3600)
     return DocumentDownloadOut(url=url, expires_in=3600)
 

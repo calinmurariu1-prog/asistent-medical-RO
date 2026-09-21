@@ -141,3 +141,27 @@ def _make_text_pdf(text: str) -> bytes:
     buf = io.BytesIO()
     writer.write(buf)
     return buf.getvalue()
+
+
+def test_original_endpoint_checks_owner(client):
+    owner = _auth_headers(client, "owner-original@example.com")
+    other = _auth_headers(client, "other-original@example.com")
+    data = _make_text_pdf(SAMPLE_LAB_TEXT)
+    result = client.post(API + "/documents", headers=owner,
+                         files={"file": ("original.pdf", data, "application/pdf")})
+    assert result.status_code == 201
+    url = API + f"/documents/{result.json()['id']}/original"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=other).status_code == 404
+    downloaded = client.get(url, headers=owner)
+    assert downloaded.status_code == 200
+    assert downloaded.content == data
+    assert downloaded.headers["cache-control"] == "no-store"
+
+
+def test_upload_limit_reads_only_bounded_bytes(client, monkeypatch):
+    monkeypatch.setattr("app.api.routes.documents.MAX_SIZE_BYTES", 10)
+    headers = _auth_headers(client, "limit-original@example.com")
+    assert client.post(API + "/documents", headers=headers,
+                       files={"file": ("big.pdf", b"x" * 11, "application/pdf")}
+                       ).status_code == 413

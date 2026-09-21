@@ -44,7 +44,7 @@ const nav = [
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, loggingOut, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -53,8 +53,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   usePushRegistration(); // native: register for push notifications
 
   useEffect(() => {
-    if (!loading && !user) router.replace("/login");
-  }, [loading, user, router]);
+    if (!loading && !user && !loggingOut) router.replace("/login");
+  }, [loading, user, loggingOut, router]);
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
@@ -107,17 +107,18 @@ export function AppShell({ children }: { children: ReactNode }) {
           className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-fg/70 transition hover:bg-bg hover:text-fg"
         >
           <LogOut size={18} />
-          Deconectare
+          Deconectare de pe toate dispozitivele
         </button>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border/70 bg-surface px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
+        {process.env.NEXT_PUBLIC_TEST_MODE === "true" && <p role="status" className="bg-amber-100 p-3 text-sm text-amber-950">Versiune de test · Folosește date fictive. AI simulat, fără interpretare medicală reală.</p>}
+        <header className="flex items-center justify-between gap-3 border-b border-border/70 bg-surface px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               onClick={() => setMobileOpen(true)}
               aria-label="Deschide meniul"
-              className="rounded-xl border border-border p-2 text-fg/70 transition hover:bg-surface-2 sm:hidden"
+              className="shrink-0 rounded-xl border border-border p-2 text-fg/70 transition hover:bg-surface-2 sm:hidden"
             >
               <Menu size={18} />
             </button>

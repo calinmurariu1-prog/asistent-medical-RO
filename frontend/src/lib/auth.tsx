@@ -14,9 +14,10 @@ import type { TokenPair, User } from "@/lib/types";
 interface AuthState {
   user: User | null;
   loading: boolean;
+  loggingOut: boolean;
   login: (email: string, password: string, mfaCode?: string) => Promise<void>;
   register: (email: string, password: string, fullName?: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -24,6 +25,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -38,7 +40,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    const expired = () => {setUser(null); router.push("/login");};
+    window.addEventListener("session-expired", expired);
+    return () => window.removeEventListener("session-expired", expired);
+  }, [router]);
+
   async function login(email: string, password: string, mfaCode?: string) {
+    setLoggingOut(false);
     const tokens = await api.post<TokenPair>("/auth/login", {
       email,
       password,
@@ -59,14 +68,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await login(email, password);
   }
 
-  function logout() {
+  async function logout() {
+    setLoggingOut(true);
+    let failed = false;
+    try { await api.post("/auth/logout-all"); } catch { failed = true; }
     clearTokens();
     setUser(null);
-    router.push("/login");
+    router.push(failed ? "/login?logout=unconfirmed" : "/login");
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, loggingOut, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

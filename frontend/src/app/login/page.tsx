@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
@@ -16,6 +16,11 @@ export default function LoginPage() {
   const [mfaNeeded, setMfaNeeded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("logout") === "unconfirmed")
+      setError("Ai ieșit de pe acest dispozitiv, dar serverul nu a confirmat închiderea celorlalte sesiuni. Reconectează-te pentru a reîncerca.");
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -76,6 +81,7 @@ export default function LoginPage() {
             {loading ? "Se conectează…" : "Intră în cont"}
           </Button>
         </form>
+        <Link href="/forgot-password" className="mt-4 block text-brand-blue">Am uitat parola</Link>
         <p className="mt-4 text-center text-sm text-muted">
           Nu ai cont?{" "}
           <Link href="/register" className="text-brand-blue hover:underline">

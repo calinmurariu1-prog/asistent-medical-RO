@@ -49,11 +49,12 @@ def test_refresh_rejected_after_logout_all(client):
     assert r.status_code == 401
 
 
-def test_password_reset_invalidates_sessions(client):
+def test_password_reset_invalidates_sessions(client, db_session):
     user = _register(client, "reset@example.com")
     _tokens, h = _login(client, "reset@example.com")
 
-    token = create_purpose_token(str(user["id"]), PASSWORD_RESET)
+    token = create_purpose_token(str(user["id"]), PASSWORD_RESET, db=db_session)
+    db_session.commit()
     r = client.post(
         f"{API}/auth/password-reset/confirm",
         json={"token": token, "new_password": "ParolaNoua1"},

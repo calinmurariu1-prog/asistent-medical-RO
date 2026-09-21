@@ -105,3 +105,14 @@ class AuditLog(Base):
     __table_args__ = (
         Index("ix_audit_user_action", "user_id", "action"),
     )
+
+
+class RecoveryToken(Base):
+    """Only hashes are persisted; consumption and account changes share a transaction."""
+    __tablename__ = "recovery_tokens"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    purpose: Mapped[str] = mapped_column(String(24))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
