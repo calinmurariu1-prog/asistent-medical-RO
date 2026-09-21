@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def send_email(to: str, subject: str, body: str) -> bool:
-    """Send a plain-text email. Returns True if sent via SMTP or saved to the development mailbox."""
+    """Return True when sent via SMTP or saved to the private development mailbox."""
     if not settings.SMTP_HOST:
         if settings.is_production:
             logger.warning("Email delivery is not configured")
