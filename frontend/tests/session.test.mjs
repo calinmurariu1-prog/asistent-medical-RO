@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import ts from "typescript";
-async function setup() {
+async function setup(cookieMode=false) {
+ process.env.NEXT_PUBLIC_SESSION_TRANSPORT=cookieMode ? "cookie" : "bearer";
  const store=new Map(); const events=new EventTarget();
  globalThis.window=Object.assign(events,{localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k)}});
  const source=readFileSync(new URL("../src/lib/api.ts",import.meta.url),"utf8");
@@ -35,4 +36,20 @@ test("login error never triggers refresh",async()=>{
  const {api,setTokens}=await setup();setTokens("old","refresh");let calls=0;
  globalThis.fetch=async()=>{calls++;return json({},401);};
  await assert.rejects(api.post("/auth/login",{}));assert.equal(calls,1);
+});
+
+test("cookie session refresh is shared without readable bearer tokens",async()=>{
+ const {api,setTokens,getToken}=await setup(true);setTokens("unused","unused");
+ assert.equal(getToken(),null);let refreshes=0;let renewed=false;
+ globalThis.fetch=async(url,options)=>{
+   assert.equal(options.credentials,"include");
+   if(url.endsWith("/browser/refresh")) {
+     refreshes++;await new Promise(r=>setTimeout(r,20));renewed=true;return json({detail:"ok"});
+   }
+   assert.equal(options.headers.get("Authorization"),null);
+   return renewed?json({ok:true}):json({},401);
+ };
+ const results=await Promise.all([api.get("/a"),api.get("/b")]);
+ assert.ok(results.every(x=>x.ok));assert.equal(refreshes,1);
+ assert.equal(window.localStorage.getItem("am_access_token"),null);
 });

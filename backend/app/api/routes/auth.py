@@ -3,13 +3,19 @@ from __future__ import annotations
 
 import jwt
 import pyotp
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.browser_session import (
+    REFRESH_COOKIE,
+    clear_browser_cookies,
+    require_browser_origin,
+    set_browser_cookies,
+)
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import RateLimiter
@@ -256,3 +262,46 @@ def login_form(
     except ValidationError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials") from None
     return login(payload, request, db)
+
+
+@router.post("/browser/login", dependencies=[Depends(_auth_limiter)])
+def browser_login(
+    payload: LoginRequest, request: Request, response: Response,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    require_browser_origin(request)
+    tokens = login(payload, request, db)
+    set_browser_cookies(response, tokens.access_token, tokens.refresh_token)
+    return {"detail": "Autentificare reușită."}
+
+
+@router.post("/browser/refresh")
+def browser_refresh(
+    request: Request, response: Response, db: Session = Depends(get_db),
+) -> dict[str, str]:
+    require_browser_origin(request)
+    token = request.cookies.get(REFRESH_COOKIE)
+    if not token:
+        raise HTTPException(401, "Sesiune expirată.")
+    tokens = refresh(RefreshRequest(refresh_token=token), db)
+    set_browser_cookies(response, tokens.access_token, tokens.refresh_token)
+    return {"detail": "Sesiune reînnoită."}
+
+
+@router.post("/browser/logout-all")
+def browser_logout_all(
+    request: Request, response: Response,
+    current: User = Depends(get_current_user), db: Session = Depends(get_db),
+) -> dict[str, str]:
+    require_browser_origin(request)
+    result = logout_all(current, db)
+    clear_browser_cookies(response)
+    return result
+
+
+@router.post("/browser/clear")
+def browser_clear(request: Request, response: Response) -> dict[str, str]:
+    """Clear this browser even when its access token has expired; does not revoke other devices."""
+    require_browser_origin(request)
+    clear_browser_cookies(response)
+    return {"detail": "Cookie-urile acestui browser au fost șterse."}

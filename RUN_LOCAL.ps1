@@ -27,6 +27,8 @@ $env:FRONTEND_URL='http://localhost:3012'
 $env:BACKEND_CORS_ORIGINS='http://localhost:3012,http://127.0.0.1:3012'
 $env:NEXT_PUBLIC_API_URL='http://localhost:8012'
 $env:NEXT_PUBLIC_TEST_MODE='true'
+$env:NEXT_PUBLIC_SESSION_TRANSPORT='cookie'
+$env:BACKEND_URL='http://localhost:8012'
 if (!$SkipInstall) {
   & $Python -m pip install -r backend/requirements.txt
   if ($LASTEXITCODE -ne 0) {throw 'Instalarea backendului a eșuat.'}

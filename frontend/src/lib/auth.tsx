@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { api, clearTokens, getToken, setTokens } from "@/lib/api";
+import { api, clearTokens, getToken, setTokens, usesCookieSession } from "@/lib/api";
 import type { TokenPair, User } from "@/lib/types";
 
 interface AuthState {
@@ -29,19 +29,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    if (!getToken()) {
+    if (usesCookieSession) clearTokens();
+    if (!usesCookieSession && !getToken()) {
       setLoading(false);
       return;
     }
     api
       .get<User>("/auth/me")
       .then(setUser)
-      .catch(() => clearTokens())
+      .catch(() => { /* unauthenticated or temporarily offline */ })
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    const expired = () => {setUser(null); router.push("/login");};
+    const expired = () => {
+      setUser(null);
+      const publicPaths = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/verify-email"];
+      if (!publicPaths.includes(window.location.pathname)) router.push("/login");
+    };
     window.addEventListener("session-expired", expired);
     return () => window.removeEventListener("session-expired", expired);
   }, [router]);
@@ -72,6 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoggingOut(true);
     let failed = false;
     try { await api.post("/auth/logout-all"); } catch { failed = true; }
+    if (usesCookieSession && failed) {
+      try { await api.post("/auth/browser/clear"); } catch { /* server may be offline */ }
+    }
     clearTokens();
     setUser(null);
     router.push(failed ? "/login?logout=unconfirmed" : "/login");

@@ -1,5 +1,5 @@
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const usesCookieSession = process.env.NEXT_PUBLIC_SESSION_TRANSPORT === "cookie";
+const BASE_URL = usesCookieSession ? "" : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000");
 const PREFIX = "/api/v1";
 
 const TOKEN_KEY = "am_access_token";
@@ -7,11 +7,16 @@ const REFRESH_KEY = "am_refresh_token";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
+  return usesCookieSession ? null : window.localStorage.getItem(TOKEN_KEY);
 }
 
 export function setTokens(access: string, refresh: string): void {
   generation++;
+  if (usesCookieSession) {
+    window.localStorage.removeItem(TOKEN_KEY);
+    window.localStorage.removeItem(REFRESH_KEY);
+    return;
+  }
   window.localStorage.setItem(TOKEN_KEY, access);
   window.localStorage.setItem(REFRESH_KEY, refresh);
 }
@@ -32,15 +37,16 @@ export class ApiError extends Error {
 
 let refreshing: Promise<boolean> | null = null;
 let generation = 0;
+let sessionRevision = 0;
 async function refreshSession(): Promise<boolean> {
   if (refreshing) return refreshing;
   const refresh = window.localStorage.getItem(REFRESH_KEY);
-  if (!refresh) return false;
+  if (!usesCookieSession && !refresh) return false;
   const ticket = generation;
   refreshing = (async () => {
-    const res = await fetch(`${BASE_URL}${PREFIX}/auth/refresh`, {
-      method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({refresh_token: refresh}),
+    const res = await fetch(`${BASE_URL}${PREFIX}/auth/${usesCookieSession ? "browser/" : ""}refresh`, {
+      method: "POST", credentials: usesCookieSession ? "include" : "same-origin", cache: "no-store", headers: {"Content-Type":"application/json"},
+      body: usesCookieSession ? undefined : JSON.stringify({refresh_token: refresh}),
     });
     if (ticket !== generation) return false;
     if (!res.ok) {
@@ -51,28 +57,34 @@ async function refreshSession(): Promise<boolean> {
     }
     const tokens = await res.json();
     if (ticket !== generation) return false;
-    window.localStorage.setItem(TOKEN_KEY, tokens.access_token);
-    window.localStorage.setItem(REFRESH_KEY, tokens.refresh_token);
+    sessionRevision++;
+    if (!usesCookieSession) {
+      window.localStorage.setItem(TOKEN_KEY, tokens.access_token);
+      window.localStorage.setItem(REFRESH_KEY, tokens.refresh_token);
+    }
     return true;
   })().finally(() => { refreshing = null; });
   return refreshing;
 }
 
 async function response(path: string, options: RequestInit = {}): Promise<Response> {
+  const target = usesCookieSession && ["/auth/login", "/auth/logout-all"].includes(path)
+    ? path.replace("/auth/", "/auth/browser/") : path;
+  const revision = sessionRevision;
   const send = () => {
     const headers = new Headers(options.headers);
     const token = getToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);
     if (!(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
-    return fetch(`${BASE_URL}${PREFIX}${path}`, {...options, headers});
+    return fetch(`${BASE_URL}${PREFIX}${target}`, {...options, cache: "no-store", credentials: usesCookieSession ? "include" : "same-origin", headers});
   };
   const ticket = generation;
   const attemptedToken = getToken();
   let res = await send();
   if (ticket !== generation) throw new ApiError(401, "Sesiunea s-a schimbat.");
-  const credentialPath = /^\/auth\/(login|register|refresh|password-reset|email)/.test(path);
-  if (res.status === 401 && attemptedToken && !credentialPath) {
-    if ((getToken() && getToken() !== attemptedToken) || await refreshSession()) res = await send();
+  const credentialPath = /^\/auth\/(browser|login|register|refresh|password-reset|email)/.test(path);
+  if (res.status === 401 && (usesCookieSession || attemptedToken) && !credentialPath) {
+    if ((usesCookieSession ? sessionRevision !== revision : (getToken() && getToken() !== attemptedToken)) || await refreshSession()) res = await send();
     if (ticket !== generation) throw new ApiError(401, "Sesiunea s-a schimbat.");
     if (res.status === 401) {clearTokens(); window.dispatchEvent(new Event("session-expired"));}
   }

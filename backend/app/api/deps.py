@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.browser_session import ACCESS_COOKIE, require_browser_origin
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import ACCESS, decode_token
@@ -15,7 +16,7 @@ from app.models.enums import ConsentType, UserRole
 from app.models.patient import Patient
 from app.models.user import Consent, User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login-form", auto_error=True)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login-form", auto_error=False)
 
 _CREDENTIALS_EXC = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -25,9 +26,16 @@ _CREDENTIALS_EXC = HTTPException(
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    request: Request,
+    token: str | None = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
+    if not token:
+        token = request.cookies.get(ACCESS_COOKIE)
+        if token and request.method not in {"GET", "HEAD", "OPTIONS"}:
+            require_browser_origin(request)
+    if not token:
+        raise _CREDENTIALS_EXC
     try:
         payload = decode_token(token)
     except jwt.PyJWTError as exc:  # noqa: F841

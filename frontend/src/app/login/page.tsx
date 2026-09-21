@@ -19,7 +19,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("logout") === "unconfirmed")
-      setError("Ai ieșit de pe acest dispozitiv, dar serverul nu a confirmat închiderea celorlalte sesiuni. Reconectează-te pentru a reîncerca.");
+      setError("Serverul nu a confirmat deconectarea. Unele sesiuni pot fi încă active. Reconectează-te pentru a reîncerca.");
   }, []);
 
   async function onSubmit(e: React.FormEvent) {

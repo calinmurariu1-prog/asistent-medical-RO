@@ -10,7 +10,7 @@ async function mailbox(email:string, kind:string) {
   }
   throw new Error("Test mailbox message not found");
 }
-test("account, recovery, document and session lifecycle",async({page,request},info)=>{
+test("account, recovery, document and session lifecycle",async({page,request,context},info)=>{
  const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
  const email=`browser-${Date.now()}-${info.project.name}@example.com`;
  await page.goto("/register");
@@ -36,10 +36,20 @@ test("account, recovery, document and session lifecycle",async({page,request},in
  expect(await readFile((await file.path())!)).toEqual(await readFile(path.resolve("../demo/analize-fictive.pdf")));
  await page.goto("/labs");
  await expect(page.getByText("Glicemie",{exact:false}).first()).toBeVisible();
- const oldToken=await page.evaluate(()=>localStorage.getItem("am_access_token"));
+ const cookieMode=process.env.E2E_COOKIES==="true";
+ const oldToken=cookieMode ? (await context.cookies()).find(c=>c.name==="am_browser_access")?.value : await page.evaluate(()=>localStorage.getItem("am_access_token"));
+ if(cookieMode) {
+   expect(await page.evaluate(()=>localStorage.getItem("am_access_token"))).toBeNull();
+   expect(await page.evaluate(()=>document.cookie)).not.toContain("am_browser_access");
+   await page.reload();
+   await expect(page.getByText("Glicemie",{exact:false}).first()).toBeVisible();
+ }
  let refreshCount=0;
- page.on("request",r=>{if(r.url().endsWith("/auth/refresh"))refreshCount++;});
- await page.evaluate(()=>localStorage.setItem("am_access_token","expired-test-token"));
+ page.on("request",r=>{if(r.url().endsWith("/refresh"))refreshCount++;});
+ if(cookieMode) {
+   const access=(await context.cookies()).find(c=>c.name==="am_browser_access")!;
+   await context.addCookies([{...access,value:"expired-test-token"}]);
+ } else await page.evaluate(()=>localStorage.setItem("am_access_token","expired-test-token"));
  await page.goto("/dashboard");
  await expect(page.getByText("Versiune de test",{exact:false})).toBeVisible();
  expect(refreshCount).toBe(1);
@@ -79,9 +89,9 @@ test("failed logout reports unconfirmed server revocation",async({page},info)=>{
  await page.getByPlaceholder("Parolă (min. 8 caractere)").fill("Testing-pass-123!");
  await page.getByRole("button",{name:"Creează cont",exact:true}).click();
  await expect(page).toHaveURL(/dashboard/);
- await page.route("**/auth/logout-all",route=>route.abort());
+ await page.route("**/*logout-all",route=>route.abort());
  if(info.project.name!=="desktop") await page.getByRole("button",{name:"Deschide meniul"}).click();
  await page.getByRole("button",{name:"Deconectare de pe toate dispozitivele"}).click();
- await expect(page.getByText("Ai ieșit de pe acest dispozitiv",{exact:false})).toBeVisible();
+ await expect(page.getByText("Serverul nu a confirmat deconectarea",{exact:false})).toBeVisible();
  expect(await page.evaluate(()=>localStorage.getItem("am_access_token"))).toBeNull();
 });
