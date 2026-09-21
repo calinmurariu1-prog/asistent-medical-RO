@@ -1,0 +1,44 @@
+import { test, expect } from "@playwright/test";
+import { createHmac } from "node:crypto";
+
+function totp(secret: string) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const bits = [...secret].map(c => alphabet.indexOf(c).toString(2).padStart(5, "0")).join("");
+  const key = Buffer.from(bits.match(/.{8}/g)!.map(b => parseInt(b, 2)));
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000)));
+  const hash = createHmac("sha1", key).update(counter).digest();
+  return ((hash.readUInt32BE(hash[19] & 15) & 0x7fffffff) % 1000000).toString().padStart(6, "0");
+}
+
+test("configure MFA, require code on login, and preserve enabled state", async ({ page }, info) => {
+  const email = `mfa-${Date.now()}-${info.project.name}@example.com`;
+  await page.goto("/register");
+  await page.getByPlaceholder("Nume complet").fill("MFA Fictiv");
+  await page.getByPlaceholder("Email", {exact: true}).fill(email);
+  await page.getByPlaceholder("Parolă (min. 8 caractere)").fill("Testing-pass-123!");
+  await page.getByRole("button", {name: "Creează cont", exact: true}).click();
+  await expect(page).toHaveURL(/dashboard/);
+  await page.goto("/settings");
+  const section = page.locator('[aria-labelledby="mfa-title"]');
+  await section.getByRole("button", {name: "Configurează MFA"}).click();
+  const secret = await section.getByLabel("Cheia de configurare").inputValue();
+  await section.getByRole("checkbox").check();
+  await section.getByLabel("Cod de confirmare").fill(totp(secret));
+  await section.getByRole("button", {name: "Activează MFA", exact: true}).click();
+  await expect(section.getByRole("status")).toContainText("Sesiunile anterioare au fost revocate");
+  await section.getByRole("link", {name: "Continuă la autentificare"}).click();
+  await page.getByPlaceholder("Email", {exact: true}).fill(email);
+  await page.getByPlaceholder("Parolă", {exact: true}).fill("Testing-pass-123!");
+  await page.getByRole("button", {name: "Intră în cont", exact: true}).click();
+  await page.getByPlaceholder("Cod MFA").fill(totp(secret));
+  await page.getByRole("button", {name: "Intră în cont", exact: true}).click();
+  await expect(page).toHaveURL(/dashboard/);
+  await page.goto("/settings");
+  await expect(section.getByRole("status")).toContainText("MFA este activ pentru contul tău");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole("button", {name: "Șterge contul", exact: true}).click();
+  await page.getByPlaceholder("Parola", {exact: true}).fill("Testing-pass-123!");
+  await page.getByRole("button", {name: "Confirmă ștergerea"}).click();
+  await expect(page).toHaveURL(/login/);
+});

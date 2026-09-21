@@ -20,6 +20,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
+    if (query.get("mfa") === "enabled") setNotice("MFA este activ. Introdu parola, apoi codul din aplicația de autentificare.");
     if (query.get("deleted") === "complete") setNotice("Contul și originalele din stocarea aplicației au fost șterse.");
     if (query.get("deleted") === "pending") setNotice("Contul a fost șters. Ștergerea originalelor este încă în curs; aplicația o reîncearcă automat.");
     if (query.get("deviceCleanup") === "failed") setError("Contul este șters, dar datele sesiunii locale nu au putut fi curățate de pe acest dispozitiv.");
