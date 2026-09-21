@@ -176,7 +176,12 @@ def explain_result(
     ai: AIProvider = Depends(get_ai_provider),
 ) -> LabResult:
     result = _owned_result(result_id, patient, db)
-    return lab_analysis.explain_result(db, ai, result)
+    try:
+        return lab_analysis.explain_result(db, ai, result)
+    except lab_analysis.LabExplanationChanged as exc:
+        raise HTTPException(
+            409, "Rezultatul s-a modificat. Reîncarcă și repetă explicația."
+        ) from exc
 
 
 @router.post("/explain-all", response_model=list[LabResultOut],
@@ -186,8 +191,14 @@ def explain_all(
     db: Session = Depends(get_db),
     ai: AIProvider = Depends(get_ai_provider),
 ) -> list[LabResult]:
-    results = lab_analysis.get_results(db, patient.id)
-    for result in results:
-        if result.ai_explanation is None:
-            lab_analysis.explain_result(db, ai, result)
-    return lab_analysis.get_results(db, patient.id)
+    patient_id = patient.id
+    ids = [result.id for result in lab_analysis.get_results(db, patient_id)]
+    for result_id in ids:
+        result = db.get(LabResult, result_id, populate_existing=True)
+        if result is not None and result.patient_id == patient_id and result.ai_explanation is None:
+            try:
+                lab_analysis.explain_result(db, ai, result)
+            except lab_analysis.LabExplanationChanged:
+                continue  # Changed/deleted values will appear fresh, without stale text.
+    db.expire_all()
+    return lab_analysis.get_results(db, patient_id)

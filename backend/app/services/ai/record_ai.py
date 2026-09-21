@@ -128,3 +128,25 @@ def compare_analyte(db: Session, ai: AIProvider, patient: Patient, analyte: str)
                  f"{last.value - previous.value:g} {last.unit}. [L{previous.id}] [L{last.id}] "
                  "Aceasta nu stabilește agravarea sau ameliorarea stării de sănătate.")
     return _answer(ai, facts, sources)
+
+
+def explain_lab_record(ai: AIProvider, result: LabResult) -> str:
+    """Explain recorded quantities only; no unsourced causes or diagnoses."""
+    if result.confidence != "verified":
+        return ("Această valoare nu este confirmată din documentul original. "
+                f"Verifică datele înainte de interpretare. {DISCLAIMER}")
+    if (result.value is None or not result.unit or result.ref_low is None
+            or result.ref_high is None or result.ref_low >= result.ref_high):
+        return ("Nu pot evalua încadrarea: lipsesc o valoare numerică, unitatea sau "
+                f"un interval de referință valid. Verifică documentul original. {DISCLAIMER}")
+    if result.value > result.ref_high:
+        relation = "Valoarea este peste intervalul de referință înregistrat."
+    elif result.value < result.ref_low:
+        relation = "Valoarea este sub intervalul de referință înregistrat."
+    else:
+        relation = "Valoarea se încadrează în intervalul de referință înregistrat."
+    facts = [f"{_lab_fact(result)} [L{result.id}]",
+             f"{relation} [L{result.id}]",
+             "Nu există aici o sursă clinică suficientă pentru a explica o cauză "
+             "sau semnificația personală a rezultatului."]
+    return _answer(ai, facts, [_source("L", result, "analiză")])["result"]

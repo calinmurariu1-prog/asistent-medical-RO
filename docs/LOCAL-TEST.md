@@ -157,3 +157,12 @@ Rezumatul citează înregistrări proprii din analize, istoric (inclusiv diagnos
 Valorile neconfirmate nu sunt incluse numeric nici în rezumat, nici în comparația cu o singură valoare. Comparația cere date distincte și unități compatibile, citează prima și ultimele două măsurători și calculează diferența ultimelor două. Nu echivalează creșterea/scăderea cu agravarea/ameliorarea. Datele lipsă sau incompatibile produc abstinență. Dosarul gol nu produce apel de generare.
 
 Modul simulat este etichetat; modelul real primește faptele cu referințe și răspunsurile fără citări valide sunt înlocuite cu abstinență. Validarea identificatorilor nu garantează susținerea fiecărei afirmații sau corectitudinea clinică. Explicațiile individuale de laborator au încă un flux separat, care rămâne de auditat.
+
+
+## Explicații individuale ale analizelor
+
+Explicațiile individuale folosesc acum valoarea, unitatea și intervalul din înregistrare, cu referința L + ID-ul rezultatului. Descriu poziția numerică față de interval; nu adaugă cauze sau diagnostice din vechiul catalog fără surse. Lipsa confirmării, a valorii numerice, a unității sau a celor două limite valide produce un mesaj de informație insuficientă, fără generare externă. Pentru semnificația clinică individuală rămân necesare surse și evaluare clinică separate.
+
+Generarea reală trece prin aceeași verificare a citărilor ca rezumatul dosarului. Modului simulat îi corespunde un rezumat factual local etichetat explicit. Nu se mai adaugă automat tendința întregului istoric la explicația unei valori izolate; comparația are endpoint separat.
+
+Salvarea compară atomic câmpurile sursei cu copia folosită la generare. Dacă analiza a fost corectată sau ștearsă între timp, textul vechi nu se salvează și cererea individuală răspunde 409; lotul ignoră înregistrarea schimbată și returnează lista actuală. Tranzacția de citire nu rămâne deschisă pe durata generării externe. Migrarea a3c5e7f9b1d2 golește doar cache-ul vechi de explicații, păstrând rezultatele și documentele originale. Explicațiile se regenerează la cerere; downgrade-ul nu reconstituie textele vechi.

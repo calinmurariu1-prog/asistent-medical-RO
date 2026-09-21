@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.document import LabResult
 from app.models.enums import LabFlag
-from app.services.ai.base import DISCLAIMER, AIProvider
+from app.services.ai.base import AIProvider
 from app.services.ai.lab_units import normalize_unit
 
 ABNORMAL_FLAGS = {
@@ -116,31 +116,31 @@ def build_summary(db: Session, patient_id: int) -> dict:
     }
 
 
+class LabExplanationChanged(Exception):
+    """The source changed or disappeared while its explanation was generated."""
+
+
 def explain_result(db: Session, ai: AIProvider, result: LabResult) -> LabResult:
-    """Generate and persist an AI explanation for one lab result."""
-    if result.confidence != "verified":
-        result.ai_explanation = (
-            "Această valoare nu este confirmată din documentul original. "
-            f"Verifică valoarea, unitatea și intervalul înainte de interpretare. {DISCLAIMER}"
-        )
-        db.commit()
-        db.refresh(result)
-        return result
-    series = build_series(db, result.patient_id, result.analyte)
-    trend = compute_trend(series)
-    result.ai_explanation = ai.explain_lab_value(
-        analyte=result.analyte,
-        value=result.value,
-        unit=result.unit,
-        ref_low=result.ref_low,
-        ref_high=result.ref_high,
-        flag=result.flag.value,
-        trend=trend,
-    )
-    db.add(result)
+    from app.services.ai.record_ai import explain_lab_record
+
+    # A detached factual snapshot prevents ORM refreshes from changing the prompt mid-call.
+    fields = ("id", "patient_id", "document_id", "analyte", "value", "value_text", "unit",
+              "ref_low", "ref_high", "flag", "measured_on", "confidence")
+    snapshot = {field: getattr(result, field) for field in fields}
+    detached = LabResult(**snapshot)
+    db.commit()  # Do not hold the read transaction during external generation.
+    explanation = explain_lab_record(ai, detached)
+    conditions = [getattr(LabResult, field) == value for field, value in snapshot.items()]
+    changed = db.execute(update(LabResult).where(*conditions).values(
+        ai_explanation=explanation).execution_options(synchronize_session=False))
+    if changed.rowcount != 1:
+        db.rollback()
+        raise LabExplanationChanged
     db.commit()
-    db.refresh(result)
-    return result
+    current = db.get(LabResult, snapshot["id"], populate_existing=True)
+    if current is None:
+        raise LabExplanationChanged
+    return current
 
 
 def invalidate_explanations(db: Session, patient_id: int, analytes: list[str]) -> None:

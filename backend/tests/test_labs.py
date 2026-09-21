@@ -271,3 +271,86 @@ def test_linked_lab_correction_waits_for_processing_and_preserves_original(clien
     assert response.json()["document_id"] == document.id
     assert client.delete(f"{API}/labs/{result_id}", headers=headers).status_code == 204
     assert db_session.get(Document, document.id).storage_key == "private-fictiv"
+
+
+def test_explanation_has_record_citation_and_no_unbacked_clinical_cause(client):
+    h = _auth_headers(client)
+    rid = _add(client, h, value=120, measured_on="2026-01-10").json()["id"]
+    text = client.post(f"{API}/labs/{rid}/explain", headers=h).json()["ai_explanation"]
+    assert f"[L{rid}]" in text and "Mod simulat" in text
+    assert "Nu există aici o sursă clinică suficientă" in text
+
+
+def test_changed_or_deleted_lab_cannot_receive_stale_explanation(client, db_session):
+    import pytest
+    from sqlalchemy import delete, update
+    from sqlalchemy.orm import Session
+
+    from app.models.document import LabResult
+    from app.services import lab_analysis
+
+    h = _auth_headers(client)
+    for action in ("update", "delete"):
+        rid = _add(client, h, value=120).json()["id"]
+        row = db_session.get(LabResult, rid)
+
+        class InterleavingProvider:
+            name = "external"
+
+            def complete(self, rid=rid, action=action, **kwargs):
+                with Session(db_session.get_bind()) as other:
+                    statement = (update(LabResult).where(LabResult.id == rid).values(value=95)
+                                 if action == "update" else
+                                 delete(LabResult).where(LabResult.id == rid))
+                    other.execute(statement)
+                    other.commit()
+                return f"Valoarea veche este 120 [L{rid}]"
+
+        with pytest.raises(lab_analysis.LabExplanationChanged):
+            lab_analysis.explain_result(db_session, InterleavingProvider(), row)
+        current = db_session.get(LabResult, rid, populate_existing=True)
+        if action == "update":
+            assert current.value == 95 and current.ai_explanation is None
+        else:
+            assert current is None
+
+
+def test_lab_explanation_rejects_uncited_generated_text(client, db_session):
+    from app.models.document import LabResult
+    from app.services import lab_analysis
+
+    class External:
+        name = "external"
+
+        def complete(self, **kwargs):
+            return "UNSUPPORTED-CLINICAL-CLAIM"
+
+    h = _auth_headers(client)
+    rid = _add(client, h, value=120).json()["id"]
+    row = lab_analysis.explain_result(db_session, External(), db_session.get(LabResult, rid))
+    assert "UNSUPPORTED-CLINICAL-CLAIM" not in row.ai_explanation
+    assert "nu are citări verificabile" in row.ai_explanation
+
+
+def test_legacy_explanation_cache_migration_preserves_original_values():
+    import importlib.util
+    from pathlib import Path
+
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import create_engine, text
+
+    path = (Path(__file__).parents[1]
+            / "alembic/versions/a3c5e7f9b1d2_clear_uncited_lab_explanations.py")
+    spec = importlib.util.spec_from_file_location("explanation_cache_migration", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    engine = create_engine("sqlite://")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE lab_results (id INTEGER, value FLOAT, "
+                                "ai_explanation TEXT)"))
+        connection.execute(text("INSERT INTO lab_results VALUES (1, 120, 'old'), (2, 90, NULL)"))
+        with Operations.context(MigrationContext.configure(connection)):
+            module.upgrade()
+        assert connection.execute(text("SELECT * FROM lab_results ORDER BY id")).all() == [
+            (1, 120, None), (2, 90, None)]
