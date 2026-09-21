@@ -17,6 +17,8 @@ test("profile load/save recovery preserves edits and clears optional fields", as
   await page.getByRole("button", { name: "Reîncearcă încărcarea profilului" }).click();
   await page.getByLabel("Prenume", { exact: true }).fill("Ana Fictivă");
   await page.getByLabel("Data nașterii").fill("1990-01-02");
+  await page.getByLabel("Telefon", {exact: true}).fill("0000000000");
+  await page.getByRole("combobox", {name: /^Grupa sanguină/}).selectOption("A+");
   await page.getByRole("combobox", { name: /^Sex/ }).selectOption("female");
   await page.route("**/patients/me", route => route.fulfill({ status: 503,
     contentType: "application/json", body: JSON.stringify({ detail: "Salvare temporar indisponibilă" }) }));
@@ -29,6 +31,10 @@ test("profile load/save recovery preserves edits and clears optional fields", as
   await page.reload();
   await expect(page.getByLabel("Prenume", { exact: true })).toHaveValue("Ana Fictivă");
   await expect(page.getByLabel("Data nașterii")).toHaveValue("1990-01-02");
+  await expect(page.getByLabel("Telefon", {exact: true})).toHaveValue("0000000000");
+  await expect(page.getByRole("combobox", {name: /^Grupa sanguină/})).toHaveValue("A+");
+  await page.getByLabel("Telefon", {exact: true}).fill("");
+  await page.getByRole("combobox", {name: /^Grupa sanguină/}).selectOption("");
   await page.getByLabel("Data nașterii").fill("");
   await page.getByRole("combobox", { name: /^Sex/ }).selectOption("");
   await page.getByRole("button", { name: "Salvează", exact: true }).click();
@@ -36,6 +42,9 @@ test("profile load/save recovery preserves edits and clears optional fields", as
   await page.reload();
   await expect(page.getByLabel("Data nașterii")).toHaveValue("");
   await expect(page.getByRole("combobox", { name: /^Sex/ })).toHaveValue("");
+  await expect(page.getByLabel("Telefon", {exact: true})).toHaveValue("");
+  await expect(page.getByRole("combobox", {name: /^Grupa sanguină/})).toHaveValue("");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(errors).toEqual([]);
   await page.goto("/settings");
   await page.getByRole("button", { name: "Șterge contul", exact: true }).click();

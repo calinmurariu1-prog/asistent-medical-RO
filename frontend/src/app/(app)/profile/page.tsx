@@ -157,6 +157,24 @@ export default function ProfilePage() {
               }
             />
           </label>
+          <label className="text-sm">
+            Telefon
+            <Input type="tel" autoComplete="tel" maxLength={40}
+              value={profile.phone || ""}
+              onChange={e => update("phone", e.target.value || null)} />
+          </label>
+          <label className="text-sm">
+            Grupa sanguină
+            <select value={profile.blood_type || ""}
+              onChange={e => update("blood_type", e.target.value || null)}
+              className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm">
+              <option value="">Nespecificată</option>
+              <option value="unknown">Nu o cunosc</option>
+              {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map(group =>
+                <option key={group} value={group}>{group}</option>)}
+            </select>
+            <span className="mt-1 block text-xs text-muted">Date declarate de tine; nu reprezintă o confirmare medicală.</span>
+          </label>
           <div className="sm:col-span-2 flex items-center gap-3">
             <Button type="submit" disabled={saving}>{saving ? "Se salvează…" : "Salvează"}</Button>
             {profile.bmi && (
