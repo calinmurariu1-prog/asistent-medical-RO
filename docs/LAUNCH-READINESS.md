@@ -23,7 +23,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 
 ## Dovezi locale
 
-- Backend: 188 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
+- Backend: 203 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
 - Ruff trecut; build Next și TypeScript trecute; zece teste unitare pentru refresh/concurență trecute.
 - Export web Capacitor: 37 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
 - Verificările browser acoperă cont, confirmare, profil, PDF, descărcare identică, analize, dashboard, refresh, resetare și deconectare pe desktop și dimensiuni iPhone/Android. Capturi în `docs/screenshots`.
@@ -49,3 +49,12 @@ Limită: validarea identificatorilor nu demonstrează că fiecare afirmație est
 ### Interfața chatului
 
 Sursele citate sunt afișate cu titlu și legătură către secțiunea dosarului. Erorile de trimitere sunt anunțate accesibil și păstrează întrebarea pentru reîncercare. Sunt verificate încă trei scenarii de browser (desktop/iPhone/Android), pe lângă cele nouă existente: surse, abținere și eroare de consimțământ. Buildul web și TypeScript au trecut. Chatul afișează permanent indicația 112 pentru urgențe.
+
+
+### Router local de siguranță pentru chat (increment limitat)
+
+Expresiile explicite despre dificultăți severe de respirație, durere toracică, inconștiență și anumite semne neurologice declanșează un mesaj local condițional pentru apelarea 112. Acest traseu nu apelează modelul și rămâne disponibil fără consimțământ pentru procesarea AI; celelalte întrebări păstrează verificarea consimțământului. Nu oferă diagnostic, doză sau prescripție.
+
+Regulile lexicale nu reprezintă triaj clinic validat: pot omite formulări, alte urgențe sau pot reacționa la descrieri istorice/negate. Absența unei alerte nu înseamnă siguranță. Acoperirea altor instrumente AI și validarea clinică rămân deschise.
+
+Surse consultate la 21 septembrie 2026: [serviciul public 112](https://serviciipublice.gov.ro/serviciu/serviciul-de-urgenta-112-asigurat-cetatenilor), [NHS – heart attack](https://www.nhs.uk/conditions/heart-attack/), [NHS – stroke symptoms](https://www.nhs.uk/conditions/stroke/symptoms/). Recomandarea telefonică este localizată pentru România; numărul britanic nu este afișat ca număr local.

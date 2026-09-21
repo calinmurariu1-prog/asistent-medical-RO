@@ -85,10 +85,16 @@ export default function ChatPage() {
                     const destination = source.type === "document" ? "/documents"
                       : source.type === "lab_result" ? "/labs"
                       : source.type === "medication" ? "/medications" : "/record";
+                    const publicUrl = source.type === "public_guidance" && typeof source.url === "string"
+                      && ["https://www.nhs.uk/conditions/heart-attack/", "https://www.nhs.uk/conditions/stroke/symptoms/",
+                        "https://serviciipublice.gov.ro/serviciu/serviciul-de-urgenta-112-asigurat-cetatenilor"].includes(source.url)
+                      ? source.url : null;
                     return <li key={`${String(source.ref)}-${index}`}>
-                      <Link className="flex min-h-12 items-center underline" href={destination}>
+                      {publicUrl ? <a className="flex min-h-12 items-center underline" href={publicUrl} target="_blank" rel="noopener noreferrer">
+                        [{String(source.ref)}] {String(source.title)}
+                      </a> : <Link className="flex min-h-12 items-center underline" href={destination}>
                         [{String(source.ref)}] {String(source.title || "Înregistrare din dosar")}
-                      </Link>
+                      </Link>}
                     </li>;
                   })}
                 </ul>

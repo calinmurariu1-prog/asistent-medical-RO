@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.chat import AIChat, AIChatMessage
 from app.models.enums import ChatRole
 from app.services.ai.base import DISCLAIMER, AIProvider
+from app.services.ai.safety_router import EMERGENCY_SOURCES, emergency_reply
 from app.services.rag import build_context
 
 # How many prior turns to include for conversational continuity.
@@ -54,10 +55,11 @@ def answer(db: Session, ai: AIProvider, chat: AIChat, question: str) -> AIChatMe
     db.add(user_msg)
     db.commit()
 
-    retrieved = build_context(db, chat.patient_id, question)
-    sources = []
-    reply_text = INSUFFICIENT_SOURCES
-    if not retrieved.is_empty:
+    local_alert = emergency_reply(question)
+    retrieved = None if local_alert else build_context(db, chat.patient_id, question)
+    sources = EMERGENCY_SOURCES if local_alert else []
+    reply_text = local_alert or INSUFFICIENT_SOURCES
+    if retrieved is not None and not retrieved.is_empty:
         candidate = ai.chat(
             question=question,
             context=retrieved.context_text,

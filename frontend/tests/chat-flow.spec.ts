@@ -23,6 +23,12 @@ test("chat shows sources, abstains and preserves a failed question", async ({pag
   await question.fill("Explică fractura claviculei");
   await page.getByRole("button", {name:"Trimite întrebarea"}).click();
   await expect(page.getByText(/Nu am suficiente informații și surse relevante/)).toBeVisible();
+  await question.fill("Nu pot respira");
+  await page.getByRole("button", {name:"Trimite întrebarea"}).click();
+  await expect(page.getByText(/Acest mesaj de siguranță este generat local/)).toBeVisible();
+  await expect(page.getByRole("link", {name:"[E1] Serviciul de urgență 112"})).toHaveAttribute(
+    "href", "https://serviciipublice.gov.ro/serviciu/serviciul-de-urgenta-112-asigurat-cetatenilor",
+  );
   await page.route("**/chats/*/messages", route => route.fulfill({
     status:403, contentType:"application/json", body:JSON.stringify({detail:"Acordul AI este necesar în Setări."}),
   }));
