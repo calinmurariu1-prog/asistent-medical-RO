@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Download } from "lucide-react";
+import { saveExport } from "@/lib/file-export";
 import { downloadFile } from "@/lib/api";
 import { Button, Card } from "@/components/ui";
 
@@ -18,18 +19,7 @@ export function DataExport() {
     setBusy(true); setMessage(""); setError("");
     try {
       const blob = await downloadFile("/gdpr/export");
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      try {
-        link.href = url;
-        link.download = `dosar-medical-${new Date().toISOString().slice(0, 10)}.json`;
-        document.body.appendChild(link);
-        link.click();
-        setMessage("Descărcarea a fost inițiată. Verifică fișierele descărcate în browser.");
-      } finally {
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 30_000);
-      }
+      setMessage(await saveExport(blob, `dosar-medical-${new Date().toISOString().slice(0, 10)}.json`));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Exportul nu a putut fi descărcat. Reîncearcă.");
     } finally { setBusy(false); }
@@ -44,10 +34,10 @@ export function DataExport() {
     <p className="text-sm text-muted">Originalele se descarcă separat din Documente. Exportul nu include
       CNP, datele dispozitivelor de sănătate, notificările, feedbackul, facturarea sau jurnalul de audit.</p>
     <p className="text-sm">Fișierul conține date personale și medicale. Păstrează-l într-un loc sigur.</p>
-    {native && <p className="text-sm text-muted">Pentru acest export, autentifică-te în versiunea web
-      într-un browser. Salvarea fișierului din aplicația mobilă nu este încă disponibilă.</p>}
-    <Button onClick={download} disabled={busy || native}>
-      <Download size={16} aria-hidden="true" /> {busy ? "Se pregătește exportul…" : "Descarcă dosarul JSON"}
+    {native && <p className="text-sm text-muted">Alege destinația în dialogul sistemului. Copia temporară
+      rămâne în memoria cache privată; copiile mai vechi de 24 de ore se curăță la următorul export.</p>}
+    <Button onClick={download} disabled={busy}>
+      <Download size={16} aria-hidden="true" /> {busy ? "Se pregătește exportul…" : native ? "Salvează sau partajează JSON" : "Descarcă dosarul JSON"}
     </Button>
     {message && <p role="status" className="text-sm text-brand-green">{message}</p>}
     {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
