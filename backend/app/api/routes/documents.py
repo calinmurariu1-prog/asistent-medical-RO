@@ -17,7 +17,7 @@ from fastapi import (
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_patient
+from app.api.deps import get_current_patient, require_ai_consent
 from app.core.database import get_db
 from app.models.document import Document
 from app.models.enums import DocumentCategory
@@ -48,7 +48,8 @@ ALLOWED_CONTENT_TYPES = {
 }
 
 
-@router.post("", response_model=DocumentDetailOut, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=DocumentDetailOut, status_code=status.HTTP_201_CREATED,
+             dependencies=[Depends(require_ai_consent)])
 def upload_document(
     file: UploadFile = File(...),
     category: DocumentCategory = Form(DocumentCategory.OTHER),
@@ -173,7 +174,8 @@ def download_document(
     return DocumentDownloadOut(url=url, expires_in=3600)
 
 
-@router.post("/{document_id}/reprocess", response_model=DocumentDetailOut)
+@router.post("/{document_id}/reprocess", response_model=DocumentDetailOut,
+             dependencies=[Depends(require_ai_consent)])
 def reprocess_document(
     document_id: int,
     patient: Patient = Depends(get_current_patient),

@@ -5,12 +5,15 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import ai_consent_version, get_current_user
 from app.core.database import get_db
 from app.core.security import verify_password
+from app.models.enums import ConsentType
 from app.models.user import Consent, User
 from app.schemas.gdpr import ConsentIn, ConsentOut, DeleteAccountRequest
 from app.services import audit, gdpr
+from app.services.ai import get_ai_provider
+from app.services.ai.base import AIProvider
 
 router = APIRouter(prefix="/gdpr", tags=["gdpr"])
 
@@ -78,9 +81,17 @@ def set_consent(
     request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    ai: AIProvider = Depends(get_ai_provider),
 ) -> Consent:
     """Record a consent grant or revocation (append-only history)."""
+    version = "1.0"
+    if payload.consent_type == ConsentType.AI_PROCESSING:
+        if payload.granted and ai.name != "mock" and payload.provider != ai.name:
+            raise HTTPException(
+                409, "Furnizorul AI s-a schimbat. Reîncarcă setările înainte de acord.")
+        version = ai_consent_version(ai)
     consent = Consent(
+        version=version,
         user_id=user.id,
         consent_type=payload.consent_type,
         granted=payload.granted,

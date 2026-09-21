@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_patient, get_current_user, require_ai_consent
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.patient import Patient
 from app.models.user import User
@@ -23,6 +24,18 @@ class AiTextResponse(BaseModel):
 
 class CompareRequest(BaseModel):
     analyte: str
+
+
+class AIStatus(BaseModel):
+    provider: str
+    simulated: bool
+    consent_required: bool
+
+
+@router.get("/status", response_model=AIStatus)
+def ai_status(_: User = Depends(get_current_user), ai: AIProvider = Depends(get_ai_provider)):
+    return AIStatus(provider=ai.name, simulated=ai.name == "mock",
+                    consent_required=settings.REQUIRE_AI_CONSENT or ai.name != "mock")
 
 
 @router.get("/skills", response_model=list[SkillOut])

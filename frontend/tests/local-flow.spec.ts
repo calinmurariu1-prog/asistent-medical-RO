@@ -24,6 +24,16 @@ test("account, recovery, document and session lifecycle",async({page,request,con
  await page.goto(verify);
  await page.getByRole("button",{name:"Confirmă emailul"}).click();
  await expect(page.getByRole("status")).toContainText("confirmată");
+ await page.goto("/settings");
+ await expect(page.getByText("Mod simulat:",{exact:false})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Salvează acordul AI"})).toBeDisabled();
+ await page.getByRole("checkbox",{name:"Sunt de acord cu procesarea AI",exact:false}).check();
+ await page.getByRole("button",{name:"Salvează acordul AI"}).click();
+ await expect(page.getByRole("status").filter({hasText:"Acordul a fost salvat"})).toBeVisible();
+ await page.getByRole("button",{name:"Retrage acordul AI"}).click();
+ await expect(page.getByRole("status").filter({hasText:"Acordul a fost retras"})).toBeVisible();
+ await page.reload();
+ await expect(page.getByText("Nu ai un acord activ",{exact:false})).toBeVisible();
  await page.goto("/profile");
  await expect(page.getByRole("heading",{name:"Profil",exact:false}).first()).toBeVisible();
  await page.goto("/documents");

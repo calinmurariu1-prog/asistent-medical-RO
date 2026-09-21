@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_patient
+from app.api.deps import get_current_patient, require_ai_consent
 from app.core.database import get_db
 from app.models.document import LabResult
 from app.models.enums import LabFlag
@@ -107,7 +107,8 @@ def _owned_result(result_id: int, patient: Patient, db: Session) -> LabResult:
     return result
 
 
-@router.post("/{result_id}/explain", response_model=LabResultOut)
+@router.post("/{result_id}/explain", response_model=LabResultOut,
+             dependencies=[Depends(require_ai_consent)])
 def explain_result(
     result_id: int,
     patient: Patient = Depends(get_current_patient),
@@ -118,7 +119,8 @@ def explain_result(
     return lab_analysis.explain_result(db, ai, result)
 
 
-@router.post("/explain-all", response_model=list[LabResultOut])
+@router.post("/explain-all", response_model=list[LabResultOut],
+             dependencies=[Depends(require_ai_consent)])
 def explain_all(
     patient: Patient = Depends(get_current_patient),
     db: Session = Depends(get_db),

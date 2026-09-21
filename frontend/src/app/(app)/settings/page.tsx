@@ -14,6 +14,7 @@ import {
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { AIConsent } from "@/components/ai-consent";
 import {
   healthNativeAvailable,
   isAutoSyncEnabled,
@@ -97,6 +98,8 @@ export default function SettingsPage() {
 
       {msg && <p className="text-sm text-brand-green">{msg}</p>}
       {err && <p className="text-sm text-red-600">{err}</p>}
+
+      <AIConsent />
 
       {/* Watch / health apps */}
       <Section

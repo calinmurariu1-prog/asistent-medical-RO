@@ -59,3 +59,7 @@ La migrare, copia veche a tokenurilor din localStorage este eliminată și utili
 DOCX este acceptat cu text din paragrafe și tabele, fără OCR extern. Arhivele sunt verificate înainte de stocare: maximum 2.000 de intrări și 25 MB decomprimat; criptarea ZIP, expansiunea excesivă și declarațiile XML DTD/ENTITY sunt respinse. Clasificarea automată ca analize se aplică numai categoriei Altele și numai când sunt extrase valori de laborator.
 
 Lipsa textului sau o eroare de procesare produce starea „Necesită verificare”, păstrând originalul. Reprocesarea înlocuiește valorile într-o tranzacție numai după succes; la eșec păstrează rezultatele anterioare. Două procesări ale aceluiași document nu rulează simultan. Un proces întrerupt brutal poate lăsa starea processing; recuperarea joburilor după cădere rămâne de implementat cu procesare în fundal.
+
+## Acord AI
+
+Setări afișează furnizorul activ și permite acordul/retragerea. Providerul mock rămâne local; dacă `REQUIRE_AI_CONSENT=true`, și simularea cere acord. Orice provider diferit de mock cere acord chiar dacă această variabilă este false. Acordul este legat de versiunea politicii și numele furnizorului; acordurile vechi generice nu autorizează procesarea externă. Schimbarea furnizorului cere reconfirmare. Retragerea oprește cererile viitoare, nu apelurile deja începute și nu șterge automat date la furnizori. Înainte de activarea externă sunt necesare politica de confidențialitate, condițiile furnizorului și configurarea retenției.

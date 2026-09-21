@@ -16,6 +16,7 @@ class DeleteAccountRequest(BaseModel):
 class ConsentIn(BaseModel):
     consent_type: ConsentType
     granted: bool
+    provider: str | None = None
 
 
 class ConsentOut(BaseModel):

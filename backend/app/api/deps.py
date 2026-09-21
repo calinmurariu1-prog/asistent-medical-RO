@@ -15,6 +15,8 @@ from app.core.security import ACCESS, decode_token
 from app.models.enums import ConsentType, UserRole
 from app.models.patient import Patient
 from app.models.user import Consent, User
+from app.services.ai import get_ai_provider
+from app.services.ai.base import AIProvider
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login-form", auto_error=False)
 
@@ -113,10 +115,11 @@ def require_feature(flag: str):
 
 
 def require_ai_consent(
-    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    user: User = Depends(get_current_user), db: Session = Depends(get_db),
+    ai: AIProvider = Depends(get_ai_provider),
 ) -> None:
-    """Enforce AI_PROCESSING consent on AI endpoints (when the flag is on)."""
-    if not settings.REQUIRE_AI_CONSENT:
+    """Every external provider requires current consent, regardless of feature flags."""
+    if not settings.REQUIRE_AI_CONSENT and ai.name == "mock":
         return
     latest = db.scalar(
         select(Consent)
@@ -126,8 +129,12 @@ def require_ai_consent(
         )
         .order_by(Consent.id.desc())
     )
-    if latest is None or not latest.granted:
+    if latest is None or not latest.granted or latest.version != ai_consent_version(ai):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Este necesar consimțământul pentru procesarea AI.",
+            detail="Este necesar acordul pentru furnizorul AI curent. Îl poți gestiona în Setări.",
         )
+
+
+def ai_consent_version(ai: AIProvider) -> str:
+    return f"ai-v2:{ai.name}"
