@@ -73,3 +73,5 @@ Push-ul simulat nu marchează livrare reală. Acceptarea de FCM/APNs nu dovedeș
 În acest increment nu au fost schimbate servicii Render, activate servicii plătite, folosite date medicale reale sau efectuat merge în ramura de lansare.
 
 Export identificator: POST /gdpr/export/with-identifier cere include_cnp explicit, parola și MFA/TOTP sau cod de rezervă valid dacă MFA este activ. Codul de rezervă se consumă atomic; auditul nu conține identificatorul sau parolele. Dacă decriptarea eșuează, exportul este refuzat. 11 teste export/GDPR și 3 scenarii browser trecute, plus Ruff și build/TypeScript.
+
+Erori de validare: handlerul API păstrează numai loc/type/msg și elimină input/context, inclusiv pentru parole, MFA, CNP și JSON invalid. Cele 12 teste securitate/profil/export sensibil au trecut; Ruff trecut.

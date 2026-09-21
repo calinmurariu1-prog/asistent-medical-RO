@@ -4,8 +4,10 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # Ensure all models are registered on Base.metadata.
 import app.models  # noqa: F401,E402
@@ -45,6 +47,15 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+@app.exception_handler(RequestValidationError)
+async def private_validation_error(request: Request, exc: RequestValidationError):
+    """Keep actionable errors, never echo submitted inputs or validator context."""
+    details = [{"loc": error["loc"], "type": error["type"], "msg": error["msg"]}
+               for error in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": details},
+                        headers={"Cache-Control": "no-store"})
+
 
 app.add_middleware(
     CORSMiddleware,
