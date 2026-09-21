@@ -409,3 +409,28 @@ def test_original_failure_is_sanitized_and_retryable(client, storage, monkeypatc
     assert response.status_code == 404
     assert response.headers["cache-control"] == "no-store"
     assert "private-path" not in response.text
+
+
+def test_document_access_and_delete_audit_contains_only_owner_and_ids(client, db_session):
+    from sqlalchemy import select
+
+    from app.models.user import AuditLog, User
+
+    owner = _auth_headers(client, "document-audit-owner@example.com")
+    other = _auth_headers(client, "document-audit-other@example.com")
+    document = _upload(client, owner, filename="private-medical-name.pdf").json()
+    document_id = document["id"]
+    original = f"{API}/documents/{document_id}/original"
+    assert client.get(original, headers=other).status_code == 404
+    assert client.get(original, headers=owner).status_code == 200
+    assert client.get(f"{API}/documents/{document_id}/download", headers=owner).status_code == 200
+    assert client.delete(f"{API}/documents/{document_id}", headers=owner).status_code == 204
+    rows = db_session.scalars(select(AuditLog).where(AuditLog.resource_type == "document",
+                              AuditLog.resource_id == str(document_id))).all()
+    assert {row.action for row in rows} == {
+        "document_original_access", "document_download_link_issued", "document_delete"}
+    assert len(rows) == 3
+    user = db_session.scalar(select(User).where(User.email == "document-audit-owner@example.com"))
+    assert all(row.user_id == user.id and row.detail is None for row in rows)
+    exported = client.get(f"{API}/gdpr/export", headers=owner).json()["audit_events"]
+    assert any(event["action"] == "document_delete" for event in exported)

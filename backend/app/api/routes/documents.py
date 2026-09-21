@@ -172,6 +172,8 @@ def original_document(
     except Exception:  # noqa: BLE001 (do not expose provider paths, keys or decryption errors)
         raise HTTPException(503, "Originalul nu poate fi descărcat momentan. Reîncearcă.",
                             headers={"Cache-Control": "no-store", "Retry-After": "30"}) from None
+    audit.record(db, user_id=patient.user_id, action="document_original_access",
+                 resource_type="document", resource_id=document.id)
     return Response(data, media_type="application/octet-stream", headers={
         "Content-Disposition": ("attachment; filename*=UTF-8''"
                                 + quote(document.original_filename, safe="")),
@@ -191,6 +193,8 @@ def download_document(
     if settings.STORAGE_BACKEND == "local":
         raise HTTPException(409, "Folosește descărcarea autentificată a originalului.")
     url = storage.presigned_url(document.storage_key, expires=3600)
+    audit.record(db, user_id=patient.user_id, action="document_download_link_issued",
+                 resource_type="document", resource_id=document.id)
     return DocumentDownloadOut(url=url, expires_in=3600)
 
 
@@ -223,7 +227,8 @@ def delete_document(
     lab_analysis.invalidate_explanations(db, patient.id, analytes)
     jobs = storage_cleanup.enqueue(db, [document.storage_key])
     db.delete(document)
-    db.commit()
+    audit.record(db, user_id=patient.user_id, action="document_delete",
+                 resource_type="document", resource_id=document_id)
     try:
         storage_cleanup.process_pending(db, storage, jobs)
         complete = storage_cleanup.pending_count(db, jobs) == 0

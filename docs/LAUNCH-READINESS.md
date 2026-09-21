@@ -63,3 +63,5 @@ Push-ul simulat nu marchează livrare reală. Acceptarea de FCM/APNs nu dovedeș
 Increment export abonament: 9 teste GDPR trecute, inclusiv izolare între conturi, cont fără pacient și excluderea identificatorilor furnizorului.
 
 Descărcarea originalelor: 25 teste documente/stocare trecute. Fluxul S3 este închis inclusiv după citire eșuată; fișierul lipsă produce 404, iar erorile de citire produc 503 cu mesaj fără detalii interne și fără cache. Verificarea S3 folosește un client simulat, nu un serviciu extern.
+
+Audit documente: accesul autorizat la original, emiterea unui link și ștergerea sunt consemnate cu ID-ul documentului și utilizatorului, fără nume/conținut. Evenimentul de acces nu dovedește salvarea fișierului pe dispozitiv. Ștergerea și auditul sunt comise împreună. Cele 25 teste documente/curățare au trecut, inclusiv verificarea accesului altui cont și exportarea evenimentului de ștergere.
