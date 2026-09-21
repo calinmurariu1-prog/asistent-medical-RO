@@ -23,7 +23,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 
 ## Dovezi locale
 
-- Backend: 219 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
+- Backend: 222 teste trecute și un test PostgreSQL omis explicit local, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
 - Ruff trecut; build Next și TypeScript trecute; zece teste unitare pentru refresh/concurență trecute.
 - Export web Capacitor: 37 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
 - Verificările browser acoperă cont, confirmare, profil, PDF, descărcare identică, analize, dashboard, refresh, resetare și deconectare pe desktop și dimensiuni iPhone/Android. Capturi în `docs/screenshots`.
@@ -87,3 +87,10 @@ Erorile aplicației pentru furnizorii AI și căutarea locațiilor înregistreaz
 Concordanța AI/parser verifică numele analitului, valoarea, unitatea și ambele limite de referință; nu acceptă diferențe numerice de 0,5% și nici etichete `verified` declarate de furnizor fără verificare. Normalizarea unităților modifică numai scrierea unor unități echivalente, fără conversii mg/dL ↔ mmol/L. Numerele cu separator ambiguu (de exemplu `1.234`) rămân fără valoare numerică, păstrând textul pentru verificare. Parserul cere delimitare între valoare, unitate și interval.
 
 Valorile `unverified` nu sunt interpretate de AI, nu intră în grafice/comparații și sunt neevaluabile în dashboard. Migrarea `e1f3a5b7c9d0` corectează clasificările pentru rândurile deja marcate astfel și invalidează explicațiile vechi. Rândurile vechi marcate anterior `verified` necesită reprocesarea documentului pentru aplicarea regulilor noi; butonul este disponibil și pentru documentele procesate cu succes. Confirmarea tehnică nu înseamnă validare medicală.
+
+
+### Rezultate de laborator editabile
+
+API-ul și interfața permit creare, corectare și ștergere confirmată. Accesul este limitat la proprietar; operațiile sunt auditate fără valori medicale în jurnal. Corectarea înlocuiește toate câmpurile editabile, recalculează eticheta față de intervalul furnizat și invalidează explicațiile pentru seriile afectate. Originalul rămâne neschimbat; reprocesarea poate înlocui corectura, fapt indicat explicit în formular. Blocarea documentului serializează modificările față de procesare. Confirmarea manuală este transcriere, nu validare clinică.
+
+Testele noi acoperă izolarea conturilor, auditul, invalidarea explicațiilor, date invalide, protecția în timpul procesării și păstrarea originalului. Fluxul browser creare → corectare → reîncărcare → anularea ștergerii → ștergere a trecut pe cele trei dimensiuni; suita browser are 15 scenarii trecute. Erorile explicațiilor și comparațiilor AI sunt afișate în pagină.

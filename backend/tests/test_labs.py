@@ -206,3 +206,68 @@ def test_unverified_values_do_not_drive_comparison_or_ai_interpretation(
     assert series["trend"] is None
     explanation = client.post(f"{API}/labs/{result_id}/explain", headers=h).json()
     assert "nu este confirmată" in explanation["ai_explanation"]
+
+
+def test_manual_correction_delete_isolation_and_cache(client, db_session):
+    from sqlalchemy import select
+
+    from app.models.document import LabResult
+    from app.models.user import AuditLog
+
+    owner = _auth_headers(client, "owner-lab@example.com")
+    other = _auth_headers(client, "other-lab@example.com")
+    result_id = _add(client, owner, value=120).json()["id"]
+    sibling_id = _add(client, owner, value=90).json()["id"]
+    client.post(f"{API}/labs/{sibling_id}/explain", headers=owner)
+    row = db_session.get(LabResult, result_id)
+    row.confidence = "unverified"
+    db_session.commit()
+    payload = {"analyte": "Glicemie", "value": 85, "unit": "mg/dL",
+               "ref_low": 70, "ref_high": 99, "measured_on": "2026-01-10"}
+    assert client.put(f"{API}/labs/{result_id}", headers=other, json=payload).status_code == 404
+    assert client.delete(f"{API}/labs/{result_id}", headers=other).status_code == 404
+    response = client.put(f"{API}/labs/{result_id}", headers=owner, json=payload)
+    assert response.status_code == 200, response.text
+    assert response.json()["confidence"] == "verified"
+    assert response.json()["flag"] == "normal"
+    assert response.json()["measured_on"] == "2026-01-10"
+    assert all(r["ai_explanation"] is None for r in client.get(f"{API}/labs", headers=owner).json())
+    assert client.delete(f"{API}/labs/{result_id}", headers=owner).status_code == 204
+    assert [r["id"] for r in client.get(f"{API}/labs", headers=owner).json()] == [sibling_id]
+    actions = list(db_session.scalars(select(AuditLog.action).where(
+        AuditLog.resource_type == "lab_result", AuditLog.resource_id == str(result_id))))
+    assert actions == ["lab.create", "lab.update", "lab.delete"]
+
+
+def test_correction_rejects_invalid_payload_without_changing_value(client):
+    headers = _auth_headers(client)
+    result_id = _add(client, headers, value=120).json()["id"]
+    response = client.put(f"{API}/labs/{result_id}", headers=headers,
+                          json={"analyte": "Glicemie", "value": 90, "ref_low": 100, "ref_high": 70})
+    assert response.status_code == 422
+    assert client.get(f"{API}/labs", headers=headers).json()[0]["value"] == 120
+
+
+def test_linked_lab_correction_waits_for_processing_and_preserves_original(client, db_session):
+    from app.models.document import Document, LabResult
+    from app.models.enums import ProcessingStatus
+
+    headers = _auth_headers(client)
+    result_id = _add(client, headers, value=120).json()["id"]
+    row = db_session.get(LabResult, result_id)
+    document = Document(patient_id=row.patient_id, original_filename="fictiv.pdf",
+                        storage_key="private-fictiv", status=ProcessingStatus.PROCESSING)
+    db_session.add(document)
+    db_session.flush()
+    row.document_id = document.id
+    db_session.commit()
+    payload = {"analyte": "Glicemie", "value": 85}
+    assert client.put(f"{API}/labs/{result_id}", headers=headers, json=payload).status_code == 409
+    assert client.delete(f"{API}/labs/{result_id}", headers=headers).status_code == 409
+    document.status = ProcessingStatus.DONE
+    db_session.commit()
+    response = client.put(f"{API}/labs/{result_id}", headers=headers, json=payload)
+    assert response.status_code == 200, response.text
+    assert response.json()["document_id"] == document.id
+    assert client.delete(f"{API}/labs/{result_id}", headers=headers).status_code == 204
+    assert db_session.get(Document, document.id).storage_key == "private-fictiv"

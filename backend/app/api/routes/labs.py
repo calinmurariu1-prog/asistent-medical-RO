@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_patient, require_ai_consent
 from app.core.database import get_db
-from app.models.document import LabResult
-from app.models.enums import LabFlag
+from app.models.document import Document, LabResult
+from app.models.enums import LabFlag, ProcessingStatus
 from app.models.patient import Patient
 from app.schemas.lab import (
     LabResultOut,
@@ -17,7 +17,7 @@ from app.schemas.lab import (
     LabSummary,
     ManualLabIn,
 )
-from app.services import lab_analysis
+from app.services import audit, lab_analysis
 from app.services.ai import get_ai_provider
 from app.services.ai.base import AIProvider
 from app.services.document_processing import compute_flag
@@ -96,7 +96,9 @@ def add_manual_result(
     )
     db.add(result)
     lab_analysis.invalidate_explanations(db, patient.id, [payload.analyte])
-    db.commit()
+    db.flush()
+    audit.record(db, user_id=patient.user_id, action="lab.create",
+                 resource_type="lab_result", resource_id=result.id)
     db.refresh(result)
     return result
 
@@ -106,6 +108,63 @@ def _owned_result(result_id: int, patient: Patient, db: Session) -> LabResult:
     if result is None or result.patient_id != patient.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Rezultat inexistent")
     return result
+
+
+def _editable_result(result_id: int, patient: Patient, db: Session) -> LabResult:
+    result = _owned_result(result_id, patient, db)
+    if result.document_id is not None:
+        # Serialize against processing claims; never correct a row being replaced.
+        locked = db.execute(
+            update(Document).where(
+                Document.id == result.document_id,
+                Document.patient_id == patient.id,
+                Document.status != ProcessingStatus.PROCESSING,
+            ).values(status=Document.status).execution_options(synchronize_session=False)
+        )
+        if locked.rowcount != 1:
+            raise HTTPException(409, "Documentul se procesează. Reîncearcă după finalizare.")
+        result = db.scalar(select(LabResult).where(
+            LabResult.id == result_id, LabResult.patient_id == patient.id,
+        ).execution_options(populate_existing=True))
+        if result is None:
+            raise HTTPException(404, "Rezultatul a fost înlocuit. Reîncarcă lista.")
+    return result
+
+
+@router.put("/{result_id}", response_model=LabResultOut)
+def update_result(
+    result_id: int,
+    payload: ManualLabIn,
+    patient: Patient = Depends(get_current_patient),
+    db: Session = Depends(get_db),
+) -> LabResult:
+    result = _editable_result(result_id, patient, db)
+    previous_analyte = result.analyte
+    for key, value in payload.model_dump().items():
+        setattr(result, key, value)
+    result.flag = compute_flag(payload.value, payload.ref_low, payload.ref_high)
+    result.confidence = "verified"  # User transcription, not medical validation.
+    result.loinc_code = None
+    result.ai_explanation = None
+    lab_analysis.invalidate_explanations(db, patient.id, [previous_analyte, payload.analyte])
+    audit.record(db, user_id=patient.user_id, action="lab.update",
+                 resource_type="lab_result", resource_id=result.id)
+    db.refresh(result)
+    return result
+
+
+@router.delete("/{result_id}", status_code=204)
+def delete_result(
+    result_id: int,
+    patient: Patient = Depends(get_current_patient),
+    db: Session = Depends(get_db),
+) -> None:
+    result = _editable_result(result_id, patient, db)
+    analyte = result.analyte
+    db.delete(result)
+    lab_analysis.invalidate_explanations(db, patient.id, [analyte])
+    audit.record(db, user_id=patient.user_id, action="lab.delete",
+                 resource_type="lab_result", resource_id=result_id)
 
 
 @router.post("/{result_id}/explain", response_model=LabResultOut,

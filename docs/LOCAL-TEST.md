@@ -58,7 +58,7 @@ La migrare, copia veche a tokenurilor din localStorage este eliminată și utili
 
 DOCX este acceptat cu text din paragrafe și tabele, fără OCR extern. Arhivele sunt verificate înainte de stocare: maximum 2.000 de intrări și 25 MB decomprimat; criptarea ZIP, expansiunea excesivă și declarațiile XML DTD/ENTITY sunt respinse. Clasificarea automată ca analize se aplică numai categoriei Altele și numai când sunt extrase valori de laborator.
 
-Lipsa textului sau o eroare de procesare produce starea „Necesită verificare”, păstrând originalul. Reprocesarea înlocuiește valorile într-o tranzacție numai după succes; la eșec păstrează rezultatele anterioare. Două procesări ale aceluiași document nu rulează simultan. Un proces întrerupt brutal poate lăsa starea processing; recuperarea joburilor după cădere rămâne de implementat cu procesare în fundal.
+Lipsa textului sau o eroare de procesare produce starea „Necesită verificare”, păstrând originalul. Reprocesarea înlocuiește valorile într-o tranzacție numai după succes; la eșec păstrează rezultatele anterioare. Două procesări ale aceluiași document nu rulează simultan. După o întrerupere, procesarea poate fi reluată manual după expirarea rezervării de 20 de minute; identificatorul încercării împiedică suprascrierea de către un proces vechi. Reluarea automată în fundal rămâne de implementat.
 
 ## Acord AI
 
@@ -75,3 +75,8 @@ Limite externe: copii de siguranță, emailuri deja trimise prin SMTP și versiu
 ## Teste browser extinse
 
 Pentru suita automată cu multe conturi fictive, pornește temporar cu `RUN_LOCAL.ps1 -TestTraffic` (plus calea Python și `-SkipInstall`, dacă mediul este instalat). Acest mod dezactivează doar limita de autentificări în instanța locală de dezvoltare. După teste, repornește fără `-TestTraffic`; limita este reactivată. CI utilizează aceeași separare; protecția este verificată separat în testele backend.
+
+
+## Corectarea analizelor
+
+Secțiunea Analize permite adăugarea, corectarea și ștergerea confirmată a rezultatelor. Introdu valoarea, unitatea, intervalul și data din documentul sursă; confirmarea transcrierii nu este validare medicală. Corectarea păstrează originalul și legătura cu documentul, invalidează explicațiile AI vechi și actualizează graficele. Reprocesarea documentului înlocuiește corecturile manuale ale rezultatelor sale. În timpul procesării, modificările acestor rezultate sunt blocate temporar.
