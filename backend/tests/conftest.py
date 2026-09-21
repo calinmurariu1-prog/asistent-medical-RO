@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from uuid import uuid4
 
 os.environ.setdefault("DATA_ENCRYPTION_KEY", "test-encryption-key-please-change-000")
 os.environ.setdefault("SECRET_KEY", "test-secret")
@@ -14,7 +15,8 @@ os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -45,11 +47,25 @@ class InMemoryStorage:
 
 @pytest.fixture()
 def db_session():
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    postgres_url = os.environ.get("TEST_POSTGRES_URL")
+    schema = None
+    admin_engine = None
+    if postgres_url:
+        url = make_url(postgres_url)
+        if (url.get_backend_name() != "postgresql" or url.host not in {"localhost", "127.0.0.1"}
+                or url.database != "medical_ro_ci"):
+            raise RuntimeError("PostgreSQL tests require the isolated local medical_ro_ci database")
+        schema = "test_" + uuid4().hex
+        admin_engine = create_engine(postgres_url)
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+        engine = create_engine(postgres_url, connect_args={"options": f"-csearch_path={schema}"})
+    else:
+        engine = create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
     Base.metadata.create_all(engine)
     TestingSession = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     session = TestingSession()
@@ -57,7 +73,14 @@ def db_session():
         yield session
     finally:
         session.close()
-        Base.metadata.drop_all(engine)
+        if admin_engine is not None:
+            engine.dispose()
+            with admin_engine.begin() as connection:
+                connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
+            admin_engine.dispose()
+        else:
+            Base.metadata.drop_all(engine)
+            engine.dispose()
 
 
 @pytest.fixture()
