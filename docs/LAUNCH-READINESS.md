@@ -132,3 +132,6 @@ Formularul complet include doza/frecvența transcrise, instrucțiuni, perioadă 
 Verificările/explicațiile afișate se invalidează după modificarea listei. Absența potrivirilor din catalogul local nu mai este afișată ca validare a siguranței. Catalogul rămâne limitat și necesită surse/validare clinică; funcția nu înlocuiește verificarea profesională și nu stabilește doze sau un orar automat de administrare.
 
 Verificare medicație: 236 teste backend trecute, două teste PostgreSQL omise local, Ruff și build/TypeScript trecute. Cele 24 scenarii browser existente au trecut; cele trei scenarii noi de medicație au trecut la rerulare după clarificarea validării perioadei și a selectorului de alertă. Testul pentru note istorice peste limita noilor formulare a trecut.
+
+
+Medication source increment (2026-09-21): five educational interaction rules now expose primary NHS/NHS SPS links and consultation dates; unsupported old rules abstain. Matching uses declared substances with explicit aliases, never brand inference. Results report unassessed pairs and missing/unknown substances; no clinical severity score or safety clearance is issued. Local validation: 239 backend tests passed, two PostgreSQL-only skips; Ruff, TypeScript/build and three desktop/mobile-viewport medication browser scenarios passed. Clinical review and expanded coverage remain launch requirements.

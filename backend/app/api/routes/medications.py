@@ -69,6 +69,8 @@ def check_interactions(
         interactions=[w.__dict__ for w in result.interactions],
         duplicates=[w.__dict__ for w in result.duplicates],
         disclaimer=result.disclaimer,
+        unassessed_pairs=result.unassessed_pairs,
+        unidentified_medications=result.unidentified_medications,
     )
 
 

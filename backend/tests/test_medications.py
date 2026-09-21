@@ -37,11 +37,11 @@ def test_crud(client):
 
 def test_interaction_detected(client):
     h = _auth(client)
-    _add(client, h, "Sintrom", "warfarina")
+    _add(client, h, "Tratament fictiv A", "warfarina")
     _add(client, h, "Aspenter", "aspirina")
     body = client.get(f"{API}/medications/check", headers=h).json()
     assert len(body["interactions"]) == 1
-    assert body["interactions"][0]["severity"] == "severe"
+    assert body["interactions"][0]["severity"] == "requires_review"
     assert "NU înlocuiește" in body["disclaimer"]
 
 
@@ -56,7 +56,7 @@ def test_duplicate_detected(client):
 
 def test_inactive_meds_excluded_from_check(client):
     h = _auth(client)
-    _add(client, h, "Sintrom", "warfarina")
+    _add(client, h, "Tratament fictiv A", "warfarina")
     _add(client, h, "Aspenter", "aspirina", active=False)
     body = client.get(f"{API}/medications/check", headers=h).json()
     assert body["interactions"] == []
@@ -115,3 +115,36 @@ def test_legacy_long_notes_remain_readable(client, db_session):
     response = client.get(f"{API}/medications", headers=headers)
     assert response.status_code == 200
     assert len(response.json()[0]["notes"]) == 5000
+
+
+def test_check_explicit_substances_sources_and_unassessed_pairs(client):
+    h = _auth(client)
+    _add(client, h, "Fictiv A", " WARFARIN ")
+    _add(client, h, "Fictiv B", "acid acetilsalicilic")
+    _add(client, h, "ibuprofen")  # A name alone is not a declared ingredient.
+    body = client.get(f"{API}/medications/check", headers=h).json()
+    assert len(body["interactions"]) == 1
+    assert body["interactions"][0]["source_url"] == "https://www.nhs.uk/medicines/warfarin/"
+    assert body["interactions"][0]["source_checked_on"] == "2026-09-21"
+    assert body["unassessed_pairs"] == 2
+    assert body["unidentified_medications"] == ["ibuprofen"]
+
+
+def test_unknown_combination_and_brand_are_never_inferred(client):
+    h = _auth(client)
+    _add(client, h, "Brand fictiv")
+    _add(client, h, "Brand fictiv")
+    _add(client, h, "Combinație fictivă", "warfarina + aspirina")
+    body = client.get(f"{API}/medications/check", headers=h).json()
+    assert body["interactions"] == [] and body["duplicates"] == []
+    assert body["unassessed_pairs"] == 3
+    assert len(body["unidentified_medications"]) == 3
+
+
+def test_removed_unsourced_rule_is_explicitly_unassessed(client):
+    h = _auth(client)
+    _add(client, h, "Fictiv A", "metformin")
+    _add(client, h, "Fictiv B", "furosemid")
+    body = client.get(f"{API}/medications/check", headers=h).json()
+    assert body["interactions"] == []
+    assert body["unassessed_pairs"] == 1

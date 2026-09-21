@@ -113,4 +113,13 @@ Medicamente permite înregistrarea și corectarea denumirii, substanței active,
 
 Perioada este validată în formular și pe server, inclusiv la modificarea unui singur capăt al intervalului. Accesul este separat pe cont, iar jurnalul reține tipul operației și ID-ul, fără doze sau note. Datele vechi care depășesc limitele noilor formulare rămân citibile. Actualizarea listei elimină verificările și explicațiile afișate anterior pentru a evita rezultate învechite.
 
-Verificarea interacțiunilor folosește încă o listă locală limitată; lipsa potrivirilor nu confirmă siguranța combinației. Catalogul cu surse clinice, acoperirea completă și memento-urile de medicație la ore alese explicit rămân de finalizat. Nu se deduce un orar de administrare din textul liber al frecvenței.
+Verificarea interacțiunilor folosește încă o listă locală limitată; lipsa potrivirilor nu confirmă siguranța combinației. Catalogul educațional cu surse este descris mai jos; validarea clinică, extinderea acoperirii și memento-urile de medicație la ore alese explicit rămân de finalizat. Nu se deduce un orar de administrare din textul liber al frecvenței.
+
+
+## Sursele verificării limitate a medicației
+
+Catalogul educațional consultat la 21 septembrie 2026 cuprinde cinci perechi: warfarină/aspirină și warfarină/ibuprofen ([NHS warfarin](https://www.nhs.uk/medicines/warfarin/)), aspirină/ibuprofen ([NHS aspirin](https://www.nhs.uk/medicines/aspirin/)), simvastatină/claritromicină ([NHS SPS](https://sps.nhs.uk/articles/managing-interactions-between-macrolides-and-statins/)), levotiroxină/omeprazol ([NHS levothyroxine](https://www.nhs.uk/medicines/levothyroxine/)). Fiecare alertă include sursa și data consultării; această dată nu înseamnă validare de către un clinician.
+
+Se potrivesc numai substanțele declarate explicit și câteva sinonime română/engleză, fără deducție din marcă sau interpretarea preparatelor combinate. API raportează numărul perechilor fără regulă și medicamentele cu substanță absentă/nerecunoscută. Perechile de substanțe identice pot avea un mesaj separat de repetare, dar nu primesc o evaluare clinică. Severity este acum `requires_review`, nu un scor medical. Nu se evaluează doze, funcție renală, boli asociate sau siguranță individuală.
+
+Regulile vechi enalapril/spironolactonă, sertralină/tramadol și metformin/furosemid sunt retrase din catalog până la documentare și evaluare clinică; apar ca neevaluate, niciodată drept combinații sigure. Catalogul nu este exhaustiv și necesită revizie clinică înaintea utilizării reale. Nu există căutări externe cu datele pacientului. Memento-urile de medicație la ore alese explicit rămân de implementat.

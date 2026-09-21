@@ -8,9 +8,11 @@ import type { Medication } from "@/lib/types";
 import { Badge, Button, Card, EmptyState, Input, PageHeader, Spinner } from "@/components/ui";
 
 interface CheckResult {
-  interactions: { drug_a: string; drug_b: string; severity: string; description: string }[];
+  interactions: { drug_a: string; drug_b: string; severity: string; description: string; source_title: string; source_url: string; source_checked_on: string }[];
   duplicates: { substance: string; medications: string[] }[];
   disclaimer: string;
+  unassessed_pairs: number;
+  unidentified_medications: string[];
 }
 
 export default function MedicationsPage() {
@@ -103,9 +105,12 @@ export default function MedicationsPage() {
       <h2 className="flex items-center gap-2 font-semibold"><AlertTriangle size={18} />Verificare limitată</h2>
       {!check.interactions.length && !check.duplicates.length && <p className="mt-2 text-sm">Lista locală nu a identificat potriviri. Acest rezultat nu confirmă siguranța combinației.</p>}
       <ul className="mt-2 space-y-2 text-sm">
-        {check.interactions.map((item,i)=><li key={`interaction-${i}`}>{item.drug_a} + {item.drug_b}: {item.description}</li>)}
-        {check.duplicates.map((item,i)=><li key={`duplicate-${i}`}>Substanță repetată: {item.substance} — {item.medications.join(", ")}</li>)}
-      </ul><p className="mt-3 text-sm text-muted">{check.disclaimer}</p>
+        {check.interactions.map((item,i)=><li key={`interaction-${i}`}>{item.drug_a} + {item.drug_b}: {item.description} <a className="underline text-primary" href={item.source_url} target="_blank" rel="noopener noreferrer">{item.source_title}</a> <span className="text-muted">(sursă consultată: {item.source_checked_on})</span></li>)}
+        {check.duplicates.map((item,i)=><li key={`duplicate-${i}`}>Aceeași substanță declarată: {item.substance} — {item.medications.join(", ")}</li>)}
+      </ul>
+        <p className="mt-3 text-sm">Perechi fără regulă documentată în catalog: {check.unassessed_pairs}. Nu au fost evaluate.</p>
+        {!!check.unidentified_medications.length && <p className="mt-2 text-sm break-words">Substanță nespecificată sau nerecunoscută în catalog: {check.unidentified_medications.join(", ")}. Denumirile comerciale nu sunt interpretate automat.</p>}
+        <p className="mt-3 text-sm text-muted">{check.disclaimer}</p>
     </Card>}
     {loading ? <Spinner /> : !meds.length ? <EmptyState icon={Pill} title={filter === "active" ? "Niciun tratament activ înregistrat" : "Niciun tratament în istoric"} /> :
       <div className="space-y-3">{meds.map(m=><Card key={m.id}>

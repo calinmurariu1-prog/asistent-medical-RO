@@ -62,6 +62,9 @@ class InteractionWarningOut(BaseModel):
     drug_b: str
     severity: str
     description: str
+    source_title: str
+    source_url: str
+    source_checked_on: str
 
 
 class DuplicateWarningOut(BaseModel):
@@ -73,3 +76,5 @@ class MedicationCheckOut(BaseModel):
     interactions: list[InteractionWarningOut]
     duplicates: list[DuplicateWarningOut]
     disclaimer: str
+    unassessed_pairs: int
+    unidentified_medications: list[str]

@@ -41,6 +41,19 @@ test("medication correction history and confirmed deletion", async ({page}, info
   await page.getByRole("button", {name:"Șterge",exact:true}).click();
   await page.getByRole("button", {name:"Confirmă ștergerea",exact:true}).click();
   await expect(page.getByText("Niciun tratament în istoric", {exact:true})).toBeVisible();
+  await page.getByRole("button", {name:"Active",exact:true}).click();
+  for (const [name, substance] of [["Sursă fictiv A", "warfarin"], ["Sursă fictiv B", "aspirin"]]) {
+    await page.getByRole("button", {name:"Adaugă tratament"}).click();
+    await page.getByLabel("Denumire", {exact:true}).fill(name);
+    await page.getByLabel("Substanță activă", {exact:true}).fill(substance);
+    await page.getByRole("button", {name:"Salvează tratamentul"}).click();
+    await expect(page.getByRole("heading", {name, exact:true})).toBeVisible();
+  }
+  await page.getByRole("button", {name:"Verifică lista activă"}).click();
+  await expect(page.getByRole("link", {name:"NHS — Warfarin",exact:true})).toHaveAttribute("href", "https://www.nhs.uk/medicines/warfarin/");
+  await expect(page.getByText(/Perechi fără regulă documentată în catalog: 0/)).toBeVisible();
+  await expect(page.getByText(/Nu modifica tratamentul pe baza aplicației/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
   await page.goto("/settings");
   await page.getByRole("button", {name:"Șterge contul",exact:true}).click();
   await page.getByPlaceholder("Parola", {exact:true}).fill("Testing-pass-123!");
