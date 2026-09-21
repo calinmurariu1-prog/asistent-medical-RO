@@ -382,3 +382,30 @@ def test_deleted_document_is_not_resurrected_by_processing(client, db_session, m
     response = client.post(f"{API}/documents/{document_id}/reprocess", headers=h)
     assert response.status_code == 409
     assert db_session.get(Document, document_id) is None
+
+
+def test_original_failure_is_sanitized_and_retryable(client, storage, monkeypatch):
+    headers = _auth_headers(client, "original-failure@example.com")
+    result = client.post(API + "/documents", headers=headers,
+                         files={"file": ("test.pdf", b"%PDF-1.4 synthetic", "application/pdf")})
+    assert result.status_code == 201
+    url = API + f"/documents/{result.json()['id']}/original"
+
+    def fail(key):
+        raise RuntimeError("private-provider-key-and-path")
+
+    monkeypatch.setattr(storage, "get", fail)
+    response = client.get(url, headers=headers)
+    assert response.status_code == 503
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["retry-after"] == "30"
+    assert "private-provider" not in response.text
+
+    def missing(key):
+        raise FileNotFoundError("private-path")
+
+    monkeypatch.setattr(storage, "get", missing)
+    response = client.get(url, headers=headers)
+    assert response.status_code == 404
+    assert response.headers["cache-control"] == "no-store"
+    assert "private-path" not in response.text

@@ -67,8 +67,19 @@ class S3Storage:
         self._client.put_object(Bucket=self._bucket, Key=key, Body=data, **extra)
 
     def get(self, key: str) -> bytes:
-        obj = self._client.get_object(Bucket=self._bucket, Key=key)
-        return obj["Body"].read()
+        from botocore.exceptions import ClientError
+
+        try:
+            obj = self._client.get_object(Bucket=self._bucket, Key=key)
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") in {"NoSuchKey", "NotFound", "404"}:
+                raise FileNotFoundError("Original unavailable") from None
+            raise
+        body = obj["Body"]
+        try:
+            return body.read()
+        finally:
+            body.close()
 
     def delete(self, key: str) -> None:
         self._client.delete_object(Bucket=self._bucket, Key=key)

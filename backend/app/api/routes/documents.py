@@ -167,7 +167,11 @@ def original_document(
     try:
         data = storage.get(document.storage_key)
     except FileNotFoundError:
-        raise HTTPException(404, "Original indisponibil") from None
+        raise HTTPException(404, "Original indisponibil",
+                            headers={"Cache-Control": "no-store"}) from None
+    except Exception:  # noqa: BLE001 (do not expose provider paths, keys or decryption errors)
+        raise HTTPException(503, "Originalul nu poate fi descărcat momentan. Reîncearcă.",
+                            headers={"Cache-Control": "no-store", "Retry-After": "30"}) from None
     return Response(data, media_type="application/octet-stream", headers={
         "Content-Disposition": ("attachment; filename*=UTF-8''"
                                 + quote(document.original_filename, safe="")),

@@ -61,3 +61,5 @@ Push-ul simulat nu marchează livrare reală. Acceptarea de FCM/APNs nu dovedeș
 În acest increment nu au fost schimbate servicii Render, activate servicii plătite, folosite date medicale reale sau efectuat merge în ramura de lansare.
 
 Increment export abonament: 9 teste GDPR trecute, inclusiv izolare între conturi, cont fără pacient și excluderea identificatorilor furnizorului.
+
+Descărcarea originalelor: 25 teste documente/stocare trecute. Fluxul S3 este închis inclusiv după citire eșuată; fișierul lipsă produce 404, iar erorile de citire produc 503 cu mesaj fără detalii interne și fără cache. Verificarea S3 folosește un client simulat, nu un serviciu extern.
