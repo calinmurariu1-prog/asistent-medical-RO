@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import jwt
 import pyotp
+from pydantic import ValidationError
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
@@ -229,19 +230,21 @@ def logout_all(
     return {"detail": "Toate sesiunile au fost deconectate."}
 
 
-@router.post("/login-form", response_model=TokenPair, include_in_schema=False)
+@router.post(
+    "/login-form", response_model=TokenPair, include_in_schema=False,
+    dependencies=[Depends(_auth_limiter)],
+)
 def login_form(
+    request: Request,
     form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
 ) -> TokenPair:
-    """OAuth2 password flow used by the Swagger 'Authorize' button."""
-    user = db.scalar(select(User).where(User.email == form.username))
-    if (
-        user is None
-        or not user.hashed_password
-        or not verify_password(form.password, user.hashed_password)
-    ):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
-    return TokenPair(
-        access_token=create_access_token(str(user.id), user.token_version),
-        refresh_token=create_refresh_token(str(user.id), user.token_version),
-    )
+    """Swagger login applies the same account and MFA checks as JSON login.
+
+    OAuth2's password form cannot supply our TOTP field. MFA users must use
+    /login with mfa_code; never issue tokens on the basis of the password alone.
+    """
+    try:
+        payload = LoginRequest(email=form.username, password=form.password)
+    except ValidationError:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials") from None
+    return login(payload, request, db)

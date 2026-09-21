@@ -109,3 +109,63 @@ def test_ai_consent_enforced_when_enabled(client, monkeypatch):
                 json={"consent_type": "ai_processing", "granted": True})
     r = client.post(f"{API}/chats/{chat_id}/messages", headers=h, json={"content": "salut"})
     assert r.status_code == 200
+
+
+def test_swagger_login_rejects_disabled_account(client, db_session):
+    from app.models.user import User
+    user = _register(client)
+    account = db_session.get(User, user["id"])
+    account.is_active = False
+    db_session.commit()
+    response = client.post(f"{API}/auth/login-form", data={
+        "username": "sec@example.com", "password": "Parola1234"
+    })
+    assert response.status_code == 403
+    assert "access_token" not in response.json()
+
+
+def test_swagger_login_cannot_bypass_mfa(client):
+    import pyotp
+    _register(client)
+    _, headers = _login(client)
+    secret = client.post(f"{API}/auth/mfa/setup", headers=headers).json()["secret"]
+    assert client.post(f"{API}/auth/mfa/activate", headers=headers,
+                       json={"code": pyotp.TOTP(secret).now()}).status_code == 200
+    response = client.post(f"{API}/auth/login-form", data={
+        "username": "sec@example.com", "password": "Parola1234"
+    })
+    assert response.status_code == 401
+    assert "access_token" not in response.json()
+
+
+def test_swagger_login_ordinary_account(client):
+    _register(client)
+    response = client.post(f"{API}/auth/login-form", data={
+        "username": "sec@example.com", "password": "Parola1234"
+    })
+    assert response.status_code == 200
+    assert client.get(f"{API}/auth/me", headers={
+        "Authorization": "Bearer " + response.json()["access_token"]
+    }).status_code == 200
+
+
+def test_swagger_login_invalid_username(client):
+    response = client.post(f"{API}/auth/login-form", data={
+        "username": "not-an-email", "password": "invalid"
+    })
+    assert response.status_code == 401
+
+
+def test_swagger_login_is_rate_limited(client, monkeypatch):
+    from app.api.routes.auth import _auth_limiter
+    from app.core.rate_limit import reset_rate_limits
+    monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", True)
+    monkeypatch.setattr(_auth_limiter, "times", 2)
+    reset_rate_limits()
+    try:
+        form = {"username": "missing@example.com", "password": "invalid"}
+        assert client.post(f"{API}/auth/login-form", data=form).status_code == 401
+        assert client.post(f"{API}/auth/login-form", data=form).status_code == 401
+        assert client.post(f"{API}/auth/login-form", data=form).status_code == 429
+    finally:
+        reset_rate_limits()
