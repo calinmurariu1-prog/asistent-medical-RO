@@ -28,10 +28,13 @@ def _client_ip(request: Request) -> str | None:
 @router.get("/export")
 def export_my_data(
     request: Request,
+    response: Response,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Right of access & portability (GDPR Art. 15/20): full data export."""
+    """Account and clinical export; omitted sections are disclosed in metadata."""
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
     audit.record(db, user_id=user.id, action="gdpr_export", ip_address=_client_ip(request))
     return gdpr.export_user_data(db, user)
 
