@@ -14,13 +14,22 @@ test("medical record create, edit, cancel deletion and delete",async({page},info
     {section:"Istoric medical",field:"Titlu",value:"Observație fictivă"},
     {section:"Alergii",field:"Substanță sau alergen",value:"Alergen fictiv"},
     {section:"Vaccinări",field:"Numele vaccinului",value:"Vaccin fictiv"},
+    {section:"Contacte de urgență",field:"Numele persoanei",value:"Persoană fictivă"},
   ]) {
     await page.getByRole("button",{name:entry.section,exact:true}).click();
     await page.getByRole("button",{name:"Adaugă înregistrare"}).click();
     await page.getByLabel(entry.field,{exact:false}).fill(entry.value);
+    if(entry.section==="Contacte de urgență") {
+      await page.getByLabel("Telefon de contact").fill("0000000000");
+      await page.getByLabel("Relația cu persoana").fill("Prieten");
+    }
     await expect(page.getByRole("button",{name:"Istoric medical",exact:true})).toBeDisabled();
     await page.getByRole("button",{name:"Salvează înregistrarea"}).click();
     await expect(page.getByRole("heading",{name:entry.value,exact:true})).toBeVisible();
+    if(entry.section==="Contacte de urgență") {
+      await expect(page.getByText("0000000000",{exact:true})).toBeVisible();
+      await expect(page.getByText("Prieten",{exact:true})).toBeVisible();
+    }
     await page.getByRole("button",{name:"Editează",exact:true}).click();
     await page.getByLabel(entry.field,{exact:false}).fill(entry.value+" corectată");
     await page.getByRole("button",{name:"Salvează înregistrarea"}).click();

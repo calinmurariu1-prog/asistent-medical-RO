@@ -199,3 +199,6 @@ Profilul afișează acum erorile de încărcare cu buton de reîncercare. La eș
 
 
 Actualizările profilului validează pe server lungimea numelor (120) și a telefonului (40), identificatorul pozitiv și existența medicului selectat. API-ul distinge omiterea CNP-ului de ștergerea explicită prin `null` sau șir gol. Modificarea și evenimentul de audit se confirmă în aceeași tranzacție; jurnalul păstrează numele câmpurilor trimise, fără valori personale. CNP-ul rămâne criptat și nu este returnat de profil. Testele folosesc un identificator fictiv, fără validarea unei identități reale.
+
+
+**Dosar medical → Contacte de urgență** permite adăugarea, editarea și ștergerea confirmată a numelui, relației și telefonului. API-ul `/patients/me/emergency-contacts` validează lungimile și numele obligatoriu; modificarea unui contact străin returnează 404. Operațiunile și auditul se confirmă împreună, fără datele persoanei în audit. Contactele sunt deja incluse în exportul JSON și sunt eliminate odată cu contul. Aplicația nu apelează și nu trimite mesaje automat acestor persoane.

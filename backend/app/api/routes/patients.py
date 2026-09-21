@@ -11,10 +11,12 @@ from app.api.deps import get_current_patient
 from app.core.database import get_db
 from app.core.security import encrypt_field
 from app.models.clinical import Doctor
-from app.models.patient import Allergy, Patient
+from app.models.patient import Allergy, EmergencyContact, Patient
 from app.schemas.patient import (
     AllergyIn,
     AllergyOut,
+    EmergencyContactIn,
+    EmergencyContactOut,
     PatientOut,
     PatientUpdate,
 )
@@ -116,3 +118,54 @@ def update_allergy(allergy_id: int, payload: AllergyIn,
     audit.record(db, user_id=patient.user_id, action="allergy_update",
                  resource_type="allergy", resource_id=allergy.id)
     return allergy
+
+
+@router.get("/me/emergency-contacts", response_model=list[EmergencyContactOut])
+def list_emergency_contacts(patient: Patient = Depends(get_current_patient),
+                            db: Session = Depends(get_db)):
+    return list(db.scalars(select(EmergencyContact).where(
+        EmergencyContact.patient_id == patient.id).order_by(EmergencyContact.id)))
+
+
+@router.post("/me/emergency-contacts", response_model=EmergencyContactOut, status_code=201)
+def create_emergency_contact(payload: EmergencyContactIn,
+                             patient: Patient = Depends(get_current_patient),
+                             db: Session = Depends(get_db)):
+    contact = EmergencyContact(patient_id=patient.id, **payload.model_dump())
+    db.add(contact)
+    db.flush()
+    audit.record(db, user_id=patient.user_id, action="emergency_contact.create",
+                 resource_type="emergency_contact", resource_id=contact.id)
+    db.refresh(contact)
+    return contact
+
+
+def _owned_contact(contact_id: int, patient: Patient, db: Session) -> EmergencyContact:
+    contact = db.scalar(select(EmergencyContact).where(
+        EmergencyContact.id == contact_id, EmergencyContact.patient_id == patient.id))
+    if contact is None:
+        raise HTTPException(404, "Contact inexistent")
+    return contact
+
+
+@router.put("/me/emergency-contacts/{contact_id}", response_model=EmergencyContactOut)
+def update_emergency_contact(contact_id: int, payload: EmergencyContactIn,
+                             patient: Patient = Depends(get_current_patient),
+                             db: Session = Depends(get_db)):
+    contact = _owned_contact(contact_id, patient, db)
+    for key, value in payload.model_dump().items():
+        setattr(contact, key, value)
+    audit.record(db, user_id=patient.user_id, action="emergency_contact.update",
+                 resource_type="emergency_contact", resource_id=contact.id)
+    db.refresh(contact)
+    return contact
+
+
+@router.delete("/me/emergency-contacts/{contact_id}", status_code=204)
+def delete_emergency_contact(contact_id: int, patient: Patient = Depends(get_current_patient),
+                             db: Session = Depends(get_db)):
+    contact = _owned_contact(contact_id, patient, db)
+    db.delete(contact)
+    audit.record(db, user_id=patient.user_id, action="emergency_contact.delete",
+                 resource_type="emergency_contact", resource_id=contact_id)
+    return Response(status_code=204)
