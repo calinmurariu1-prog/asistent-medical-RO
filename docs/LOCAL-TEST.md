@@ -193,3 +193,6 @@ Exportul JSON se descarcă din **Setări → Exportă datele din dosar → Desca
 
 
 Rapoartele PDF/Word din Profil și originalele din Documente folosesc același adaptor web/nativ ca exportul JSON. Erorile de descărcare sunt vizibile și permit reîncercarea, iar butoanele sunt dezactivate pe durata operațiunii. Testele browser verifică formatul PDF/DOCX descărcat, egalitatea exactă a originalului PDF cu fișierul încărcat și recuperarea după răspunsuri 503 simulate. Verificarea nativă pe dispozitiv real rămâne deschisă.
+
+
+Profilul afișează acum erorile de încărcare cu buton de reîncercare. La eșecul salvării păstrează câmpurile introduse; pe durata cererii dezactivează formularul. Confirmarea salvării dispare când utilizatorul începe o nouă modificare. Data nașterii și sexul golite sunt trimise ca valori nule, astfel încât pot fi eliminate din profil. Limitele din interfață pentru greutate/înălțime corespund validării API existente.
