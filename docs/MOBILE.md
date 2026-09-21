@@ -10,9 +10,9 @@ Next.js (static export → out/)  ──►  Capacitor WebView  ──►  APK/A
 ```
 
 ## Cerințe
-- **Android:** [Android Studio](https://developer.android.com/studio) (SDK + emulator).
-- **iOS:** **macOS** cu **Xcode** (obligatoriu — Apple nu permite build iOS pe alt OS).
-- Node 18+ și dependențele instalate (`npm ci` în `frontend/`).
+- **Android:** Android Studio Otter 2025.2.1+, JDK 21, SDK 36; Android 7/API 24 minim.
+- **iOS:** iOS 15+, **macOS** cu **Xcode 26+** (obligatoriu — Apple nu permite build iOS pe alt OS).
+- Node 22+ și dependențele instalate (`npm ci` în `frontend/`).
 
 > Build-ul iOS/semnarea și publicarea în store se fac pe mașina ta (Xcode /
 > Android Studio) — nu în CI-ul actual.
@@ -119,3 +119,9 @@ aplicațiile din store (nu poți folosi doar Stripe pe mobil). Planul:
 Backend-ul e deja pregătit: modelul `Subscription` are `provider`
 (`stripe`/`apple`/`google`) și `external_*` pentru a lega abonamentul de
 webhook-urile fiecărui furnizor. Vezi `docs/BILLING.md` (în lucru).
+
+## Actualizare Capacitor 8.5
+
+Pachetele native și pluginurile sunt actualizate împreună. Ghiduri oficiale: [Capacitor 8](https://capacitorjs.com/docs/updating/8-0), [8.5](https://capacitorjs.com/docs/updating/8-5). Proiectul iOS se generează din șablonul actual pe macOS. Nu există încă verificare pe dispozitiv fizic sau build iOS în această livrare.
+
+Versiunile indirecte tar, sharp, uuid și minimatch sunt corectate prin overrides; utilitarul de iconițe folosește același CLI Capacitor ca proiectul. CI rulează auditul npm complet, generarea iconițelor și buildul APK pentru a detecta incompatibilități.

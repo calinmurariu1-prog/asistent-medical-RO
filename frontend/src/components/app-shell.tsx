@@ -64,7 +64,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (loading || !user) return <Spinner />;
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
+    <div className="pt-safe flex h-[100dvh] overflow-hidden">
       {mobileOpen && (
         <div
           onClick={() => setMobileOpen(false)}

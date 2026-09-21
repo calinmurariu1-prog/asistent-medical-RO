@@ -59,7 +59,7 @@ jobs:
         run: npm ci
 
       - name: Build and session tests
-        run: npm run build && npm run lint && npm run test:unit && npm audit --omit=dev
+        run: npm run build && npm run lint && npm run test:unit && npm audit
 
       - uses: actions/setup-python@v5
         with:

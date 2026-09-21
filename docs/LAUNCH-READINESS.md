@@ -19,7 +19,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 - Ruff trecut; build Next și TypeScript trecute; patru teste unitare pentru refresh/concurență trecute.
 - Export web Capacitor: 36 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
 - Verificările browser acoperă cont, confirmare, profil, PDF, descărcare identică, analize, dashboard, refresh, resetare și deconectare pe desktop și dimensiuni iPhone/Android. Capturi în `docs/screenshots`.
-- Auditul npm pentru dependențele de producție: zero vulnerabilități raportate la verificare. Auditul complet încă raportează nouă probleme în dependențe de dezvoltare (două moderate, șase high, una critical). Capacitor CLI 6 necesită tar 6; forțarea tar 7 rupe sincronizarea nativă. Actualizarea coordonată a utilitarului nativ rămâne necesară.
+- Auditul npm complet (inclusiv dezvoltare): zero vulnerabilități raportate după actualizarea Capacitor 8.5.2 și a dependențelor indirecte. Generarea iconițelor și sincronizarea nativă au trecut local.
 - Starea CI pentru revizia publicată trebuie verificată în PR; rezultatele locale nu înlocuiesc GitHub Actions.
 
 ## Rămâne înainte de lansare publică

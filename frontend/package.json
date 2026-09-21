@@ -16,13 +16,13 @@
     "test:unit": "node --test tests/session.test.mjs"
   },
   "dependencies": {
-    "@capacitor-community/bluetooth-le": "^6.1.0",
-    "@capacitor/android": "^6.2.1",
-    "@capacitor/app": "^6.0.3",
-    "@capacitor/core": "^6.2.1",
-    "@capacitor/ios": "^6.2.1",
-    "@capacitor/preferences": "^6.0.4",
-    "@capacitor/status-bar": "^6.0.3",
+    "@capacitor-community/bluetooth-le": "8.3.0",
+    "@capacitor/android": "8.5.2",
+    "@capacitor/app": "8.1.1",
+    "@capacitor/core": "8.5.2",
+    "@capacitor/ios": "8.5.2",
+    "@capacitor/preferences": "8.0.1",
+    "@capacitor/status-bar": "8.0.3",
     "framer-motion": "12.43.0",
     "lucide-react": "^0.446.0",
     "next": "16.3.5",
@@ -31,20 +31,32 @@
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
-    "@capacitor/cli": "^6.2.1",
+    "@capacitor/cli": "8.5.2",
     "@playwright/test": "^1.63.0",
     "@types/node": "^20.16.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.5.23",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.4",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.2"
   },
   "overrides": {
     "@xmldom/xmldom": "^0.9.12",
     "nanoid": "^3.3.18",
-    "postcss": "^8.5.23"
+    "postcss": "^8.5.23",
+    "tar": "^7.5.21",
+    "replace": {
+      "minimatch": "^3.1.4"
+    },
+    "xcode": {
+      "uuid": "^11.1.1"
+    },
+    "sharp": "$sharp",
+    "@capacitor/cli": "$@capacitor/cli"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

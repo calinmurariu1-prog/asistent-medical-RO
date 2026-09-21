@@ -32,7 +32,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
           cache: gradle
 
       - name: Build web assets + Capacitor sync
@@ -41,6 +41,7 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ github.event.inputs.api_url || 'https://asistent-medical-backend.onrender.com' }}
         run: |
           npm ci
+          npm run gen:assets
           npm run mobile:sync
 
       - name: Accept Android SDK licenses
