@@ -306,9 +306,9 @@ def logout_all(
     current: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> dict[str, str]:
     """Revoke every existing token for this user (all devices)."""
-    current.token_version += 1
-    db.add(current)
-    db.commit()
+    db.execute(update(User).where(User.id == current.id).values(
+        token_version=User.token_version + 1))
+    audit.record(db, user_id=current.id, action="logout_all")
     return {"detail": "Toate sesiunile au fost deconectate."}
 
 

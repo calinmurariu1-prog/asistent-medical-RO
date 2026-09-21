@@ -202,3 +202,27 @@ def test_regenerate_backup_codes_requires_both_factors_and_invalidates_old_set(c
         **credentials, "mfa_code": codes[2]}).status_code == 401
     assert client.post(f"{API}/auth/login", json={
         **credentials, "mfa_code": replacements[0]}).status_code == 200
+
+
+def test_logout_all_increments_latest_version_even_with_stale_identity(db_session):
+    from sqlalchemy import select, update
+
+    from app.api.routes.auth import logout_all
+    from app.models.user import AuditLog, User
+
+    user = User(email="stale-logout@example.com", hashed_password="synthetic")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    initial = user.token_version
+    db_session.execute(update(User).execution_options(synchronize_session=False).where(
+        User.id == user.id).values(token_version=initial + 4))
+    # Keep an old ORM snapshot as if a concurrent session change committed after
+    # authentication resolved this request. Logout must use the database counter.
+    assert user.token_version == initial
+    logout_all(current=user, db=db_session)
+    db_session.refresh(user)
+    assert user.token_version == initial + 5
+    events = db_session.scalars(select(AuditLog).where(
+        AuditLog.user_id == user.id, AuditLog.action == "logout_all")).all()
+    assert len(events) == 1 and events[0].detail is None
