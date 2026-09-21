@@ -13,6 +13,7 @@ from app.models.document import Document
 from app.models.feedback import Feedback
 from app.models.medication import Medication
 from app.models.medication_reminder import MedicationReminder
+from app.models.notification import Notification
 from app.models.patient import Patient
 from app.models.user import Consent, User
 from app.services.storage_cleanup import enqueue
@@ -48,8 +49,7 @@ def export_user_data(db: Session, user: User) -> dict:
             "exported_at": _iso(datetime.now(UTC)),
             "original_files_included": False,
             "scope": "account_and_clinical_records",
-            "not_included": ["original_file_bytes", "cnp", "health_device_data",
-                             "notifications", "feedback", "billing", "audit_logs",
+            "not_included": ["original_file_bytes", "cnp", "billing", "audit_logs",
                              "authentication_secrets"],
         },
         "account": {
@@ -72,6 +72,20 @@ def export_user_data(db: Session, user: User) -> dict:
         ],
     }
 
+    data["notifications"] = [
+        {**_record(n), "channel": n.channel.value, "title": n.title, "body": n.body,
+         "status": n.status.value, "scheduled_for": _iso(n.scheduled_for),
+         "sent_at": _iso(n.sent_at), "resource_type": n.resource_type,
+         "resource_id": n.resource_id}
+        for n in db.scalars(select(Notification).where(Notification.user_id == user.id)
+                            .order_by(Notification.id))
+    ]
+    data["feedback"] = [
+        {**_record(f), "message": f.message, "rating": f.rating}
+        for f in db.scalars(select(Feedback).where(Feedback.user_id == user.id)
+                            .order_by(Feedback.id))
+    ]
+
     if patient is None:
         data["patient"] = None
         return data
@@ -92,6 +106,17 @@ def export_user_data(db: Session, user: User) -> dict:
     data["emergency_contacts"] = [
         {**_record(c), "name": c.name, "relationship_label": c.relationship_label, "phone": c.phone}
         for c in patient.emergency_contacts
+    ]
+    data["health_samples"] = [
+        {**_record(h), "source": h.source.value, "metric_type": h.metric_type.value,
+         "value": h.value, "unit": h.unit, "recorded_at": _iso(h.recorded_at)}
+        for h in patient.health_samples
+    ]
+    data["health_devices"] = [
+        {**_record(d), "source": d.source.value, "name": d.name, "model": d.model,
+         "vendor": d.vendor, "metrics": _json(d.metrics, []), "sample_count": d.sample_count,
+         "last_seen_at": _iso(d.last_seen_at)}
+        for d in patient.health_devices
     ]
     data["allergies"] = [
         {**_record(a), "substance": a.substance, "reaction": a.reaction,

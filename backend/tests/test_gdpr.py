@@ -128,3 +128,71 @@ def test_export_preserves_clinical_details_and_isolates_accounts(client, db_sess
     path = data["documents"][0]["original_download_path"]
     assert client.get(path, headers=other).status_code == 404
     assert client.get(f"{API}/gdpr/export").status_code == 401
+
+
+def test_health_notifications_feedback_export_owner_scope(client, db_session):
+    from datetime import UTC, datetime
+
+    from sqlalchemy import select
+
+    from app.models.enums import HealthMetricType, HealthSource, NotificationChannel
+    from app.models.feedback import Feedback
+    from app.models.health import HealthSample
+    from app.models.health_device import HealthDevice
+    from app.models.notification import Notification
+    from app.models.patient import Patient
+    from app.models.user import User
+
+    headers = []
+    for index in range(2):
+        email = f"portable-{index}@example.com"
+        h = _auth(client, email)
+        headers.append(h)
+        client.get(f"{API}/documents", headers=h)
+        user = db_session.scalar(select(User).where(User.email == email))
+        patient = db_session.scalar(select(Patient).where(Patient.user_id == user.id))
+        when = datetime(2026, 1, 1, 12, tzinfo=UTC)
+        db_session.add_all([
+            HealthSample(patient_id=patient.id, source=HealthSource.MANUAL,
+                         metric_type=HealthMetricType.STEPS, value=100 + index,
+                         unit="count", recorded_at=when),
+            HealthDevice(patient_id=patient.id, source=HealthSource.MANUAL,
+                         name=f"synthetic-device-{index}", metrics='["steps"]',
+                         sample_count=1, last_seen_at=when),
+            Notification(user_id=user.id, channel=NotificationChannel.PUSH,
+                         title=f"synthetic-notification-{index}", body="Fictitious body",
+                         scheduled_for=when, delivery_token="internal-delivery-claim"),
+            Feedback(user_id=user.id, message=f"synthetic-feedback-{index}", rating=4),
+        ])
+        db_session.commit()
+    for index, h in enumerate(headers):
+        response = client.get(f"{API}/gdpr/export", headers=h)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["health_samples"]) == 1
+        assert data["health_samples"][0]["value"] == 100 + index
+        assert data["health_samples"][0]["recorded_at"] == "2026-01-01T12:00:00+00:00"
+        assert data["health_devices"][0]["name"] == f"synthetic-device-{index}"
+        assert data["health_devices"][0]["metrics"] == ["steps"]
+        assert len(data["notifications"]) == 1
+        assert data["notifications"][0]["title"] == f"synthetic-notification-{index}"
+        assert data["feedback"][0]["message"] == f"synthetic-feedback-{index}"
+        assert "internal-delivery-claim" not in response.text
+        assert "delivery_token" not in response.text
+        for section in ("health_device_data", "notifications", "feedback"):
+            assert section not in data["export_metadata"]["not_included"]
+
+
+def test_account_export_without_patient_keeps_feedback(client, db_session):
+    from sqlalchemy import select
+
+    from app.models.feedback import Feedback
+    from app.models.user import User
+
+    h = _auth(client, "no-patient-export@example.com")
+    user = db_session.scalar(select(User).where(User.email == "no-patient-export@example.com"))
+    db_session.add(Feedback(user_id=user.id, message="Before profile creation"))
+    db_session.commit()
+    data = client.get(f"{API}/gdpr/export", headers=h).json()
+    assert data["patient"] is None
+    assert data["feedback"][0]["message"] == "Before profile creation"

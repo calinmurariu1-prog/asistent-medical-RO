@@ -30,9 +30,9 @@ export function DataExport() {
       <Download size={18} aria-hidden="true" /> Exportă datele din dosar
     </h2>
     <p className="text-sm text-muted">Descarcă un fișier JSON cu profilul, acordurile, istoricul medical,
-      analizele, documentele extrase, tratamentele, memento-urile, programările și conversațiile.</p>
+      analizele, documentele extrase, tratamentele, memento-urile, programările, conversațiile, măsurătorile de sănătate, dispozitivele, notificările și feedbackul.</p>
     <p className="text-sm text-muted">Originalele se descarcă separat din Documente. Exportul nu include
-      CNP, datele dispozitivelor de sănătate, notificările, feedbackul, facturarea sau jurnalul de audit.</p>
+      CNP, facturarea sau jurnalul de audit.</p>
     <p className="text-sm">Fișierul conține date personale și medicale. Păstrează-l într-un loc sigur.</p>
     {native && <p className="text-sm text-muted">Alege destinația în dialogul sistemului. Copia temporară
       rămâne în memoria cache privată; copiile mai vechi de 24 de ore se curăță la următorul export.</p>}
