@@ -75,3 +75,8 @@ Migrarea `d0f2a4b6c8e0` adaugă un identificator și un termen de 20 de minute p
 CI include PostgreSQL 16 temporar, migrarea completă, `alembic check` și testele backend în scheme separate. Verificarea a trecut la revizia `19db711`; definițiile enum și unicitatea abonamentului au fost aliniate cu migrările existente, fără modificarea datelor. Aplicația locală rămâne SQLite. Testul nou de consum concurent pe PostgreSQL este rulat numai în acel mediu și este omis explicit local.
 
 Auditul `pip-audit 2.10.1`, la 21 septembrie 2026, a trecut de la 8 pachete afectate (164 înregistrări de vulnerabilitate raportate) la 0 după actualizare. Setul nou rezolvat are 87 pachete pe Windows. Versiunile corectate: FastAPI 0.141.1, Starlette 1.3.1, python-multipart 0.0.31, PyJWT 2.13.0, cryptography 50.0.0, pypdf 6.16.1, Pillow 12.3.0, pydicom 3.0.2, pytest 9.0.3 și pytest-asyncio 1.4.0. `pip check`, Ruff și 208 teste locale au trecut (testul PostgreSQL este omis pe SQLite). Auditul devine condiție CI; rezultatul reflectă baza de vulnerabilități disponibilă în momentul rulării, nu o garanție absolută de securitate.
+
+
+### Loguri fără conținutul cererilor AI
+
+Erorile aplicației pentru furnizorii AI și căutarea locațiilor înregistrează tipul excepției sau codul HTTP, nu corpul răspunsului, adresa căutată sau textul excepției. Diagnosticarea brută `pypdf` este oprită deoarece poate include bytes din fișierul invalid; procesarea păstrează un mesaj tehnic sanitizat. Testele folosesc marcatori fictivi sensibili și verifică absența lor din loguri. Configurarea logurilor serviciilor externe/proxy rămâne o verificare separată de deploy.

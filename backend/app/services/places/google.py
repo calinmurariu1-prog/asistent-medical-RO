@@ -44,7 +44,7 @@ class GooglePlacesProvider:
             loc = data["results"][0]["geometry"]["location"]
             return float(loc["lat"]), float(loc["lng"])
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Geocoding failed for %r: %s", query, exc)
+            logger.warning("Geocoding failed (%s)", type(exc).__name__)
             return None
 
     def search_nearby(
@@ -75,7 +75,7 @@ class GooglePlacesProvider:
             )
             places = resp.json().get("places", [])
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Places search failed: %s", exc)
+            logger.warning("Places search failed: %s", type(exc).__name__)
             return []
 
         results: list[PlaceResult] = []

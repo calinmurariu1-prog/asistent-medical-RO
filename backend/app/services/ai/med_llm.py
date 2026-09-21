@@ -60,10 +60,10 @@ class MedLLMProvider:
                 return DISCLAIMER
             return text
         except httpx.HTTPStatusError as exc:
-            logger.error("[medllm] HTTP %s: %s", exc.response.status_code, exc.response.text[:200])
+            logger.error("[medllm] HTTP failure (status %s)", exc.response.status_code)
             return DISCLAIMER
         except httpx.RequestError as exc:
-            logger.error("[medllm] micro-service connection error: %s", exc)
+            logger.error("[medllm] micro-service connection error: %s", type(exc).__name__)
             return DISCLAIMER
 
     def complete(self, *, system: str, user: str) -> str:

@@ -48,7 +48,7 @@ class LLMProvider:
         try:
             return self._complete(system, user)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("%s complete failed: %s", self.name, exc)
+            logger.warning("%s complete failed: %s", self.name, type(exc).__name__)
             return DISCLAIMER
 
     def extract_document(self, text: str, category: str) -> DocumentExtraction:
@@ -59,7 +59,8 @@ class LLMProvider:
             raw = self._complete(_SYSTEM, prompt)
             data = json.loads(_strip_code_fences(raw))
         except Exception as exc:  # noqa: BLE001
-            logger.warning("%s extraction failed, using fallback: %s", self.name, exc)
+            logger.warning("%s extraction failed, using fallback: %s", self.name,
+                           type(exc).__name__)
             return DocumentExtraction(
                 summary="Document procesat (extragere AI indisponibilă).",
                 lab_values=fallback_labs,
@@ -119,7 +120,7 @@ class LLMProvider:
         try:
             text = self._complete(system, user).strip()
         except Exception as exc:  # noqa: BLE001
-            logger.warning("%s explanation failed: %s", self.name, exc)
+            logger.warning("%s explanation failed: %s", self.name, type(exc).__name__)
             text = f"Valoare {analyte}: {value} {unit or ''} (status: {flag})."
         return f"{text} {DISCLAIMER}"
 
@@ -155,7 +156,7 @@ class LLMProvider:
         try:
             return self._complete(system, user).strip()
         except Exception as exc:  # noqa: BLE001
-            logger.warning("%s chat failed: %s", self.name, exc)
+            logger.warning("%s chat failed: %s", self.name, type(exc).__name__)
             return (
                 "Momentan nu pot genera un răspuns. Încearcă din nou mai "
                 f"târziu. {DISCLAIMER}"

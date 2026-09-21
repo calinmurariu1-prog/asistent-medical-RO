@@ -45,7 +45,7 @@ def get_ai_provider() -> AIProvider:
 
             med = MedLLMProvider()
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to init MedLLM provider: %s; using mock.", exc)
+            logger.warning("Failed to init MedLLM provider: %s; using mock.", type(exc).__name__)
             return MockProvider()
         if settings.MED_LLM_FALLBACK_MOCK and not _medllm_healthy(med):
             logger.info("MedLLM micro-service unreachable; using offline mock.")
@@ -76,6 +76,7 @@ def get_ai_provider() -> AIProvider:
         if provider == "groq":
             return GroqProvider()
     except Exception as exc:  # noqa: BLE001  (missing SDK, bad config)
-        logger.warning("Failed to init provider '%s': %s; using mock.", provider, exc)
+        logger.warning("Failed to init provider '%s': %s; using mock.", provider,
+                       type(exc).__name__)
 
     return MockProvider()

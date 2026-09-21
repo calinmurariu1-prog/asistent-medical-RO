@@ -12,6 +12,11 @@ import zipfile
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+# pypdf may include bytes from malformed inputs in diagnostic messages. Keep
+# our sanitized exception-type diagnostics; never propagate raw parser output.
+_pdf_logger = logging.getLogger("pypdf")
+_pdf_logger.addHandler(logging.NullHandler())
+_pdf_logger.propagate = False
 
 DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
