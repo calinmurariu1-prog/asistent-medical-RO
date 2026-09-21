@@ -79,3 +79,22 @@ def test_login_rate_limited(client, monkeypatch):
     assert statuses[:limit] == [401] * limit  # allowed (bad creds)
     assert statuses[limit] == 429            # blocked by the limiter
     reset_rate_limits()
+
+
+def test_api_success_auth_and_validation_responses_are_not_cacheable(client):
+    from tests.test_gdpr import _auth
+
+    headers = _auth(client, "cache-privacy@example.com")
+    responses = [
+        client.get(f"{API}/patients/me", headers=headers),
+        client.get(f"{API}/patients/me"),
+        client.put(f"{API}/patients/me", headers=headers, json={"birth_date": "invalid"}),
+        client.post(f"{API}/auth/login", json={
+            "email": "cache-privacy@example.com", "password": "Parola1234"}),
+        client.get(f"{API}/route-does-not-exist"),
+    ]
+    assert [response.status_code for response in responses] == [200, 401, 422, 200, 404]
+    for response in responses:
+        assert response.headers["cache-control"] == "no-store"
+        assert response.headers["pragma"] == "no-cache"
+        assert response.headers["expires"] == "0"

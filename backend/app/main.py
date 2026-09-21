@@ -59,6 +59,12 @@ app.add_middleware(
 async def security_headers(request, call_next):
     """Baseline security headers on every response."""
     response = await call_next(request)
+    if request.url.path.startswith(settings.API_V1_PREFIX.rstrip("/") + "/"):
+        # Enforce on the server as well as fetch(): clients/proxies must not
+        # retain medical records, credentials, validation inputs or signed URLs.
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
