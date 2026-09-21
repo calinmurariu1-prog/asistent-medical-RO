@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_patient
@@ -15,7 +15,7 @@ from app.schemas.medication import (
     MedicationOut,
     MedicationUpdate,
 )
-from app.services import medication_check
+from app.services import audit, medication_check
 
 router = APIRouter(prefix="/medications", tags=["medications"])
 
@@ -40,7 +40,9 @@ def add_medication(
 ) -> Medication:
     med = Medication(patient_id=patient.id, **payload.model_dump())
     db.add(med)
-    db.commit()
+    db.flush()
+    audit.record(db, user_id=patient.user_id, action="medication.create",
+                 resource_type="medication", resource_id=med.id)
     db.refresh(med)
     return med
 
@@ -77,11 +79,23 @@ def update_medication(
     patient: Patient = Depends(get_current_patient),
     db: Session = Depends(get_db),
 ) -> Medication:
-    med = _owned(med_id, patient, db)
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    locked = db.execute(update(Medication).where(
+        Medication.id == med_id, Medication.patient_id == patient.id,
+    ).values(is_active=Medication.is_active).execution_options(synchronize_session=False))
+    if locked.rowcount != 1:
+        raise HTTPException(404, "Medicament inexistent")
+    med = db.get(Medication, med_id, populate_existing=True)
+    changes = payload.model_dump(exclude_unset=True)
+    if any(key in changes and changes[key] is None for key in ("name", "is_active")):
+        raise HTTPException(422, "Numele și starea tratamentului sunt obligatorii")
+    start = changes.get("start_date", med.start_date)
+    end = changes.get("end_date", med.end_date)
+    if start and end and end < start:
+        raise HTTPException(422, "Data de sfârșit nu poate preceda data de început")
+    for key, value in changes.items():
         setattr(med, key, value)
-    db.add(med)
-    db.commit()
+    audit.record(db, user_id=patient.user_id, action="medication.update",
+                 resource_type="medication", resource_id=med.id)
     db.refresh(med)
     return med
 
@@ -94,5 +108,6 @@ def delete_medication(
 ) -> Response:
     med = _owned(med_id, patient, db)
     db.delete(med)
-    db.commit()
+    audit.record(db, user_id=patient.user_id, action="medication.delete",
+                 resource_type="medication", resource_id=med_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

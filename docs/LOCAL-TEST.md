@@ -105,3 +105,12 @@ Limite: un mesaj deja acceptat de furnizor nu poate fi retras la anularea progra
 Pagina `/notifications` este accesibilă din antet, meniu și cardul din dashboard. Filtrele Necitite/Viitoare/Toate separă mesajele curente de memento-urile programate. „Marchează toate notificările curente citite” păstrează memento-urile viitoare. Ștergerea cere confirmare și oprește încercările viitoare, fără să retragă mesaje deja trimise. Linkul unei programări deschide și aduce în ecran cardul asociat.
 
 Lista se actualizează la 30 de secunde cât pagina este vizibilă și la revenirea în fereastră; butonul Actualizează permite reîncărcarea imediată. Citirea în aplicație nu confirmă afișarea unei notificări push pe telefon.
+
+
+## Medicație și istoric
+
+Medicamente permite înregistrarea și corectarea denumirii, substanței active, dozei/frecvenței transcrise, instrucțiunilor, perioadei și notelor. Listele Active/Istoric sunt controlate explicit de utilizator; mutarea în istoric păstrează datele și nu reprezintă o recomandare de oprire a tratamentului. Ștergerea definitivă cere confirmare.
+
+Perioada este validată în formular și pe server, inclusiv la modificarea unui singur capăt al intervalului. Accesul este separat pe cont, iar jurnalul reține tipul operației și ID-ul, fără doze sau note. Datele vechi care depășesc limitele noilor formulare rămân citibile. Actualizarea listei elimină verificările și explicațiile afișate anterior pentru a evita rezultate învechite.
+
+Verificarea interacțiunilor folosește încă o listă locală limitată; lipsa potrivirilor nu confirmă siguranța combinației. Catalogul cu surse clinice, acoperirea completă și memento-urile de medicație la ore alese explicit rămân de finalizat. Nu se deduce un orar de administrare din textul liber al frecvenței.

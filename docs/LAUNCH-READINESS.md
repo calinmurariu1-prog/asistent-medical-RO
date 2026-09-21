@@ -23,7 +23,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 
 ## Dovezi locale
 
-- Backend: 233 teste trecute și două teste PostgreSQL omise explicit local, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
+- Backend: 236 teste trecute și două teste PostgreSQL omise explicit local, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
 - Ruff trecut; build Next și TypeScript trecute; zece teste unitare pentru refresh/concurență trecute.
 - Export web Capacitor: 37 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
 - Verificările browser acoperă cont, confirmare, profil, PDF, descărcare identică, analize, dashboard, refresh, resetare și deconectare pe desktop și dimensiuni iPhone/Android. Capturi în `docs/screenshots`.
@@ -123,3 +123,12 @@ Pagina dedicată oferă filtre Necitite/Viitoare/Toate, marcare individuală sau
 Revizia precedentă 6b46e13 a trecut toate verificările CI, inclusiv migrarea PostgreSQL, verificarea schemei și testul cu două procese de livrare: https://github.com/calinmurariu1-prog/asistent-medical-RO/actions/runs/35613815001. Acest increment extinde și verificarea respingerii ștergerii unei notificări din alt cont.
 
 Verificare centru notificări: build web/TypeScript cu 38 de pagini, 24 scenarii browser trecute pe desktop/iPhone/Android, cinci teste API pentru notificări și Ruff trecute. Capturile noi din docs/screenshots/notifications-* au fost inspectate pe desktop și iPhone în modul întunecat. Suita backend completă și verificările PostgreSQL rămân în CI pentru revizia publicată.
+
+
+### Medicație editabilă și istoric
+
+Formularul complet include doza/frecvența transcrise, instrucțiuni, perioadă și note. Crearea, corectarea, mutarea în istoric/reactivarea și ștergerea confirmată sunt disponibile în interfață; mesajele de eroare păstrează formularul. API-ul validează lungimi, nume/stare obligatorii și intervalul combinat la PATCH, serializează actualizările și auditează operațiile fără conținut medical. Constrângerile noi de intrare nu fac înregistrările istorice ilizibile.
+
+Verificările/explicațiile afișate se invalidează după modificarea listei. Absența potrivirilor din catalogul local nu mai este afișată ca validare a siguranței. Catalogul rămâne limitat și necesită surse/validare clinică; funcția nu înlocuiește verificarea profesională și nu stabilește doze sau un orar automat de administrare.
+
+Verificare medicație: 236 teste backend trecute, două teste PostgreSQL omise local, Ruff și build/TypeScript trecute. Cele 24 scenarii browser existente au trecut; cele trei scenarii noi de medicație au trecut la rerulare după clarificarea validării perioadei și a selectorului de alertă. Testul pentru note istorice peste limita noilor formulare a trecut.
