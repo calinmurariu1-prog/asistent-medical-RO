@@ -93,9 +93,6 @@ def generate_appointment_reminders(
     reminders = notification_service.generate_appointment_reminders(
         db, user_id=user.id, patient_id=patient.id
     )
-    # Best-effort push for each new reminder (no-op if no devices registered).
-    for reminder in reminders:
-        push_service.send_notification(db, reminder)
     return reminders
 
 

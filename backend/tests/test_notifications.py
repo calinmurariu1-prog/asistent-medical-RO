@@ -59,8 +59,10 @@ def test_appointment_reminders_are_idempotent(client):
         json={"title": "Analize", "starts_at": "2027-05-01T10:00:00Z"},
     )
     first = client.post(f"{API}/notifications/reminders/appointments", headers=h).json()
-    assert len(first) == 1
-    assert first[0]["resource_type"] == "appointment"
+    assert first == []  # New appointments already persist their reminder atomically.
+    notifications = client.get(f"{API}/notifications", headers=h).json()
+    assert len(notifications) == 1
+    assert notifications[0]["resource_type"] == "appointment"
 
     # Running again does not create a duplicate reminder.
     second = client.post(f"{API}/notifications/reminders/appointments", headers=h).json()

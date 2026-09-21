@@ -1,9 +1,9 @@
 """Persist in-app notifications; only a real adapter can confirm external sending."""
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.models.appointment import Appointment
@@ -47,7 +47,9 @@ def list_notifications(
 ) -> list[Notification]:
     stmt = select(Notification).where(Notification.user_id == user_id)
     if unread_only:
-        stmt = stmt.where(Notification.status != NotificationStatus.READ)
+        stmt = stmt.where(Notification.status != NotificationStatus.READ,
+                          or_(Notification.scheduled_for.is_(None),
+                              Notification.scheduled_for <= datetime.now(UTC)))
     return list(db.scalars(stmt.order_by(Notification.created_at.desc())).all())
 
 
@@ -68,37 +70,54 @@ def mark_all_read(db: Session, user_id: int) -> int:
     return len(items)
 
 
+def sync_appointment_reminder(db: Session, *, user_id: int, appointment: Appointment) -> None:
+    """Called within the appointment transaction; edits cancel pending claims."""
+    db.execute(delete(Notification).where(
+        Notification.user_id == user_id, Notification.resource_type == "appointment",
+        Notification.resource_id == str(appointment.id),
+    ))
+    now = datetime.now(UTC)
+    starts = appointment.starts_at.replace(tzinfo=appointment.starts_at.tzinfo or UTC)
+    if appointment.status != AppointmentStatus.SCHEDULED or starts <= now:
+        return
+    db.add(Notification(
+        user_id=user_id, channel=NotificationChannel.PUSH,
+        title=f"Programare: {appointment.title}"[:300],
+        body=f"Ai o programare pe {starts.astimezone(UTC):%d.%m.%Y %H:%M} UTC.",
+        status=NotificationStatus.PENDING, scheduled_for=max(now, starts - timedelta(hours=24)),
+        resource_type="appointment", resource_id=str(appointment.id),
+    ))
+
+
 def generate_appointment_reminders(
     db: Session, *, user_id: int, patient_id: int
 ) -> list[Notification]:
-    """Create a reminder for each upcoming scheduled appointment without one."""
+    """Backfill missing reminders for legacy appointments, serialized per appointment."""
     now = datetime.now(UTC)
-    appts = db.scalars(
-        select(Appointment).where(
-            Appointment.patient_id == patient_id,
-            Appointment.starts_at >= now,
-            Appointment.status == AppointmentStatus.SCHEDULED,
-        )
-    ).all()
-
-    existing = {
-        n.resource_id
-        for n in list_notifications(db, user_id)
-        if n.resource_type == "appointment"
-    }
-
-    created: list[Notification] = []
-    for appt in appts:
-        if str(appt.id) in existing:
+    ids = list(db.scalars(select(Appointment.id).where(
+        Appointment.patient_id == patient_id, Appointment.starts_at >= now,
+        Appointment.status == AppointmentStatus.SCHEDULED,
+    )))
+    created = []
+    for appointment_id in ids:
+        locked = db.execute(update(Appointment).where(
+            Appointment.id == appointment_id, Appointment.patient_id == patient_id,
+        ).values(status=Appointment.status).execution_options(synchronize_session=False))
+        if locked.rowcount != 1:
             continue
-        created.append(
-            create_notification(
-                db,
-                user_id=user_id,
-                title=f"Programare: {appt.title}",
-                body=f"Ai o programare pe {appt.starts_at:%d.%m.%Y %H:%M}.",
-                resource_type="appointment",
-                resource_id=appt.id,
-            )
-        )
+        appointment = db.get(Appointment, appointment_id, populate_existing=True)
+        existing = db.scalar(select(Notification.id).where(
+            Notification.user_id == user_id, Notification.resource_type == "appointment",
+            Notification.resource_id == str(appointment_id),
+        ))
+        if existing is None:
+            sync_appointment_reminder(db, user_id=user_id, appointment=appointment)
+            db.flush()
+            reminder = db.scalar(select(Notification).where(
+                Notification.user_id == user_id, Notification.resource_type == "appointment",
+                Notification.resource_id == str(appointment_id),
+            ))
+            if reminder:
+                created.append(reminder)
+        db.commit()
     return created

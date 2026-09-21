@@ -39,7 +39,9 @@ def test_dashboard_aggregates_everything(client):
     assert body["lab_summary"]["abnormal_count"] == 1
     assert len(body["active_medications"]) == 1
     assert len(body["upcoming_appointments"]) == 1
-    assert body["unread_notifications"] == 1
+    assert body["unread_notifications"] == 0  # Future reminders are not unread yet.
+    client.post(f"{API}/notifications", headers=h, json={"title": "Due now"})
+    assert client.get(f"{API}/dashboard", headers=h).json()["unread_notifications"] == 1
     assert body["alerts"] == []  # No unsupported critical threshold inferred.
 
 

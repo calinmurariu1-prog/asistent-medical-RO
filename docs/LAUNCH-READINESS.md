@@ -23,7 +23,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 
 ## Dovezi locale
 
-- Backend: 227 teste trecute și un test PostgreSQL omis explicit local, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
+- Backend: 233 teste trecute și două teste PostgreSQL omise explicit local, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
 - Ruff trecut; build Next și TypeScript trecute; zece teste unitare pentru refresh/concurență trecute.
 - Export web Capacitor: 37 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
 - Verificările browser acoperă cont, confirmare, profil, PDF, descărcare identică, analize, dashboard, refresh, resetare și deconectare pe desktop și dimensiuni iPhone/Android. Capturi în `docs/screenshots`.
@@ -100,6 +100,17 @@ Testele noi acoperă izolarea conturilor, auditul, invalidarea explicațiilor, d
 
 Dezînregistrarea dispozitivelor este limitată la contul autentificat, cu validarea tokenului/platformei. API-ul test-push returnează separat delivered (acceptat de furnizor), simulated, failed și devices; Profil și Setări afișează mesaje distincte. Simularea nu marchează notificările sent, iar crearea unei înregistrări nu pretinde livrarea. Notificările viitoare sau de alt canal nu sunt trimise prin push. Eșecurile păstrează tokenurile pentru reîncercare.
 
-Memento-urile push conțin un text generic și identificatorul notificării, fără titlu/body medical. Logurile nu includ titluri sau conținutul excepțiilor FCM. Testele acoperă izolarea conturilor, date invalide, păstrarea tokenurilor, simularea versus acceptarea reală, protecția conținutului și programările viitoare. Livrarea automată programată și validarea pe telefon real rămân deschise; stările sent istorice nu dovedesc livrarea reală.
+Memento-urile push conțin un text generic și identificatorul notificării, fără titlu/body medical. Logurile nu includ titluri sau conținutul excepțiilor FCM. Testele acoperă izolarea conturilor, date invalide, păstrarea tokenurilor, simularea versus acceptarea reală, protecția conținutului și programările viitoare. Livrarea automată push este adăugată în incrementul următor descris mai jos; validarea pe telefon real rămâne deschisă; stările sent istorice nu dovedesc livrarea reală.
 
 Verificare pentru acest increment: 227 teste backend locale trecute, un test PostgreSQL omis local, Ruff și build/TypeScript trecute; 18 scenarii browser trecute pe desktop și dimensiuni iPhone/Android. Testele de mesaje push din browser folosesc răspunsuri simulate; nu demonstrează livrarea FCM.
+
+
+### Programări și proces automat de memento-uri
+
+Crearea/reprogramarea/anularea/ștergerea actualizează memento-ul în aceeași tranzacție. Interfața permite reprogramare, schimbarea stării și ștergere confirmată, plus pregătirea memento-urilor lipsă pentru înregistrări vechi. Orele cu fus explicit se normalizează UTC și sunt reafișate local fără decalaj. Intervalele de timp invalide sunt respinse. Dashboardul nu numără memento-uri viitoare ca necitite.
+
+Migrarea f2a4b6c8d0e1 adaugă rezervări și reîncercări persistente pentru livrări push. Procesul integrat revine după repornire, folosește o rezervare atomică și respinge confirmarea unui proces înlocuit. Simularea nu marchează livrarea, iar notificările viitoare, citite sau pentru programări expirate/anulate nu sunt expediate. Acceptarea de către furnizor nu dovedește afișarea pe telefon; întreruperea dintre acceptare și confirmarea DB poate genera duplicate. Canalele de notificare email/SMS și urmărirea livrării separat pe dispozitive rămân deschise.
+
+Testele acoperă reîncercarea, rezervarea activă/expirată, un proces vechi înlocuit, transcrierea orei cu fus, actualizarea/anularea memento-ului și date invalide. Testul cu două conexiuni independente rulează numai pe PostgreSQL. Cele 21 de scenarii browser au trecut, inclusiv programare → reprogramare → reîncărcare → anulare → reactivare → ștergere pe cele trei dimensiuni.
+
+Suită backend finală pentru memento-uri: 233 teste trecute, două teste PostgreSQL omise explicit local; Ruff trecut.

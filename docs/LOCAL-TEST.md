@@ -86,4 +86,15 @@ Secțiunea Analize permite adăugarea, corectarea și ștergerea confirmată a r
 
 Testul push din Profil/Setări separă simularea locală, acceptarea de către furnizor și eșecul trimiterii. Acceptarea nu confirmă afișarea pe telefon. Fără FCM configurat, nu se trimit notificări reale. Mesajele push pentru memento-uri folosesc un text generic; detaliile medicale se consultă numai în aplicație. Tokenurile se dezînregistrează numai din contul proprietar, iar o eroare temporară nu le șterge.
 
-Notificările nou create rămân pending până la o trimitere reală; simularea nu completează sent_at. Livrarea programată automată și canalele email/SMS pentru notificări rămân neimplementate. Stările sent din versiunile anterioare nu constituie dovadă de livrare reală și nu sunt rescrise automat. Tokenurile expirate necesită dezînregistrare explicită; eliminarea automată va necesita distingerea erorilor permanente de cele temporare.
+Notificările nou create rămân pending până la o trimitere reală; simularea nu completează sent_at. Livrarea programată push este asigurată de procesul automat descris mai jos; canalele email/SMS pentru notificări rămân neimplementate. Stările sent din versiunile anterioare nu constituie dovadă de livrare reală și nu sunt rescrise automat. Tokenurile expirate necesită dezînregistrare explicită; eliminarea automată va necesita distingerea erorilor permanente de cele temporare.
+
+
+## Memento-uri automate pentru programări
+
+Programările noi creează memento-ul în aceeași tranzacție: cu 24 de ore înainte sau imediat pentru programări mai apropiate. Reprogramarea înlocuiește memento-ul, anularea/ștergerea îl elimină, iar reactivarea îl pregătește din nou. Pentru înregistrări din versiuni vechi folosește butonul „Pregătește memento-urile programărilor vechi”. Orele API necesită fus orar și sunt normalizate UTC; interfața introduce și afișează ora locală a dispozitivului.
+
+Migrarea f2a4b6c8d0e1 adaugă rezervarea livrării și reîncercările. `NOTIFICATION_WORKER_ENABLED=true` activează procesul integrat; `NOTIFICATION_INTERVAL_SECONDS=30` stabilește intervalul (5–3600 secunde). Procesul scanează maximum 25 de înregistrări la fiecare trecere, rezervă fiecare încercare pentru 5 minute și reînnoiește rezervarea înaintea fiecărui dispozitiv. Erorile sunt reîncercate după 2–60 minute, cu starea păstrată în DB. Fără FCM real, procesul lasă notificările pending; nu execută trimiteri simulate repetate.
+
+Numărul de necitite și „marchează toate citite” exclud notificările cu termen viitor. O notificare marcată explicit citită nu se mai trimite. Notificările pentru programări expirate/anulate sau utilizatori inactivi nu sunt expediate. SENT înseamnă acceptare pentru cel puțin un dispozitiv, nu afișare confirmată pe toate dispozitivele.
+
+Limite: un mesaj deja acceptat de furnizor nu poate fi retras la anularea programării. Dacă procesul cade după acceptare dar înaintea confirmării în DB, o reluare poate produce duplicate; nu revendicăm livrare exact o dată. Reîncercările pe dispozitive individuale după acceptarea parțială nu sunt încă separate. Livrarea FCM reală, APNs și permisiunile dispozitivului necesită configurare externă și verificare fizică. Nu folosi aceste memento-uri pentru urgențe.

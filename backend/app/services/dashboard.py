@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.appointment import Appointment
@@ -49,6 +49,8 @@ def build_overview(db: Session, patient: Patient, user: User) -> dict:
         .where(
             Notification.user_id == user.id,
             Notification.status != NotificationStatus.READ,
+            or_(Notification.scheduled_for.is_(None),
+                Notification.scheduled_for <= datetime.now(UTC)),
         )
     )
 

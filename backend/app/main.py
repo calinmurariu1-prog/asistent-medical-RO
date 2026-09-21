@@ -17,15 +17,20 @@ validate_production_config(settings)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.services.notification_delivery import worker as notification_worker
     from app.services.storage_cleanup import worker
     stop = asyncio.Event()
     task = asyncio.create_task(worker(stop)) if settings.STORAGE_CLEANUP_ENABLED else None
+    notifications = (asyncio.create_task(notification_worker(stop))
+                     if settings.NOTIFICATION_WORKER_ENABLED else None)
     try:
         yield
     finally:
         stop.set()
         if task:
             await task
+        if notifications:
+            await notifications
 
 
 app = FastAPI(

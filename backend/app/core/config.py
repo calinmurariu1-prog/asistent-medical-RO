@@ -139,6 +139,8 @@ class Settings(BaseSettings):
     FCM_SERVICE_ACCOUNT_JSON: str = ""  # raw JSON of the SA key
     # Allow the mock sender (dev/test) when FCM isn't configured.
     PUSH_ALLOW_MOCK: bool = True
+    NOTIFICATION_WORKER_ENABLED: bool = True
+    NOTIFICATION_INTERVAL_SECONDS: int = Field(default=30, ge=5, le=3600)
 
     @field_validator("DATABASE_URL", mode="after")
     @classmethod
