@@ -14,6 +14,7 @@ import {
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { DataExport } from "@/components/data-export";
 import { AIConsent } from "@/components/ai-consent";
 import {
   healthNativeAvailable,
@@ -206,6 +207,8 @@ export default function SettingsPage() {
           <Bell size={16} /> Trimite o notificare de test
         </Button>
       </Section>
+
+      <DataExport />
 
       {/* Account */}
       <AccountSection logout={logout} finishAccountDeletion={finishAccountDeletion} />

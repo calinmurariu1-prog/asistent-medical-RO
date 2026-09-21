@@ -1,0 +1,40 @@
+import { test, expect } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+
+test("download owned JSON export and retry after service error", async ({ page }, info) => {
+  const email = `export-${Date.now()}-${info.project.name}@example.com`;
+  await page.goto("/register");
+  await page.getByPlaceholder("Nume complet").fill("Export Fictiv");
+  await page.getByPlaceholder("Email", { exact: true }).fill(email);
+  await page.getByPlaceholder("Parolă (min. 8 caractere)").fill("Testing-pass-123!");
+  await page.getByRole("button", { name: "Creează cont", exact: true }).click();
+  await expect(page).toHaveURL(/dashboard/);
+  await page.goto("/settings");
+  const button = page.getByRole("button", { name: "Descarcă dosarul JSON" });
+  const section = page.locator('[aria-labelledby="data-export-title"]');
+  await expect(section).toContainText("Originalele se descarcă separat");
+  await page.route("**/gdpr/export", route => route.fulfill({ status: 503,
+    contentType: "application/json", body: JSON.stringify({ detail: "Export temporar indisponibil" }) }));
+  await button.click();
+  await expect(section.getByRole("alert")).toHaveText("Export temporar indisponibil");
+  await expect(button).toBeEnabled();
+  await page.unroute("**/gdpr/export");
+  const downloaded = page.waitForEvent("download");
+  await button.click();
+  const file = await downloaded;
+  expect(file.suggestedFilename()).toMatch(/^dosar-medical-\d{4}-\d{2}-\d{2}\.json$/);
+  const data = JSON.parse(await readFile((await file.path())!, "utf8"));
+  expect(data.account.email).toBe(email);
+  expect(data.export_metadata.schema_version).toBe(2);
+  expect(data.export_metadata.original_files_included).toBe(false);
+  expect(data.account.hashed_password).toBeUndefined();
+  await expect(section.getByRole("status")).toContainText("Descărcarea a fost inițiată");
+  await expect(section.getByRole("alert")).toHaveCount(0);
+  await section.scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await section.screenshot({ path: `../docs/screenshots/data-export-${info.project.name}.png` });
+  await page.getByRole("button", { name: "Șterge contul", exact: true }).click();
+  await page.getByPlaceholder("Parola", { exact: true }).fill("Testing-pass-123!");
+  await page.getByRole("button", { name: "Confirmă ștergerea" }).click();
+  await expect(page).toHaveURL(/login/);
+});
