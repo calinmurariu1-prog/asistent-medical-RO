@@ -23,7 +23,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 
 ## Dovezi locale
 
-- Backend: 205 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
+- Backend: 208 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
 - Ruff trecut; build Next și TypeScript trecute; zece teste unitare pentru refresh/concurență trecute.
 - Export web Capacitor: 37 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
 - Verificările browser acoperă cont, confirmare, profil, PDF, descărcare identică, analize, dashboard, refresh, resetare și deconectare pe desktop și dimensiuni iPhone/Android. Capturi în `docs/screenshots`.
@@ -63,3 +63,8 @@ Surse consultate la 21 septembrie 2026: [serviciul public 112](https://serviciip
 ### Export PDF/Word extins
 
 Raportul include descrierile din istoric, toate măsurătorile de laborator cu data/intervalul/verificarea tehnică, alergii, vaccinări și programări, alături de tratamentele active. PDF-ul încorporează DejaVu Sans (licență inclusă), păstrează diacriticele, tratează caracterele speciale ca text și împarte celulele lungi pe pagini. Sunt verificate conținutul ambelor formate, separarea conturilor și un text de istoric care depășește o pagină. PDF-ul fictiv de control a fost randat și inspectat vizual pe ambele pagini. Raportul clinic nu înlocuiește exportul GDPR și nu încorporează fișierele originale.
+
+
+### Recuperarea procesării documentelor
+
+Migrarea `d0f2a4b6c8e0` adaugă un identificator și un termen de 20 de minute pentru fiecare încercare. O procesare abandonată poate fi reîncercată din interfață după expirare. Un proces vechi este respins înainte de modificarea rezultatelor dacă altă încercare a preluat documentul sau documentul a fost șters. Rezultatele precedente rămân păstrate la eșec. Testele acoperă expirarea, suprascrierea concurentă și ștergerea în timpul extragerii. Reîncercarea este manuală; nu este încă o coadă automată de extragere.

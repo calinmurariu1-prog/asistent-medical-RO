@@ -53,6 +53,10 @@ class Document(Base, TimestampMixin):
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai_metadata: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON blob
+    processing_token: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    processing_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     patient: Mapped[Patient] = relationship(back_populates="documents")

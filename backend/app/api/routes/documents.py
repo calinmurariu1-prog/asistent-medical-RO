@@ -112,7 +112,12 @@ def upload_document(
     db.commit()
     db.refresh(document)
 
-    return document_processing.process_document(db, document, storage, ai)
+    try:
+        return document_processing.process_document(db, document, storage, ai)
+    except document_processing.DocumentBusyError:
+        raise HTTPException(
+            409, "Procesarea nu mai este curentă. Reîncarcă lista documentelor."
+        ) from None
 
 
 def _owned_document(document_id: int, patient: Patient, db: Session) -> Document:

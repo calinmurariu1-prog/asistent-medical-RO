@@ -314,3 +314,71 @@ def test_new_measurement_clears_previous_cached_comparison(client):
         "analyte": "Glicemie", "value": 90, "unit": "mg/dL", "measured_on": "2026-02-10"})
     results = client.get(API + "/labs", headers=h).json()
     assert all(r["ai_explanation"] is None for r in results)
+
+
+def test_expired_processing_can_be_recovered(client, db_session):
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.document import Document
+    from app.models.enums import ProcessingStatus
+
+    h = _auth_headers(client)
+    uploaded = client.post(API + "/documents", headers=h,
+        files={"file": ("labs.pdf", _make_text_pdf(SAMPLE_LAB_TEXT), "application/pdf")}).json()
+    document = db_session.get(Document, uploaded["id"])
+    document.status = ProcessingStatus.PROCESSING
+    document.processing_token = "abandoned"
+    document.processing_until = datetime.now(UTC) - timedelta(minutes=1)
+    db_session.commit()
+    db_session.expire_all()
+    result = client.post(f"{API}/documents/{document.id}/reprocess", headers=h)
+    assert result.status_code == 200
+    assert result.json()["status"] == "done"
+    assert document.processing_token is None
+    assert document.processing_until is None
+
+
+def test_superseded_worker_cannot_replace_newer_results(client, db_session, monkeypatch):
+    from app.models.document import Document
+    from app.services.ai.mock import MockProvider
+
+    h = _auth_headers(client)
+    uploaded = client.post(API + "/documents", headers=h,
+        files={"file": ("labs.pdf", _make_text_pdf(SAMPLE_LAB_TEXT), "application/pdf")}).json()
+    document = db_session.get(Document, uploaded["id"])
+    original = MockProvider.extract_document
+
+    def supersede(self, text, category):
+        document.processing_token = "newer-worker"
+        document.ai_summary = "Rezultate ale încercării noi"
+        db_session.commit()
+        return original(self, text, category)
+
+    monkeypatch.setattr(MockProvider, "extract_document", supersede)
+    response = client.post(f"{API}/documents/{document.id}/reprocess", headers=h)
+    assert response.status_code == 409
+    db_session.refresh(document)
+    assert document.processing_token == "newer-worker"
+    assert document.ai_summary == "Rezultate ale încercării noi"
+    assert client.get(f"{API}/documents/{document.id}/original", headers=h).status_code == 200
+
+
+def test_deleted_document_is_not_resurrected_by_processing(client, db_session, monkeypatch):
+    from app.models.document import Document
+    from app.services.ai.mock import MockProvider
+
+    h = _auth_headers(client)
+    uploaded = client.post(API + "/documents", headers=h,
+        files={"file": ("labs.pdf", _make_text_pdf(SAMPLE_LAB_TEXT), "application/pdf")}).json()
+    document_id = uploaded["id"]
+    original = MockProvider.extract_document
+
+    def remove_during_extraction(self, text, category):
+        db_session.delete(db_session.get(Document, document_id))
+        db_session.commit()
+        return original(self, text, category)
+
+    monkeypatch.setattr(MockProvider, "extract_document", remove_during_extraction)
+    response = client.post(f"{API}/documents/{document_id}/reprocess", headers=h)
+    assert response.status_code == 409
+    assert db_session.get(Document, document_id) is None

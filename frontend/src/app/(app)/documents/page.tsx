@@ -158,12 +158,13 @@ export default function DocumentsPage() {
                 <div className="flex flex-wrap gap-3"><Button type="submit" disabled={savingDate}>Salvează data</Button>
                   <Button type="button" variant="outline" disabled={savingDate} onClick={()=>setEditingDate(null)}>Anulează</Button></div>
               </form>}
-              {d.status === "failed" && <Button disabled={retrying === d.id} onClick={async () => {
+              {(d.status === "failed" || d.status === "processing" || d.status === "pending") && <Button disabled={retrying === d.id} onClick={async () => {
                 setRetrying(d.id); setError(null);
                 try { await api.post(`/documents/${d.id}/reprocess`); reload(); }
                 catch (e) { setError(e instanceof Error ? e.message : "Reprocesare eșuată"); }
                 finally { setRetrying(null); }
               }}>{retrying === d.id ? "Se procesează…" : "Reîncearcă procesarea"}</Button>}
+              {d.status === "processing" && <p className="mt-2 text-sm text-muted">O procesare întreruptă poate fi reîncercată după 20 de minute. Originalul este păstrat.</p>}
               {d.ai_summary && (
                 <p className="mt-3 rounded-2xl bg-surface-2 p-3 text-sm text-fg/80">
                   {d.ai_summary}

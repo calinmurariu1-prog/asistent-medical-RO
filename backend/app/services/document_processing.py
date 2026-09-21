@@ -9,9 +9,10 @@ from __future__ import annotations
 import json
 import logging
 import math
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.models.document import Document, LabResult
@@ -74,9 +75,17 @@ def process_document(
     ai: AIProvider,
 ) -> Document:
     """Download, extract text, run AI extraction and persist results."""
-    claimed = db.execute(update(Document).where(
-        Document.id == document.id, Document.status != ProcessingStatus.PROCESSING,
-    ).values(status=ProcessingStatus.PROCESSING))
+    now = datetime.now(UTC)
+    token = str(uuid4())
+    document_id = document.id
+    claimed = db.execute(update(Document).execution_options(synchronize_session=False).where(
+        Document.id == document_id,
+        or_(Document.status != ProcessingStatus.PROCESSING,
+            Document.processing_until < now,
+            and_(Document.processing_until.is_(None),
+                 Document.updated_at < now - timedelta(minutes=20))),
+    ).values(status=ProcessingStatus.PROCESSING, processing_token=token,
+             processing_until=now + timedelta(minutes=20)))
     if claimed.rowcount != 1:
         db.rollback()
         raise DocumentBusyError()
@@ -92,6 +101,14 @@ def process_document(
             raise ValueError("extraction_too_large")
         extraction = ai.extract_document(text, document.category.value)
 
+        # Lock/fence before touching results: an expired worker cannot overwrite
+        # a newer attempt, or resurrect a deleted document.
+        owned = db.execute(update(Document).execution_options(synchronize_session=False).where(
+            Document.id == document_id, Document.processing_token == token,
+        ).values(processing_token=token))
+        if owned.rowcount != 1:
+            db.rollback()
+            raise DocumentBusyError()
         document.extracted_text = text or None
         document.ai_summary = extraction.summary or None
         document.ai_metadata = json.dumps(extraction.to_metadata(), ensure_ascii=False)
@@ -105,20 +122,29 @@ def process_document(
         if document.category == DocumentCategory.OTHER and extraction.lab_values:
             document.category = DocumentCategory.LAB
 
+        document.processing_token = None
+        document.processing_until = None
         document.status = ProcessingStatus.DONE
         document.processed_at = datetime.now(UTC)
         db.commit()
+    except DocumentBusyError:
+        raise
     except Exception as exc:  # noqa: BLE001
         db.rollback()
-        logger.warning("Document %s processing failed (%s)", document.id, type(exc).__name__)
-        document.status = ProcessingStatus.FAILED
-        document.ai_summary = (
-            "Textul nu a putut fi extras sau procesat. Originalul este păstrat. "
-            "Pentru scanări, verifică disponibilitatea OCR. Rezultatele anterioare sunt păstrate."
-        )
+        logger.warning("Document %s processing failed (%s)", document_id, type(exc).__name__)
+        failed = db.execute(update(Document).execution_options(synchronize_session=False).where(
+            Document.id == document_id, Document.processing_token == token,
+        ).values(status=ProcessingStatus.FAILED, processing_token=None, processing_until=None,
+                 ai_summary=(
+                     "Textul nu a putut fi extras sau procesat. Originalul este păstrat. "
+                     "Pentru scanări, verifică disponibilitatea OCR. "
+                     "Rezultatele anterioare sunt păstrate."
+                 )))
+        if failed.rowcount != 1:
+            db.rollback()
+            raise DocumentBusyError() from None
+        db.commit()
 
-    db.add(document)
-    db.commit()
     db.refresh(document)
     db.expire(document, ["lab_results"])
     return document
