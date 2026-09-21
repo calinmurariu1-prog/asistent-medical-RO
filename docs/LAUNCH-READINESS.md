@@ -23,7 +23,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 
 ## Dovezi locale
 
-- Backend: 208 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
+- Backend: 219 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
 - Ruff trecut; build Next și TypeScript trecute; zece teste unitare pentru refresh/concurență trecute.
 - Export web Capacitor: 37 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
 - Verificările browser acoperă cont, confirmare, profil, PDF, descărcare identică, analize, dashboard, refresh, resetare și deconectare pe desktop și dimensiuni iPhone/Android. Capturi în `docs/screenshots`.
@@ -80,3 +80,10 @@ Auditul `pip-audit 2.10.1`, la 21 septembrie 2026, a trecut de la 8 pachete afec
 ### Loguri fără conținutul cererilor AI
 
 Erorile aplicației pentru furnizorii AI și căutarea locațiilor înregistrează tipul excepției sau codul HTTP, nu corpul răspunsului, adresa căutată sau textul excepției. Diagnosticarea brută `pypdf` este oprită deoarece poate include bytes din fișierul invalid; procesarea păstrează un mesaj tehnic sanitizat. Testele folosesc marcatori fictivi sensibili și verifică absența lor din loguri. Configurarea logurilor serviciilor externe/proxy rămâne o verificare separată de deploy.
+
+
+### Confirmarea tehnică a analizelor
+
+Concordanța AI/parser verifică numele analitului, valoarea, unitatea și ambele limite de referință; nu acceptă diferențe numerice de 0,5% și nici etichete `verified` declarate de furnizor fără verificare. Normalizarea unităților modifică numai scrierea unor unități echivalente, fără conversii mg/dL ↔ mmol/L. Numerele cu separator ambiguu (de exemplu `1.234`) rămân fără valoare numerică, păstrând textul pentru verificare. Parserul cere delimitare între valoare, unitate și interval.
+
+Valorile `unverified` nu sunt interpretate de AI, nu intră în grafice/comparații și sunt neevaluabile în dashboard. Migrarea `e1f3a5b7c9d0` corectează clasificările pentru rândurile deja marcate astfel și invalidează explicațiile vechi. Rândurile vechi marcate anterior `verified` necesită reprocesarea documentului pentru aplicarea regulilor noi; butonul este disponibil și pentru documentele procesate cu succes. Confirmarea tehnică nu înseamnă validare medicală.

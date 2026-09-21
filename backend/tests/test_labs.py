@@ -179,3 +179,30 @@ def test_changing_reference_ranges_not_applied_to_whole_chart(client):
     series = client.get(f"{API}/labs/series/Glicemie", headers=h).json()
     assert series["ref_low"] is None and series["ref_high"] is None
     assert "scădere" in series["trend"]
+
+
+def test_unverified_values_do_not_drive_comparison_or_ai_interpretation(
+    client, db_session, monkeypatch
+):
+    from app.models.document import LabResult
+    from app.services.ai.mock import MockProvider
+
+    h = _auth_headers(client)
+    result_id = _add(client, h, value=120, measured_on="2026-01-10").json()["id"]
+    row = db_session.get(LabResult, result_id)
+    row.confidence = "unverified"
+    db_session.commit()
+
+    def unexpected(*args, **kwargs):
+        raise AssertionError("Unconfirmed value must not be interpreted by AI")
+
+    monkeypatch.setattr(MockProvider, "explain_lab_value", unexpected)
+    summary = client.get(f"{API}/labs/summary", headers=h).json()
+    assert summary["abnormal_count"] == 0
+    assert summary["unknown_count"] == 1
+    assert summary["items"][0]["latest_value"] is None
+    series = client.get(f"{API}/labs/series/Glicemie", headers=h).json()
+    assert "confirmat" in series["comparison_warning"]
+    assert series["trend"] is None
+    explanation = client.post(f"{API}/labs/{result_id}/explain", headers=h).json()
+    assert "nu este confirmată" in explanation["ai_explanation"]

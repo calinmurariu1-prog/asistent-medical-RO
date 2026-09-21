@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.models.document import LabResult
 from app.models.enums import LabFlag
-from app.services.ai.base import AIProvider
+from app.services.ai.base import DISCLAIMER, AIProvider
+from app.services.ai.lab_units import normalize_unit
 
 ABNORMAL_FLAGS = {
     LabFlag.HIGH,
@@ -49,10 +50,12 @@ def build_series(db: Session, patient_id: int, analyte: str) -> list[LabResult]:
 
 def comparison_warning(series: list[LabResult]) -> str | None:
     """Require explicit compatible units and distinct dates before comparison."""
+    if any(r.confidence == "unverified" for r in series):
+        return "Comparație indisponibilă: există valori de confirmat pe documentul original."
     numeric = [r for r in series if r.value is not None]
     if any(not r.unit or not r.unit.strip() for r in numeric):
         return "Comparație indisponibilă: lipsesc unități de măsură. Verifică originalele."
-    if len({r.unit.strip() for r in numeric}) > 1:
+    if len({normalize_unit(r.unit) for r in numeric}) > 1:
         return "Comparație indisponibilă: unitățile diferă. Este necesară o conversie validată."
     dates = [r.measured_on for r in numeric]
     if any(d is None for d in dates) or len(set(dates)) != len(dates):
@@ -86,18 +89,19 @@ def build_summary(db: Session, patient_id: int) -> dict:
     for analyte, series in sorted(by_analyte.items()):
         series.sort(key=_sort_key)
         latest = series[-1]
-        if latest.flag == LabFlag.UNKNOWN:
+        effective_flag = LabFlag.UNKNOWN if latest.confidence == "unverified" else latest.flag
+        if effective_flag == LabFlag.UNKNOWN:
             unknown += 1
-        if latest.flag in ABNORMAL_FLAGS:
+        if effective_flag in ABNORMAL_FLAGS:
             abnormal += 1
-        if latest.flag in CRITICAL_FLAGS:
+        if effective_flag in CRITICAL_FLAGS:
             critical += 1
         items.append(
             {
                 "analyte": analyte,
-                "latest_value": latest.value,
+                "latest_value": latest.value if latest.confidence == "verified" else None,
                 "unit": latest.unit,
-                "flag": latest.flag,
+                "flag": effective_flag,
                 "measured_on": latest.measured_on,
                 "measurements": len(series),
                 "trend": compute_trend(series),
@@ -114,6 +118,14 @@ def build_summary(db: Session, patient_id: int) -> dict:
 
 def explain_result(db: Session, ai: AIProvider, result: LabResult) -> LabResult:
     """Generate and persist an AI explanation for one lab result."""
+    if result.confidence != "verified":
+        result.ai_explanation = (
+            "Această valoare nu este confirmată din documentul original. "
+            f"Verifică valoarea, unitatea și intervalul înainte de interpretare. {DISCLAIMER}"
+        )
+        db.commit()
+        db.refresh(result)
+        return result
     series = build_series(db, result.patient_id, result.analyte)
     trend = compute_trend(series)
     result.ai_explanation = ai.explain_lab_value(

@@ -57,7 +57,8 @@ def _persist_lab_values(
                 unit=v.unit,
                 ref_low=v.ref_low,
                 ref_high=v.ref_high,
-                flag=compute_flag(v.value, v.ref_low, v.ref_high),
+                flag=(compute_flag(v.value, v.ref_low, v.ref_high)
+                      if v.confidence == "verified" else LabFlag.UNKNOWN),
                 measured_on=document.document_date,
                 confidence=getattr(v, "confidence", "verified"),
             )
