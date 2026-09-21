@@ -11,12 +11,12 @@ import logging
 import math
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.models.document import Document, LabResult
 from app.models.enums import DocumentCategory, LabFlag, ProcessingStatus
-from app.services import ocr
+from app.services import lab_analysis, ocr
 from app.services.ai.base import AIProvider, ExtractedLabValue
 from app.services.storage import Storage
 
@@ -81,6 +81,7 @@ def process_document(
         db.rollback()
         raise DocumentBusyError()
     db.commit()
+    db.refresh(document)
 
     try:
         data = storage.get(document.storage_key)
@@ -94,9 +95,13 @@ def process_document(
         document.extracted_text = text or None
         document.ai_summary = extraction.summary or None
         document.ai_metadata = json.dumps(extraction.to_metadata(), ensure_ascii=False)
+        previous_analytes = list(db.scalars(select(LabResult.analyte).where(
+            LabResult.document_id == document.id)))
         # Replace results only after extraction succeeds; rollback preserves prior rows.
         db.execute(delete(LabResult).where(LabResult.document_id == document.id))
         _persist_lab_values(db, document, extraction.lab_values)
+        lab_analysis.invalidate_explanations(db, document.patient_id,
+            previous_analytes + [v.analyte for v in extraction.lab_values])
         if document.category == DocumentCategory.OTHER and extraction.lab_values:
             document.category = DocumentCategory.LAB
 

@@ -103,7 +103,8 @@ export function LineChart({
   const last = points[points.length - 1];
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" className="overflow-visible">
+    <svg role="img" aria-label="Evoluția valorilor în timp" aria-describedby={`values${gid}`} viewBox={`0 0 ${W} ${H}`} width="100%" className="overflow-visible">
+      <desc id={`values${gid}`}>{points.map(p => `${p.label}: ${p.value} ${unit || ""}`).join("; ")}</desc>
       <defs>
         <linearGradient id={`fill${gid}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor={color} stopOpacity="0.22" />

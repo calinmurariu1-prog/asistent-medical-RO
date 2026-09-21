@@ -95,6 +95,7 @@ def add_manual_result(
         **payload.model_dump(),
     )
     db.add(result)
+    lab_analysis.invalidate_explanations(db, patient.id, [payload.analyte])
     db.commit()
     db.refresh(result)
     return result

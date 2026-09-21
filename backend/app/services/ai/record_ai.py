@@ -34,6 +34,7 @@ def _gather_record(db: Session, patient: Patient) -> dict:
     conditions = monitoring.build_dashboard(db, patient).chronic_conditions
     return {
         "total_analytes": summary["total_analytes"],
+        "unknown_count": summary["unknown_count"],
         "abnormal": abnormal,
         "medications": [m.name for m in meds],
         "conditions": conditions,
@@ -47,6 +48,8 @@ def summarize_record(db: Session, ai: AIProvider, patient: Patient) -> str:
         f"Analize urmărite: {rec['total_analytes']}, dintre care "
         f"{len(rec['abnormal'])} în afara intervalului.",
     ]
+    if rec["unknown_count"]:
+        lines.append(f"Rezultate neevaluabile din datele disponibile: {rec['unknown_count']}.")
     if rec["abnormal"]:
         vals = ", ".join(
             f"{i['analyte']} ({i['flag']})" for i in rec["abnormal"][:6]

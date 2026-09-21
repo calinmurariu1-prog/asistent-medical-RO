@@ -15,20 +15,21 @@ from fastapi import (
     status,
 )
 from fastapi.responses import JSONResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_patient, require_ai_consent
 from app.core.database import get_db
-from app.models.document import Document
-from app.models.enums import DocumentCategory
+from app.models.document import Document, LabResult
+from app.models.enums import DocumentCategory, ProcessingStatus
 from app.models.patient import Patient
 from app.schemas.document import (
+    DocumentDateUpdate,
     DocumentDetailOut,
     DocumentDownloadOut,
     DocumentOut,
 )
-from app.services import document_processing, ocr, storage_cleanup
+from app.services import audit, document_processing, lab_analysis, ocr, storage_cleanup
 from app.services.ai import get_ai_provider
 from app.services.ai.base import AIProvider
 from app.services.billing import entitlements
@@ -199,6 +200,9 @@ def delete_document(
     storage: Storage = Depends(get_storage),
 ) -> Response:
     document = _owned_document(document_id, patient, db)
+    analytes = list(db.scalars(select(LabResult.analyte).where(
+        LabResult.document_id == document_id)))
+    lab_analysis.invalidate_explanations(db, patient.id, analytes)
     jobs = storage_cleanup.enqueue(db, [document.storage_key])
     db.delete(document)
     db.commit()
@@ -214,3 +218,28 @@ def delete_document(
             "detail": "Documentul a fost eliminat din dosar. Ștergerea originalului este în curs.",
         })
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/{document_id}/date", response_model=DocumentDetailOut)
+def update_document_date(document_id: int, payload: DocumentDateUpdate,
+                         patient: Patient = Depends(get_current_patient),
+                         db: Session = Depends(get_db)):
+    document = _owned_document(document_id, patient, db)
+    # Atomic update refuses a concurrent processing claim; original bytes stay intact.
+    changed = db.execute(update(Document).where(
+        Document.id == document_id, Document.status != ProcessingStatus.PROCESSING,
+    ).values(document_date=payload.document_date))
+    if changed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, "Așteaptă terminarea procesării înainte de a schimba data.")
+    analytes = list(db.scalars(select(LabResult.analyte).where(
+        LabResult.document_id == document_id)))
+    db.execute(update(LabResult).where(LabResult.document_id == document_id).values(
+        measured_on=payload.document_date))
+    lab_analysis.invalidate_explanations(db, patient.id, analytes)
+    db.commit()
+    db.refresh(document)
+    db.expire(document, ["lab_results"])
+    audit.record(db, user_id=patient.user_id, action="document_date_update",
+                 resource_type="document", resource_id=document_id)
+    return document

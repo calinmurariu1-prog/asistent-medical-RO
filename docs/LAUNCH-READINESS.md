@@ -8,6 +8,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 - Acord AI explicit în Setări, legat de furnizor; obligatoriu înaintea tuturor apelurilor către AI extern, cu retragere și verificare pe server.
 - Ștergere cont/document cu curățarea persistentă și reîncercarea originalelor; status explicit pentru fișiere în curs, emailuri locale eliminate și relații SQLite active.
 - Dosar medical în interfață: istoric/observații, alergii și vaccinări cu creare/editare/ștergere confirmată, validare și audit fără text medical.
+- Data documentului la upload și corectare ulterioară; cronologia analizelor se actualizează, explicațiile vechi sunt invalidate, iar dashboardul numără separat rezultatele neevaluabile.
 - Loginul Swagger aplică verificările pentru cont activ, MFA, audit și limitarea încercărilor.
 - Recuperare parolă și confirmare email în română; tokenuri opace, hash în DB, expirare, scop și consum atomic. Resetarea revocă sesiunile.
 - Emailuri private pe disc în dezvoltare, fără tokenuri în loguri/răspunsuri. Recuperare indisponibilă uniform în producție fără SMTP.
@@ -22,7 +23,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 
 ## Dovezi locale
 
-- Backend: 179 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
+- Backend: 183 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
 - Ruff trecut; build Next și TypeScript trecute; zece teste unitare pentru refresh/concurență trecute.
 - Export web Capacitor: 37 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
 - Verificările browser acoperă cont, confirmare, profil, PDF, descărcare identică, analize, dashboard, refresh, resetare și deconectare pe desktop și dimensiuni iPhone/Android. Capturi în `docs/screenshots`.

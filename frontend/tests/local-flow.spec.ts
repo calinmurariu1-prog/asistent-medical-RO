@@ -44,13 +44,22 @@ test("account, recovery, document and session lifecycle",async({page,request,con
  await page.getByRole("button",{name:"Descarcă originalul"}).click();
  const file=await downloaded;
  expect(await readFile((await file.path())!)).toEqual(await readFile(path.resolve("../demo/analize-fictive.pdf")));
+ await page.goto("/labs");
+ await page.getByRole("button",{name:"Grafic",exact:true}).first().click();
+ await expect(page.getByText("Comparație indisponibilă",{exact:false}).first()).toBeVisible();
+ await page.goto("/documents");
+ await page.getByRole("button",{name:"Corectează data"}).click();
+ await page.getByLabel("Data corectată",{exact:true}).fill("2026-01-10");
+ await page.getByRole("button",{name:"Salvează data",exact:true}).click();
+ await expect(page.getByText("Data documentului: 2026-01-10",{exact:true})).toBeVisible();
+ await page.getByLabel("Data documentului (opțional)",{exact:true}).fill("2026-03-10");
  await page.getByLabel("Document medical").setInputFiles(path.resolve("../demo/analize-fictive.docx"));
  await page.getByRole("button",{name:"Încarcă",exact:true}).click();
  await expect(page.getByText("analize-fictive.docx",{exact:true})).toBeVisible();
  await page.goto("/labs");
  await expect(page.getByText("Glicemie",{exact:false}).first()).toBeVisible();
  await page.getByRole("button",{name:"Grafic",exact:true}).first().click();
- await expect(page.getByText("Comparație indisponibilă",{exact:false}).first()).toBeVisible();
+ await expect(page.getByRole("img",{name:"Evoluția valorilor în timp",exact:true}).first()).toBeVisible();
  const cookieMode=process.env.E2E_COOKIES==="true";
  const oldToken=cookieMode ? (await context.cookies()).find(c=>c.name==="am_browser_access")?.value : await page.evaluate(()=>localStorage.getItem("am_access_token"));
  if(cookieMode) {

@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.models.document import LabResult
@@ -82,10 +82,12 @@ def build_summary(db: Session, patient_id: int) -> dict:
         by_analyte[r.analyte].append(r)
 
     items = []
-    abnormal = critical = 0
+    abnormal = critical = unknown = 0
     for analyte, series in sorted(by_analyte.items()):
         series.sort(key=_sort_key)
         latest = series[-1]
+        if latest.flag == LabFlag.UNKNOWN:
+            unknown += 1
         if latest.flag in ABNORMAL_FLAGS:
             abnormal += 1
         if latest.flag in CRITICAL_FLAGS:
@@ -105,6 +107,7 @@ def build_summary(db: Session, patient_id: int) -> dict:
         "total_analytes": len(items),
         "abnormal_count": abnormal,
         "critical_count": critical,
+        "unknown_count": unknown,
         "items": items,
     }
 
@@ -126,3 +129,11 @@ def explain_result(db: Session, ai: AIProvider, result: LabResult) -> LabResult:
     db.commit()
     db.refresh(result)
     return result
+
+
+def invalidate_explanations(db: Session, patient_id: int, analytes: list[str]) -> None:
+    """Cached comparisons are stale when any value/date in the series changes."""
+    if analytes:
+        db.execute(update(LabResult).where(
+            LabResult.patient_id == patient_id, LabResult.analyte.in_(set(analytes)),
+        ).values(ai_explanation=None))

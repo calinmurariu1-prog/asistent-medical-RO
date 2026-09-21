@@ -269,3 +269,48 @@ def test_reprocessing_does_not_duplicate_results_or_allow_busy_document(client, 
     document.status = ProcessingStatus.PROCESSING
     db_session.commit()
     assert client.post(url, headers=headers).status_code == 409
+
+
+def test_document_date_update_propagates_and_invalidates_explanations(client):
+    h = _auth_headers(client)
+    other = _auth_headers(client, "date-other@example.com")
+    data = _make_text_pdf(SAMPLE_LAB_TEXT)
+    doc = client.post(API + "/documents", headers=h,
+                      files={"file": ("labs.pdf", data, "application/pdf")},
+                      data={"document_date": "2026-01-10"}).json()
+    assert all(r["measured_on"] == "2026-01-10" for r in doc["lab_results"])
+    result_id = doc["lab_results"][0]["id"]
+    client.post(API + f"/labs/{result_id}/explain", headers=h)
+    url = API + f"/documents/{doc['id']}/date"
+    assert client.put(url, headers=other, json={"document_date": "2026-02-10"}).status_code == 404
+    updated = client.put(url, headers=h, json={"document_date": "2026-02-10"}).json()
+    assert all(r["measured_on"] == "2026-02-10" for r in updated["lab_results"])
+    assert all(r["ai_explanation"] is None for r in updated["lab_results"])
+    assert client.get(API + f"/documents/{doc['id']}/original", headers=h).content == data
+    cleared = client.put(url, headers=h, json={"document_date": None}).json()
+    assert all(r["measured_on"] is None for r in cleared["lab_results"])
+
+
+def test_date_update_refuses_processing_and_invalid_date(client, db_session):
+    from app.models.document import Document
+    from app.models.enums import ProcessingStatus
+
+    h = _auth_headers(client)
+    document = _upload(client, h).json()
+    url = API + f"/documents/{document['id']}/date"
+    assert client.put(url, headers=h, json={"document_date": "bad"}).status_code == 422
+    stored = db_session.get(Document, document["id"])
+    stored.status = ProcessingStatus.PROCESSING
+    db_session.commit()
+    assert client.put(url, headers=h, json={"document_date": "2026-01-10"}).status_code == 409
+
+
+def test_new_measurement_clears_previous_cached_comparison(client):
+    h = _auth_headers(client)
+    first = client.post(API + "/labs", headers=h, json={
+        "analyte": "Glicemie", "value": 100, "unit": "mg/dL", "measured_on": "2026-01-10"}).json()
+    client.post(API + f"/labs/{first['id']}/explain", headers=h)
+    client.post(API + "/labs", headers=h, json={
+        "analyte": "Glicemie", "value": 90, "unit": "mg/dL", "measured_on": "2026-02-10"})
+    results = client.get(API + "/labs", headers=h).json()
+    assert all(r["ai_explanation"] is None for r in results)

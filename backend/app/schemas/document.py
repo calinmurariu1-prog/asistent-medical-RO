@@ -39,3 +39,7 @@ class DocumentDetailOut(DocumentOut):
 class DocumentDownloadOut(BaseModel):
     url: str
     expires_in: int
+
+
+class DocumentDateUpdate(BaseModel):
+    document_date: date | None

@@ -239,6 +239,7 @@ export interface Dashboard {
     total_analytes: number;
     abnormal_count: number;
     critical_count: number;
+    unknown_count: number;
   };
   recent_documents: DocumentItem[];
   active_medications: { id: number; name: string; dose: string | null }[];

@@ -76,4 +76,5 @@ class LabSummary(BaseModel):
     total_analytes: int
     abnormal_count: int
     critical_count: int
+    unknown_count: int
     items: list[LabSummaryItem]

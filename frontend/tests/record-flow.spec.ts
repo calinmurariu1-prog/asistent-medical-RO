@@ -27,10 +27,10 @@ test("medical record create, edit, cancel deletion and delete",async({page},info
     await expect(page.getByRole("heading",{name:entry.value+" corectată",exact:true})).toBeVisible();
     if(entry.section==="Istoric medical") {
       await page.locator("main").evaluate(el=>{el.scrollTop=0;});
-      await page.screenshot({path:`../docs/screenshots/record-${info.project.name}.png`,fullPage:true});
+      await page.screenshot({path:`../docs/screenshots/record-${info.project.name}.png`,fullPage:true,animations:"disabled"});
       await page.getByRole("button",{name:"Comută tema"}).click();
       await expect(page.locator("html")).toHaveClass(/dark/);
-      await page.screenshot({path:`../docs/screenshots/record-dark-${info.project.name}.png`,fullPage:true});
+      await page.screenshot({path:`../docs/screenshots/record-dark-${info.project.name}.png`,fullPage:true,animations:"disabled"});
     }
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
     await page.getByRole("button",{name:"Șterge",exact:true}).click();

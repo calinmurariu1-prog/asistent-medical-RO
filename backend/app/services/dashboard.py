@@ -59,6 +59,7 @@ def build_overview(db: Session, patient: Patient, user: User) -> dict:
             "total_analytes": lab_summary["total_analytes"],
             "abnormal_count": lab_summary["abnormal_count"],
             "critical_count": lab_summary["critical_count"],
+            "unknown_count": lab_summary["unknown_count"],
         },
         "recent_documents": [
             {
