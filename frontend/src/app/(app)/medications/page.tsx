@@ -4,6 +4,7 @@ import { type FormEvent, useState } from "react";
 import { AlertTriangle, Pill, Sparkles } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
+import { MedicationReminders } from "@/components/medication-reminders";
 import type { Medication } from "@/lib/types";
 import { Badge, Button, Card, EmptyState, Input, PageHeader, Spinner } from "@/components/ui";
 
@@ -132,6 +133,7 @@ export default function MedicationsPage() {
           <Button variant="outline" disabled={locked} onClick={()=>explain(m)}><Sparkles size={16} />Explică</Button>
           <Button variant="outline" disabled={locked} onClick={()=>setDeleting(m)}>Șterge</Button>
         </div>
+        <MedicationReminders medication={m} />
         {explains[m.id] && <div className="mt-3 whitespace-pre-wrap break-words rounded-xl bg-surface-2 p-3 text-sm"><p>{explains[m.id].result}</p>{explains[m.id].sources.map(source => <a key={source.ref} className="mt-2 block text-primary underline" href={source.url} target="_blank" rel="noopener noreferrer">Consultă sursa: {source.title}</a>)}</div>}
       </Card>)}</div>}
   </div>;

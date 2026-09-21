@@ -16,6 +16,7 @@ from app.models.enums import AppointmentStatus, NotificationChannel, Notificatio
 from app.models.notification import Notification
 from app.models.push_token import PushToken
 from app.models.user import User
+from app.services import medication_reminders
 from app.services.push.base import PushMessage, PushProvider
 from app.services.push.factory import get_push_provider
 
@@ -70,6 +71,9 @@ def process_due(db: Session, provider: PushProvider | None = None) -> int:
                         tzinfo=appointment.starts_at.tzinfo or UTC)
                     obsolete = obsolete or appointment.status != AppointmentStatus.SCHEDULED
                     obsolete = obsolete or starts <= datetime.now(UTC)
+            if notification.resource_type == "medication_reminder":
+                obsolete = obsolete or medication_reminders.obsolete(
+                    db, notification, datetime.now(UTC))
             if not obsolete:
                 devices = list(db.scalars(select(PushToken).where(
                     PushToken.user_id == notification.user_id)))
@@ -110,6 +114,7 @@ def process_due(db: Session, provider: PushProvider | None = None) -> int:
 
 def run_batch() -> None:
     with SessionLocal() as db:
+        medication_reminders.advance_due(db)
         process_due(db)
 
 

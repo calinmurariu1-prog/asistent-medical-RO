@@ -13,6 +13,7 @@ from app.models.feedback import Feedback
 from app.models.health import HealthSample
 from app.models.health_device import HealthDevice
 from app.models.medication import Medication
+from app.models.medication_reminder import MedicationReminder
 from app.models.notification import Notification
 from app.models.patient import (
     Allergy,
@@ -42,6 +43,7 @@ __all__ = [
     "Document",
     "LabResult",
     "Medication",
+    "MedicationReminder",
     "Appointment",
     "AIChat",
     "AIChatMessage",

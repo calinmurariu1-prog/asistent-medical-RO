@@ -166,3 +166,14 @@ Explicațiile individuale folosesc acum valoarea, unitatea și intervalul din î
 Generarea reală trece prin aceeași verificare a citărilor ca rezumatul dosarului. Modului simulat îi corespunde un rezumat factual local etichetat explicit. Nu se mai adaugă automat tendința întregului istoric la explicația unei valori izolate; comparația are endpoint separat.
 
 Salvarea compară atomic câmpurile sursei cu copia folosită la generare. Dacă analiza a fost corectată sau ștearsă între timp, textul vechi nu se salvează și cererea individuală răspunde 409; lotul ignoră înregistrarea schimbată și returnează lista actuală. Tranzacția de citire nu rămâne deschisă pe durata generării externe. Migrarea a3c5e7f9b1d2 golește doar cache-ul vechi de explicații, păstrând rezultatele și documentele originale. Explicațiile se regenerează la cerere; downgrade-ul nu reconstituie textele vechi.
+
+
+## Memento-uri zilnice pentru medicație
+
+În cardul unui tratament, Memento-uri permite alegerea explicită a orei și fusului orar IANA, modificarea, pauza/reactivarea și ștergerea cu confirmare. Sunt permise cel mult 12 ore zilnice pe tratament. Nu se deduce ora din doza sau frecvența în text liber. Fusul rămâne cel ales când utilizatorul călătorește; următoarea apariție este afișată și în ora dispozitivului.
+
+Migrarea b4d6f8a0c2e3 păstrează programul și următoarea apariție în baza de date. Notificarea viitoare este creată în aceeași tranzacție cu programul. Workerul existent avansează cursorul și creează următoarea notificare o singură dată, sub blocarea tratamentului. Funcționează și în modul push simulat, prin centrul de notificări. Livrarea reală continuă să necesite configurarea FCM/APNs și permisiunile dispozitivului.
+
+La schimbarea orei de vară, o oră locală inexistentă este omisă pentru acea zi, iar ora repetată folosește prima apariție, fără dublare. Intervalul tratamentului și starea activ/istoric sunt respectate; modificarea tratamentului recalculează memento-urile. Pauza, schimbarea orei sau ștergerea elimină notificările asociate și orice rezervare de trimitere; mesajele deja acceptate de furnizor nu pot fi retrase. Exportul datelor include programele, iar ștergerea contului/tratamentului le elimină prin relații cu ștergere în cascadă.
+
+Workerul nu creează retrospectiv notificări pentru zilele ratate și nu trimite push pentru un memento de medicație întârziat cu peste 15 minute. Notificarea poate rămâne vizibilă în aplicație. Nu confirmă administrarea și nu recomandă recuperarea dozelor omise. Scanarea procesează până la 100 programe la fiecare ciclu; disponibilitatea procesului și întârzierile furnizorului pot afecta punctualitatea. Nu sunt alarme clinice garantate și nu au fost verificate pe dispozitive fizice. Recurențele săptămânale și confirmarea administrării rămân de implementat.

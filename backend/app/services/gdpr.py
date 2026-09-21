@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -10,6 +11,8 @@ from app.core.config import settings
 from app.models.chat import AIChat
 from app.models.document import Document
 from app.models.feedback import Feedback
+from app.models.medication import Medication
+from app.models.medication_reminder import MedicationReminder
 from app.models.patient import Patient
 from app.models.user import Consent, User
 from app.services.storage_cleanup import enqueue
@@ -83,9 +86,17 @@ def export_user_data(db: Session, user: User) -> dict:
         for d in patient.documents
     ]
     data["medications"] = [
-        {"name": m.name, "active_substance": m.active_substance, "dose": m.dose,
+        {"id": m.id, "name": m.name, "active_substance": m.active_substance, "dose": m.dose,
          "frequency": m.frequency, "is_active": m.is_active}
         for m in patient.medications
+    ]
+    data["medication_reminders"] = [
+        {"id": r.id, "medication_id": r.medication_id, "local_time": r.local_time,
+         "timezone": r.timezone, "is_enabled": r.is_enabled,
+         "next_occurrence": (r.next_occurrence.replace(tzinfo=r.next_occurrence.tzinfo or UTC)
+                             .isoformat() if r.next_occurrence else None)}
+        for r in db.scalars(select(MedicationReminder).join(Medication).where(
+            Medication.patient_id == patient.id))
     ]
     data["appointments"] = [
         {"title": a.title, "type": a.type.value, "starts_at": a.starts_at.isoformat(),

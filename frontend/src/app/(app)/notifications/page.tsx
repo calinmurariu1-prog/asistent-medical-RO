@@ -66,6 +66,7 @@ export default function NotificationsPage() {
         <p className="mt-2 text-sm text-muted">{n.scheduled_for ? `Termen: ${dateLabel(n.scheduled_for)}` : `Creată: ${dateLabel(n.created_at)}`}</p>
         <p className="mt-1 text-sm text-muted">{n.status === "sent" ? "Marcată trimisă către serviciul de livrare." : n.status === "failed" ? "Trimiterea nu a fost efectuată." : n.status === "pending" ? "Expedierea externă este în așteptare." : "Ai marcat această notificare ca citită."}</p>
         <div className="mt-3 flex flex-wrap gap-3">
+          {n.resource_type === "medication_reminder" && <Link className="inline-flex min-h-11 items-center rounded-full border border-border px-4 text-sm" href="/medications">Deschide medicația</Link>}
           {n.resource_type === "appointment" && n.resource_id && /^\d+$/.test(n.resource_id) && <Link className="inline-flex min-h-11 items-center rounded-full border border-border px-4 text-sm" href={`/appointments#appointment-${n.resource_id}`}>Deschide programarea</Link>}
           {n.status !== "read" && !future(n) && <Button variant="outline" disabled={busy || !!deleting} onClick={()=>action(()=>api.post(`/notifications/${n.id}/read`),"Notificarea a fost marcată citită.")}>Marchează citită</Button>}
           <Button variant="outline" disabled={busy || !!deleting} onClick={()=>setDeleting(n)}>Șterge notificarea</Button>
