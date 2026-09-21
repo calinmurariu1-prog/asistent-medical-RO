@@ -92,6 +92,13 @@ test("account, recovery, document and session lifecycle",async({page,request,con
  await page.getByRole("button",{name:"Comută tema"}).click();
  await expect(page.locator("html")).toHaveClass(/dark/);
  await page.screenshot({path:`../docs/screenshots/local-${info.project.name}.png`,fullPage:true});
+ await page.goto("/settings");
+ await page.getByRole("button",{name:"Șterge contul",exact:true}).click();
+ await page.getByPlaceholder("Parola",{exact:true}).fill("Changed-pass-123!");
+ await page.getByRole("button",{name:"Confirmă ștergerea",exact:true}).click();
+ await expect(page).toHaveURL(/login\?deleted=complete/);
+ await expect(page.getByRole("status")).toContainText("Contul și originalele");
+ expect((await request.post(api+"/auth/login",{data:{email,password:"Changed-pass-123!"}})).status()).toBe(401);
  expect(errors).toEqual([]);
 });
 

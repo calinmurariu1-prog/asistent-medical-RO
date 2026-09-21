@@ -3,12 +3,16 @@ from __future__ import annotations
 
 import json
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.chat import AIChat
+from app.models.document import Document
+from app.models.feedback import Feedback
 from app.models.patient import Patient
 from app.models.user import Consent, User
+from app.services.storage_cleanup import enqueue
 
 
 def export_user_data(db: Session, user: User) -> dict:
@@ -103,7 +107,14 @@ def export_user_data(db: Session, user: User) -> dict:
     return data
 
 
-def delete_user(db: Session, user: User) -> None:
+def delete_user(db: Session, user: User) -> list[str]:
     """Erase the account and all owned data (cascades via FKs/relationships)."""
+    keys = list(db.scalars(select(Document.storage_key).join(Patient).where(
+        Patient.user_id == user.id)))
+    jobs = enqueue(db, keys)
+    if not settings.is_production:
+        jobs += enqueue(db, [user.email], backend="mailbox")
+    db.execute(delete(Feedback).where(Feedback.user_id == user.id))
     db.delete(user)
     db.commit()
+    return jobs

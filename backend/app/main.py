@@ -1,6 +1,9 @@
 """FastAPI application entrypoint."""
 from __future__ import annotations
 
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -12,7 +15,21 @@ from app.core.config import settings, validate_production_config
 # Fail fast if deployed to production with insecure default secrets.
 validate_production_config(settings)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from app.services.storage_cleanup import worker
+    stop = asyncio.Event()
+    task = asyncio.create_task(worker(stop)) if settings.STORAGE_CLEANUP_ENABLED else None
+    try:
+        yield
+    finally:
+        stop.set()
+        if task:
+            await task
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title=settings.PROJECT_NAME,
     version="0.1.0",
     description=(

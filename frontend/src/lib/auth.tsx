@@ -18,6 +18,7 @@ interface AuthState {
   login: (email: string, password: string, mfaCode?: string) => Promise<void>;
   register: (email: string, password: string, fullName?: string) => Promise<void>;
   logout: () => Promise<void>;
+  finishAccountDeletion: (pending: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -86,8 +87,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push(failed ? "/login?logout=unconfirmed" : "/login");
   }
 
+  async function finishAccountDeletion(pending: boolean) {
+    setLoggingOut(true);
+    let deviceFailed = false;
+    try { await clearTokens(); } catch { deviceFailed = true; }
+    setUser(null);
+    router.push(`/login?deleted=${pending ? "pending" : "complete"}${deviceFailed ? "&deviceCleanup=failed" : ""}`);
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, loggingOut, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, loggingOut, login, register, logout, finishAccountDeletion }}>
       {children}
     </AuthContext.Provider>
   );

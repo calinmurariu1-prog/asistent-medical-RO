@@ -14,6 +14,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -27,7 +28,7 @@ from app.schemas.document import (
     DocumentDownloadOut,
     DocumentOut,
 )
-from app.services import document_processing, ocr
+from app.services import document_processing, ocr, storage_cleanup
 from app.services.ai import get_ai_provider
 from app.services.ai.base import AIProvider
 from app.services.billing import entitlements
@@ -198,10 +199,18 @@ def delete_document(
     storage: Storage = Depends(get_storage),
 ) -> Response:
     document = _owned_document(document_id, patient, db)
-    try:
-        storage.delete(document.storage_key)
-    except Exception:  # noqa: BLE001  (best-effort; DB row is source of truth)
-        pass
+    jobs = storage_cleanup.enqueue(db, [document.storage_key])
     db.delete(document)
     db.commit()
+    try:
+        storage_cleanup.process_pending(db, storage, jobs)
+        complete = storage_cleanup.pending_count(db, jobs) == 0
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        complete = False
+    if not complete:
+        return JSONResponse(status_code=202, content={
+            "cleanup_pending": True,
+            "detail": "Documentul a fost eliminat din dosar. Ștergerea originalului este în curs.",
+        })
     return Response(status_code=status.HTTP_204_NO_CONTENT)

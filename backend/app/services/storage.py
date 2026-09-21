@@ -40,6 +40,7 @@ class S3Storage:
 
     def __init__(self) -> None:
         import boto3  # lazy
+        from botocore.config import Config
 
         self._bucket = settings.S3_BUCKET
         self._client = boto3.client(
@@ -49,6 +50,7 @@ class S3Storage:
             aws_secret_access_key=settings.S3_SECRET_KEY,
             region_name=settings.S3_REGION,
             use_ssl=settings.S3_USE_SSL,
+            config=Config(connect_timeout=5, read_timeout=10, retries={"max_attempts": 2}),
         )
         self._ensure_bucket()
 

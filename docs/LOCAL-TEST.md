@@ -63,3 +63,11 @@ Lipsa textului sau o eroare de procesare produce starea „Necesită verificare�
 ## Acord AI
 
 Setări afișează furnizorul activ și permite acordul/retragerea. Providerul mock rămâne local; dacă `REQUIRE_AI_CONSENT=true`, și simularea cere acord. Orice provider diferit de mock cere acord chiar dacă această variabilă este false. Acordul este legat de versiunea politicii și numele furnizorului; acordurile vechi generice nu autorizează procesarea externă. Schimbarea furnizorului cere reconfirmare. Retragerea oprește cererile viitoare, nu apelurile deja începute și nu șterge automat date la furnizori. Înainte de activarea externă sunt necesare politica de confidențialitate, condițiile furnizorului și configurarea retenției.
+
+## Ștergere și curățare persistentă
+
+Ștergerea contului elimină datele relaționale și înregistrează, în aceeași tranzacție, operațiile de ștergere a originalelor. Cheile obiectelor din coadă sunt criptate. Codul 204 confirmă terminarea; 202 indică ștergerea originalelor încă în curs. În dezvoltare sunt eliminate și emailurile locale ale contului. Jurnalul de audit de securitate rămâne separat, cu legătura către utilizator eliminată.
+
+Procesul integrat reîncearcă la 30 de secunde (`STORAGE_CLEANUP_ENABLED=true`, `STORAGE_CLEANUP_INTERVAL_SECONDS=30`), inclusiv după repornire. O operație rezervată de un proces întrerupt poate fi reluată după două minute. Administratorul poate verifica numărul și vechimea operațiilor prin `GET /api/v1/admin/storage-cleanup`, fără expunerea cheilor sau numelor de fișiere. Nu schimba backendul de stocare și nu roti cheia de criptare cât timp coada are operații nefinalizate.
+
+Limite externe: copii de siguranță, emailuri deja trimise prin SMTP și versiuni istorice/Object Lock din S3 necesită politici separate de retenție și verificare înainte de lansare. S3 DeleteObject nu garantează eliminarea versiunilor istorice. Date orfane provenite din versiuni vechi cu cheile externe SQLite dezactivate necesită audit separat; noua configurare activează relațiile pentru operațiile viitoare.

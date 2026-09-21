@@ -21,11 +21,13 @@ from app.models.patient import (
     Vaccine,
 )
 from app.models.push_token import PushToken
+from app.models.storage_deletion import StorageDeletion
 from app.models.subscription import Subscription
 from app.models.user import AuditLog, Consent, User
 
 __all__ = [
     "User",
+    "StorageDeletion",
     "Consent",
     "AuditLog",
     "Patient",

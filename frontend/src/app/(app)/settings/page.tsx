@@ -54,7 +54,7 @@ function Section({
 }
 
 export default function SettingsPage() {
-  const { logout } = useAuth();
+  const { logout, finishAccountDeletion } = useAuth();
   const devices = useFetch<HealthDevice[]>("/health-data/devices");
   const [native, setNative] = useState(false);
   const [ble, setBle] = useState(false);
@@ -210,12 +210,12 @@ export default function SettingsPage() {
       </Section>
 
       {/* Account */}
-      <AccountSection logout={logout} />
+      <AccountSection logout={logout} finishAccountDeletion={finishAccountDeletion} />
     </div>
   );
 }
 
-function AccountSection({ logout }: { logout: () => void }) {
+function AccountSection({ logout, finishAccountDeletion }: { logout: () => Promise<void>; finishAccountDeletion: (pending: boolean) => Promise<void> }) {
   const [confirming, setConfirming] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -225,8 +225,8 @@ function AccountSection({ logout }: { logout: () => void }) {
     setDeleting(true);
     setError(null);
     try {
-      await api.post("/gdpr/delete-account", { password, confirm: true });
-      logout();
+      const result = await api.post<{cleanup_pending?: boolean} | undefined>("/gdpr/delete-account", { password, confirm: true });
+      await finishAccountDeletion(Boolean(result?.cleanup_pending));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ștergere eșuată");
     } finally {
@@ -250,7 +250,7 @@ function AccountSection({ logout }: { logout: () => void }) {
       {confirming && (
         <div className="space-y-2 rounded-2xl border border-red-500/30 bg-red-500/5 p-3">
           <p className="text-sm">
-            Această acțiune șterge definitiv contul și toate datele tale medicale.
+            Această acțiune șterge definitiv contul și datele din dosar. Ștergerea originalelor poate continua în fundal dacă stocarea este temporar indisponibilă.
             Introdu parola pentru a confirma.
           </p>
           <Input

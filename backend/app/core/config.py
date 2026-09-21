@@ -40,6 +40,8 @@ class Settings(BaseSettings):
 
     LOCAL_DATA_DIR: str = "../.local-data"
     STORAGE_BACKEND: str = "s3"
+    STORAGE_CLEANUP_ENABLED: bool = True
+    STORAGE_CLEANUP_INTERVAL_SECONDS: int = Field(default=30, ge=5, le=3600)
 
     # ---- Object storage ----
     S3_ENDPOINT_URL: str = "http://minio:9000"

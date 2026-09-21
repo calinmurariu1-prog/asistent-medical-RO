@@ -2,18 +2,21 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import ai_consent_version, get_current_user
+from app.core.browser_session import clear_browser_cookies
 from app.core.database import get_db
 from app.core.security import verify_password
 from app.models.enums import ConsentType
 from app.models.user import Consent, User
 from app.schemas.gdpr import ConsentIn, ConsentOut, DeleteAccountRequest
-from app.services import audit, gdpr
+from app.services import audit, gdpr, storage_cleanup
 from app.services.ai import get_ai_provider
 from app.services.ai.base import AIProvider
+from app.services.storage import Storage, get_storage
 
 router = APIRouter(prefix="/gdpr", tags=["gdpr"])
 
@@ -39,6 +42,7 @@ def delete_my_account(
     request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    storage: Storage = Depends(get_storage),
 ) -> Response:
     """Right to erasure (GDPR Art. 17). Requires password + explicit confirm."""
     if not payload.confirm:
@@ -54,8 +58,19 @@ def delete_my_account(
         action="gdpr_delete_account",
         ip_address=_client_ip(request),
     )
-    gdpr.delete_user(db, user)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    jobs = gdpr.delete_user(db, user)
+    try:
+        storage_cleanup.process_pending(db, storage, jobs)
+        complete = storage_cleanup.pending_count(db, jobs) == 0
+    except Exception:  # noqa: BLE001 (durable queue remains available to the worker)
+        db.rollback()
+        complete = False
+    response = (Response(status_code=204) if complete else JSONResponse(status_code=202, content={
+        "cleanup_pending": True,
+        "detail": "Contul a fost șters. Ștergerea originalelor este în curs și va fi reîncercată.",
+    }))
+    clear_browser_cookies(response)
+    return response
 
 
 @router.get("/consents", response_model=list[ConsentOut])
