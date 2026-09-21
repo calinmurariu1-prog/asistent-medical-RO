@@ -7,6 +7,8 @@ import { Button, Card, Input } from "@/components/ui";
 
 export function MFASettings() {
   const { user } = useAuth();
+  const [password, setPassword] = useState("");
+  const [regenerating, setRegenerating] = useState(false);
   const [secret, setSecret] = useState("");
   const [code, setCode] = useState("");
   const [saved, setSaved] = useState(false);
@@ -34,6 +36,16 @@ export function MFASettings() {
     } catch (e) { setError(e instanceof Error ? e.message : "Activarea nu a fost confirmată."); }
     finally { setBusy(false); }
   }
+  async function regenerate(e: React.FormEvent) {
+    e.preventDefault(); setBusy(true); setError("");
+    try {
+      const result = await api.post<{recovery_codes: string[]}>("/auth/mfa/recovery-codes", {password, code});
+      setRecoveryCodes(result.recovery_codes); setPassword(""); setCode("");
+      setBackupSaved(false); setActivated(true);
+      await clearTokens();
+    } catch (e) { setError(e instanceof Error ? e.message : "Generarea nu a fost confirmată."); }
+    finally { setBusy(false); }
+  }
   return <Card className="space-y-3" aria-labelledby="mfa-title">
     <h2 id="mfa-title" className="font-semibold">Autentificare în doi pași</h2>
     {activated ? <>
@@ -44,7 +56,17 @@ export function MFASettings() {
       </label>
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={backupSaved} onChange={e => setBackupSaved(e.target.checked)} />Am salvat codurile de rezervă într-un loc sigur.</label>
       {backupSaved && <a className="inline-flex min-h-11 items-center text-brand-blue underline" href="/login?mfa=enabled">Continuă la autentificare</a>}
-    </> : user?.mfa_enabled ? <p role="status">MFA este activ pentru contul tău.</p> : <>
+    </> : user?.mfa_enabled ? <>
+      <p role="status">MFA este activ pentru contul tău.</p>
+      {!regenerating ? <Button onClick={() => setRegenerating(true)}>Generează alte coduri de rezervă</Button> :
+        <form onSubmit={regenerate} className="space-y-3">
+          <p className="text-sm">Toate codurile vechi vor fi invalidate și toate sesiunile vor fi deconectate.</p>
+          <label className="block text-sm">Parola curentă<Input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required disabled={busy} /></label>
+          <label className="block text-sm">Cod MFA sau de rezervă<Input value={code} onChange={e => setCode(e.target.value)} maxLength={64} autoComplete="one-time-code" required disabled={busy} /></label>
+          <Button type="submit" disabled={busy}>{busy ? "Se generează…" : "Confirmă înlocuirea codurilor"}</Button>
+          <Button type="button" disabled={busy} onClick={() => {setRegenerating(false); setPassword(""); setCode(""); setError("");}}>Anulează</Button>
+        </form>}
+    </> : <>
       <p className="text-sm text-muted">Adaugă un cod temporar din aplicația ta de autentificare, pe lângă parolă.</p>
       <p className="text-sm text-muted">Păstrează cheia într-un loc sigur. După activare primești coduri de rezervă pentru recuperare; resetarea parolei nu elimină MFA. Activarea deconectează toate sesiunile.</p>
       {!secret ? <Button disabled={busy || !user} onClick={setup}>{busy ? "Se pregătește…" : "Configurează MFA"}</Button> :

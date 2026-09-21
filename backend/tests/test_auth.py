@@ -171,3 +171,34 @@ def test_mfa_backup_codes_are_hashed_one_use_and_revokes_previous_tokens(client,
     assert client.post(f"{API}/gdpr/delete-account", headers=headers,
                        json={"password": "Parola1234", "confirm": True}).status_code == 204
     assert list(db_session.scalars(select(MFARecoveryCode))) == []
+
+
+def test_regenerate_backup_codes_requires_both_factors_and_invalidates_old_set(client):
+    import pyotp
+
+    _register(client)
+    credentials = {"email": "ana@example.com", "password": "Parola1234"}
+    tokens = client.post(f"{API}/auth/login", json=credentials).json()
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+    secret = client.post(f"{API}/auth/mfa/setup", headers=headers).json()["secret"]
+    codes = client.post(f"{API}/auth/mfa/activate", headers=headers,
+                        json={"code": pyotp.TOTP(secret).now()}).json()["recovery_codes"]
+    tokens = client.post(f"{API}/auth/login", json={
+        **credentials, "mfa_code": codes[0]}).json()
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+    for password, code in [("wrong", codes[1]), ("Parola1234", "invalid")]:
+        assert client.post(f"{API}/auth/mfa/recovery-codes", headers=headers,
+                           json={"password": password, "code": code}).status_code == 400
+        assert client.get(f"{API}/auth/me", headers=headers).status_code == 200
+    response = client.post(f"{API}/auth/mfa/recovery-codes", headers=headers,
+                           json={"password": "Parola1234", "code": codes[1]})
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    replacements = response.json()["recovery_codes"]
+    assert len(replacements) == 10
+    assert not set(replacements).intersection(codes)
+    assert client.get(f"{API}/auth/me", headers=headers).status_code == 401
+    assert client.post(f"{API}/auth/login", json={
+        **credentials, "mfa_code": codes[2]}).status_code == 401
+    assert client.post(f"{API}/auth/login", json={
+        **credentials, "mfa_code": replacements[0]}).status_code == 200

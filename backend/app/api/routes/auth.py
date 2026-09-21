@@ -36,6 +36,7 @@ from app.schemas.auth import (
     LoginRequest,
     MFAActivateRequest,
     MFAActivateResponse,
+    MFARecoveryRegenerateRequest,
     MFASetupResponse,
     PasswordResetConfirm,
     PasswordResetRequest,
@@ -104,7 +105,7 @@ def login(
     request: Request,
     db: Session = Depends(get_db),
 ) -> TokenPair:
-    user = db.scalar(select(User).where(User.email == payload.email))
+    user = db.scalar(select(User).where(User.email == payload.email).with_for_update())
     if (
         user is None
         or not user.hashed_password
@@ -255,6 +256,42 @@ def mfa_activate(
     audit.record(db, user_id=current.id, action="mfa_activate")
     return MFAActivateResponse(
         detail="MFA activat. Autentifică-te din nou cu parola și codul MFA.",
+        recovery_codes=codes,
+    )
+
+
+@router.post("/mfa/recovery-codes", response_model=MFAActivateResponse,
+             dependencies=[Depends(_auth_limiter)])
+def regenerate_mfa_recovery(
+    payload: MFARecoveryRegenerateRequest, response: Response,
+    current: User = Depends(get_current_user), db: Session = Depends(get_db),
+) -> MFAActivateResponse:
+    response.headers["Cache-Control"] = "no-store"
+    version = current.token_version
+    # Serialize with logins and other regeneration attempts before consuming codes.
+    locked = db.scalar(select(User).where(User.id == current.id).with_for_update()
+                       .execution_options(populate_existing=True))
+    if locked is None or not locked.is_active or locked.token_version != version:
+        raise HTTPException(401, "Sesiune expirată.")
+    if not locked.mfa_enabled:
+        raise HTTPException(409, "Activează MFA înainte de a genera coduri de rezervă.")
+    if not locked.hashed_password or not verify_password(payload.password, locked.hashed_password):
+        raise HTTPException(400, "Parolă sau cod MFA incorect.")
+    claimed = db.execute(update(User).where(
+        User.id == locked.id, User.token_version == version, User.mfa_enabled.is_(True),
+    ).values(token_version=User.token_version + 1))
+    if claimed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, "Sesiunea s-a schimbat. Autentifică-te din nou.")
+    secret = decrypt_field(locked.mfa_secret)
+    if not secret or not pyotp.TOTP(secret).verify(payload.code, valid_window=1):
+        if not mfa_recovery.consume(db, locked.id, payload.code):
+            db.rollback()
+            raise HTTPException(400, "Parolă sau cod MFA incorect.")
+    codes = mfa_recovery.issue(db, locked.id)
+    audit.record(db, user_id=locked.id, action="mfa_recovery_regenerate")
+    return MFAActivateResponse(
+        detail="Codurile anterioare sunt invalidate. Autentifică-te din nou.",
         recovery_codes=codes,
     )
 
