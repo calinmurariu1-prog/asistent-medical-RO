@@ -1,6 +1,8 @@
 """Tests for the AI skills framework (mock provider)."""
 from __future__ import annotations
 
+from datetime import UTC
+
 API = "/api/v1"
 
 
@@ -262,3 +264,95 @@ def test_lifestyle_mock_has_public_source_and_no_personal_schedule(client):
     assert body["simulated"] and "[T1]" in body["result"]
     assert "30 min" not in body["result"]
     assert body["sources"][0]["url"].endswith("/type-2-diabetes/treatment/")
+
+
+def test_single_unverified_comparison_does_not_disclose_number(client, db_session):
+    from app.models.document import LabResult
+
+    h = _auth(client)
+    item = client.post(f"{API}/labs", headers=h, json={
+        "analyte": "Test fictiv", "value": 987654, "unit": "mg/dL",
+        "measured_on": "2026-01-10"}).json()
+    row = db_session.get(LabResult, item["id"])
+    row.confidence = "unverified"
+    db_session.commit()
+    body = client.post(f"{API}/ai/compare-analyte", headers=h,
+                       json={"analyte": "Test fictiv"}).json()
+    assert body["abstained"] and "987654" not in body["result"]
+    summary = client.post(f"{API}/ai/summarize-record", headers=h).json()
+    assert "987654" not in summary["result"]
+    assert "de confirmat" in summary["result"]
+
+
+def test_empty_record_never_calls_model_and_missing_citation_abstains(client, db_session):
+    from sqlalchemy import select
+
+    from app.models.patient import Patient
+    from app.services.ai import record_ai
+
+    h = _auth(client)
+    client.post(f"{API}/ai/summarize-record", headers=h)
+    patient = db_session.scalar(select(Patient))
+
+    class External:
+        name = "external"
+        calls = 0
+        response = "Fără citare"
+
+        def complete(self, **kwargs):
+            self.calls += 1
+            return self.response
+
+    provider = External()
+    assert record_ai.summarize_record(db_session, provider, patient)["abstained"]
+    assert provider.calls == 0
+    from app.models.medication import Medication
+
+    med = Medication(patient_id=patient.id, name="Fictiv")
+    db_session.add(med)
+    db_session.commit()
+    for candidate in ("Fără citare", "Text [M999999]", f"Text [M{med.id}] [S9]"):
+        provider.response = candidate
+        body = record_ai.summarize_record(db_session, provider, patient)
+        assert body["abstained"] and body["sources"] == []
+    provider.response = f"Medicament înregistrat [M{med.id}]"
+    body = record_ai.summarize_record(db_session, provider, patient)
+    assert not body["abstained"] and body["sources"][0]["record_id"] == med.id
+
+
+def test_record_summary_sections_owner_isolation_and_partial_disclosure(client, db_session):
+    from datetime import date, datetime
+
+    from sqlalchemy import select
+
+    from app.models.appointment import Appointment
+    from app.models.clinical import MedicalHistory
+    from app.models.document import Document
+    from app.models.enums import MedicalEventType
+    from app.models.medication import Medication
+    from app.models.patient import Allergy, Patient, Vaccine
+
+    h = _auth(client)
+    client.post(f"{API}/ai/summarize-record", headers=h)
+    patient = db_session.scalar(select(Patient))
+    other = _auth(client, "other-record@example.com")
+    client.post(f"{API}/medications", headers=other, json={"name": "OTHER-PATIENT-SECRET"})
+    db_session.add_all([
+        Allergy(patient_id=patient.id, substance="Alergen fictiv"),
+        Vaccine(patient_id=patient.id, name="Vaccin fictiv", administered_on=date(2026, 1, 1)),
+        MedicalHistory(patient_id=patient.id, event_type=MedicalEventType.OBSERVATION,
+                       title="Observație fictivă"),
+        Appointment(patient_id=patient.id, title="Programare fictivă",
+                    starts_at=datetime(2030, 1, 1, tzinfo=UTC)),
+        Document(patient_id=patient.id, original_filename="test.pdf", storage_key="fictiv"),
+    ])
+    db_session.add_all(Medication(patient_id=patient.id, name=f"Fictiv {i}") for i in range(21))
+    db_session.commit()
+    r = client.post(f"{API}/ai/summarize-record", headers=h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["truncated"] and "Rezumat parțial" in body["result"]
+    assert "OTHER-PATIENT-SECRET" not in body["result"]
+    assert {s["kind"] for s in body["sources"]} == {
+        "alergie", "vaccin", "istoric", "programare", "document", "medicație"}
+    assert sum(s["kind"] == "medicație" for s in body["sources"]) == 20

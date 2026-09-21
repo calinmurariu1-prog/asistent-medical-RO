@@ -148,3 +148,12 @@ Subiectele necunoscute primesc abstinență fără apel de generare. Modurile si
 Simplificarea reală citează textul utilizatorului ca sursă neverificată clinic, fără a-i atribui autoritate medicală. În modul simulat nu pretinde reformulare: redă integral originalul, inclusiv finalul și negațiile. Cererile au maximum 8 câmpuri de maximum 12.000 caractere fiecare. Pregătirea vizitei produce local întrebări pentru medic, nu recomandări clinice. Verificarea rețetei compară numai substanțe separate explicit prin punct și virgulă/rând nou (maximum 30) cu catalogul limitat de interacțiuni; mărcile, dozele și combinațiile nerecunoscute rămân neevaluate. Nu verifică validitatea unei prescripții.
 
 Auditul nu este încheiat pentru rezumatul dosarului, comparațiile analizelor și explicațiile de laborator, care au fluxuri separate. Integrarea surselor clinice extinse și evaluarea furnizorului real rămân cerințe pentru lansare.
+
+
+## Rezumatul dosarului și comparația analizelor
+
+Rezumatul citează înregistrări proprii din analize, istoric (inclusiv diagnostice/observații), medicație activă și istorică, alergii, vaccinuri, programări și inventarul documentelor. Include cel mult 20 de înregistrări din fiecare secțiune, ordonate după adăugare, și semnalează explicit când este parțial. Prezintă câmpuri factuale selectate; nu analizează conținutul originalelor sau toate notele și nu reprezintă exportul complet. Identificatorii și tipurile surselor sunt întorși în API și în legenda vizibilă; sursele sunt date înregistrate, nu dovezi clinice independente. Nu sunt trimise numele pacientului, CNP-ul sau datele de contact.
+
+Valorile neconfirmate nu sunt incluse numeric nici în rezumat, nici în comparația cu o singură valoare. Comparația cere date distincte și unități compatibile, citează prima și ultimele două măsurători și calculează diferența ultimelor două. Nu echivalează creșterea/scăderea cu agravarea/ameliorarea. Datele lipsă sau incompatibile produc abstinență. Dosarul gol nu produce apel de generare.
+
+Modul simulat este etichetat; modelul real primește faptele cu referințe și răspunsurile fără citări valide sunt înlocuite cu abstinență. Validarea identificatorilor nu garantează susținerea fiecărei afirmații sau corectitudinea clinică. Explicațiile individuale de laborator au încă un flux separat, care rămâne de auditat.

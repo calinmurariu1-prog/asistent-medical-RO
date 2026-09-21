@@ -77,6 +77,10 @@ test("account, recovery, document and session lifecycle",async({page,request,con
  await page.goto("/dashboard");
  await expect(page.getByText("Versiune de test",{exact:false})).toBeVisible();
  expect(refreshCount).toBe(1);
+ await page.getByRole("button",{name:"Rezumat AI",exact:true}).click();
+ await expect(page.getByText(/Mod simulat — rezumat factual local/)).toBeVisible();
+ await expect(page.getByText(/Surse din dosarul tău/)).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
  if(info.project.name!=="desktop") await page.getByRole("button",{name:"Deschide meniul"}).click();
  await page.getByRole("button",{name:"Deconectare de pe toate dispozitivele"}).click();
  await expect(page).toHaveURL(/login/);

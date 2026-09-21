@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_patient, get_current_user, require_ai_consent
@@ -20,8 +20,19 @@ from app.services.ai.safety_router import EMERGENCY_SOURCES, emergency_reply
 router = APIRouter(prefix="/ai", tags=["ai-skills"])
 
 
+class RecordSource(BaseModel):
+    ref: str
+    kind: str
+    record_id: int
+    document_id: int | None = None
+
+
 class AiTextResponse(BaseModel):
     result: str
+    sources: list[RecordSource] = Field(default_factory=list)
+    abstained: bool = False
+    simulated: bool = False
+    truncated: bool = False
 
 
 class CompareRequest(BaseModel):
@@ -110,7 +121,7 @@ def summarize_record(
     ai: AIProvider = Depends(get_ai_provider),
 ) -> AiTextResponse:
     """AI summary of the patient's whole record."""
-    return AiTextResponse(result=record_ai.summarize_record(db, ai, patient))
+    return AiTextResponse(**record_ai.summarize_record(db, ai, patient))
 
 
 @router.post(
@@ -126,5 +137,5 @@ def compare_analyte(
 ) -> AiTextResponse:
     """AI interpretation of how one analyte evolved over time."""
     return AiTextResponse(
-        result=record_ai.compare_analyte(db, ai, patient, payload.analyte)
+        **record_ai.compare_analyte(db, ai, patient, payload.analyte)
     )

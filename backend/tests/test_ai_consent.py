@@ -70,6 +70,7 @@ def test_grant_revoke_and_provider_change(client, monkeypatch):
     monkeypatch.setattr(settings, "REQUIRE_AI_CONSENT", False)
     h = auth(client)
     other = auth(client, "other-consent@example.com")
+    client.post(f"{API}/medications", headers=h, json={"name": "Tratament fictiv"})
     provider = ExternalSpy()
     app.dependency_overrides[get_ai_provider] = lambda: provider
     try:
