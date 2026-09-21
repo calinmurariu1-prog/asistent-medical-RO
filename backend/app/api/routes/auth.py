@@ -6,7 +6,7 @@ import pyotp
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -197,21 +197,26 @@ def verify_email(
     return {"detail": "Email verified"}
 
 
-@router.post("/mfa/setup", response_model=MFASetupResponse)
+@router.post("/mfa/setup", response_model=MFASetupResponse,
+             dependencies=[Depends(_auth_limiter)])
 def mfa_setup(
     current: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> MFASetupResponse:
     secret = pyotp.random_base32()
-    current.mfa_secret = encrypt_field(secret)  # stored encrypted at rest
-    db.add(current)
-    db.commit()
+    changed = db.execute(update(User).where(
+        User.id == current.id, User.mfa_enabled.is_(False),
+    ).values(mfa_secret=encrypt_field(secret)))
+    if changed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, "MFA este deja activ. Secretul nu poate fi înlocuit.")
+    audit.record(db, user_id=current.id, action="mfa_setup")
     uri = pyotp.totp.TOTP(secret).provisioning_uri(
         name=current.email, issuer_name=settings.PROJECT_NAME
     )
     return MFASetupResponse(secret=secret, otpauth_uri=uri)
 
 
-@router.post("/mfa/activate")
+@router.post("/mfa/activate", dependencies=[Depends(_auth_limiter)])
 def mfa_activate(
     payload: MFAActivateRequest,
     current: User = Depends(get_current_user),
@@ -222,10 +227,17 @@ def mfa_activate(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Run /mfa/setup first")
     if not pyotp.TOTP(secret).verify(payload.code, valid_window=1):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid code")
-    current.mfa_enabled = True
-    db.add(current)
-    db.commit()
-    return {"detail": "MFA enabled"}
+    # Compare the encrypted setup snapshot: a concurrent setup must not enable
+    # a secret different from the one whose code was just verified.
+    changed = db.execute(update(User).where(
+        User.id == current.id, User.mfa_enabled.is_(False),
+        User.mfa_secret == current.mfa_secret,
+    ).values(mfa_enabled=True, token_version=User.token_version + 1))
+    if changed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, "Configurarea MFA s-a schimbat. Reia autentificarea.")
+    audit.record(db, user_id=current.id, action="mfa_activate")
+    return {"detail": "MFA activat. Autentifică-te din nou cu parola și codul MFA."}
 
 
 @router.get("/me", response_model=UserOut)
