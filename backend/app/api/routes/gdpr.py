@@ -1,6 +1,7 @@
 """GDPR endpoints: data export, account deletion, consent management."""
 from __future__ import annotations
 
+import pyotp
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
@@ -10,11 +11,12 @@ from app.api.deps import ai_consent_version, get_current_user
 from app.core.browser_session import clear_browser_cookies
 from app.core.database import get_db
 from app.core.rate_limit import RateLimiter
-from app.core.security import verify_password
+from app.core.security import decrypt_field, verify_password
 from app.models.enums import ConsentType
+from app.models.patient import Patient
 from app.models.user import Consent, User
-from app.schemas.gdpr import ConsentIn, ConsentOut, DeleteAccountRequest
-from app.services import audit, gdpr, record_archive, storage_cleanup
+from app.schemas.gdpr import ConsentIn, ConsentOut, DeleteAccountRequest, SensitiveExportRequest
+from app.services import audit, gdpr, mfa_recovery, record_archive, storage_cleanup
 from app.services.ai import get_ai_provider
 from app.services.ai.base import AIProvider
 from app.services.storage import Storage, get_storage
@@ -38,6 +40,44 @@ def export_my_data(
     response.headers["Pragma"] = "no-cache"
     audit.record(db, user_id=user.id, action="gdpr_export", ip_address=_client_ip(request))
     return gdpr.export_user_data(db, user)
+
+
+@router.post("/export/with-identifier", dependencies=[Depends(RateLimiter(5, 60))])
+def export_with_identifier(
+    payload: SensitiveExportRequest, user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    if not payload.include_cnp:
+        raise HTTPException(400, "Confirmă includerea CNP în export.")
+    version = user.token_version
+    account = db.scalar(select(User).where(User.id == user.id).with_for_update()
+                        .execution_options(populate_existing=True))
+    if account is None or not account.is_active or account.token_version != version:
+        raise HTTPException(401, "Sesiune expirată.")
+    if not account.hashed_password or not verify_password(
+        payload.password, account.hashed_password
+    ):
+        raise HTTPException(400, "Parolă sau cod MFA incorect.")
+    if account.mfa_enabled:
+        secret = decrypt_field(account.mfa_secret)
+        if not payload.mfa_code or not secret:
+            raise HTTPException(400, "Parolă sau cod MFA incorect.")
+        if not pyotp.TOTP(secret).verify(payload.mfa_code, valid_window=1):
+            if not mfa_recovery.consume(db, account.id, payload.mfa_code):
+                db.rollback()
+                raise HTTPException(400, "Parolă sau cod MFA incorect.")
+    patient = db.scalar(select(Patient).where(Patient.user_id == account.id))
+    identifier = decrypt_field(patient.cnp_encrypted) if patient else None
+    if patient and patient.cnp_encrypted and identifier is None:
+        db.rollback()
+        raise HTTPException(503, "Identificatorul nu a putut fi exportat. Reîncearcă.")
+    data = gdpr.export_user_data(db, account)
+    data["export_metadata"]["not_included"].remove("cnp")
+    data["export_metadata"]["cnp_requested"] = True
+    if data["patient"] is not None:
+        data["patient"]["cnp"] = identifier
+    audit.record(db, user_id=account.id, action="gdpr_export_with_identifier")
+    return data
 
 
 @router.get("/export/archive", dependencies=[Depends(RateLimiter(2, 60))])
