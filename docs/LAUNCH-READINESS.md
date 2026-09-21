@@ -114,3 +114,12 @@ Migrarea f2a4b6c8d0e1 adaugă rezervări și reîncercări persistente pentru li
 Testele acoperă reîncercarea, rezervarea activă/expirată, un proces vechi înlocuit, transcrierea orei cu fus, actualizarea/anularea memento-ului și date invalide. Testul cu două conexiuni independente rulează numai pe PostgreSQL. Cele 21 de scenarii browser au trecut, inclusiv programare → reprogramare → reîncărcare → anulare → reactivare → ștergere pe cele trei dimensiuni.
 
 Suită backend finală pentru memento-uri: 233 teste trecute, două teste PostgreSQL omise explicit local; Ruff trecut.
+
+
+### Centru de notificări în interfață
+
+Pagina dedicată oferă filtre Necitite/Viitoare/Toate, marcare individuală sau colectivă ca citit, ștergere confirmată și navigare la programarea asociată. Antetul și dashboardul oferă acces direct. Actualizarea periodică este oprită pentru pagina ascunsă și este reluată la revenire. Mesajele de stare separă citirea în aplicație de livrarea externă; memento-urile viitoare nu pot fi marcate accidental citite din această interfață.
+
+Revizia precedentă 6b46e13 a trecut toate verificările CI, inclusiv migrarea PostgreSQL, verificarea schemei și testul cu două procese de livrare: https://github.com/calinmurariu1-prog/asistent-medical-RO/actions/runs/35613815001. Acest increment extinde și verificarea respingerii ștergerii unei notificări din alt cont.
+
+Verificare centru notificări: build web/TypeScript cu 38 de pagini, 24 scenarii browser trecute pe desktop/iPhone/Android, cinci teste API pentru notificări și Ruff trecute. Capturile noi din docs/screenshots/notifications-* au fost inspectate pe desktop și iPhone în modul întunecat. Suita backend completă și verificările PostgreSQL rămân în CI pentru revizia publicată.

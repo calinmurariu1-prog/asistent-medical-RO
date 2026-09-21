@@ -207,7 +207,7 @@ export default function DashboardPage() {
         <Stat label="Analize urmărite" value={data.lab_summary.total_analytes} icon={Activity} idx={0} />
         <Stat label="În afara intervalului" value={data.lab_summary.abnormal_count} icon={AlertTriangle} idx={1} />
         <Stat label="Neevaluabile" value={data.lab_summary.unknown_count ?? "—"} icon={FileText} idx={2} />
-        <Stat label="Notificări noi" value={data.unread_notifications} icon={Bell} idx={3} />
+        <Link href="/notifications" aria-label={`Deschide cele ${data.unread_notifications} notificări noi`}><Stat label="Notificări noi" value={data.unread_notifications} icon={Bell} idx={3} /></Link>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

@@ -248,3 +248,17 @@ export interface Dashboard {
   recommendations_preview: string[];
   unread_notifications: number;
 }
+
+
+export interface MedicalNotification {
+  id: number;
+  channel: "push" | "email" | "sms";
+  title: string;
+  body: string | null;
+  status: "pending" | "sent" | "failed" | "read";
+  scheduled_for: string | null;
+  sent_at: string | null;
+  resource_type: string | null;
+  resource_id: string | null;
+  created_at: string;
+}

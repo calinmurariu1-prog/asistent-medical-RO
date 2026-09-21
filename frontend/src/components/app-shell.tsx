@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   Activity,
+  Bell,
   CalendarDays,
   CreditCard,
   ClipboardList,
@@ -39,6 +40,7 @@ const nav = [
   { href: "/assistant", label: "Asistent AI", icon: Sparkles },
   { href: "/medications", label: "Medicamente", icon: Pill },
   { href: "/appointments", label: "Programări", icon: CalendarDays },
+  { href: "/notifications", label: "Notificări", icon: Bell },
   { href: "/doctors", label: "Găsește medici", icon: MapPin },
   { href: "/subscription", label: "Abonament", icon: CreditCard },
   { href: "/settings", label: "Setări", icon: Settings },
@@ -126,6 +128,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </button>
             <div className="truncate text-sm text-muted">{user.email}</div>
           </div>
+          <Link href="/notifications" aria-label="Deschide notificările" className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-border"><Bell size={18} /></Link>
           <ThemeToggle />
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 sm:p-6 sm:pb-6">

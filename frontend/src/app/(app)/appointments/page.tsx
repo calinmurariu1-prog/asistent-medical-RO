@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
@@ -24,6 +24,11 @@ export default function AppointmentsPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [deleting, setDeleting] = useState<Appointment | null>(null);
+
+  useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (/^appointment-\d+$/.test(id)) document.getElementById(id)?.scrollIntoView({block:"center"});
+  }, [data]);
 
   function clear() { setEditing(null); setTitle(""); setStartsAt(""); setEndsAt(""); setLocation(""); }
   async function action(work: () => Promise<unknown>, success: string) {
@@ -71,7 +76,7 @@ export default function AppointmentsPage() {
     </Card>}
     <Button variant="outline" disabled={busy} onClick={()=>action(()=>api.post("/notifications/reminders/appointments"),"Memento-urile lipsă au fost pregătite.")}>Pregătește memento-urile programărilor vechi</Button>
     {loading ? <Spinner /> : !(data || []).length ? <EmptyState icon={CalendarDays} title="Nicio programare" hint="Adaugă o consultație sau o investigație." /> :
-      <div className="space-y-3">{(data || []).map(a=><Card key={a.id}>
+      <div className="space-y-3">{(data || []).map(a=><Card key={a.id} id={`appointment-${a.id}`} className="scroll-mt-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 break-words"><h2 className="font-semibold">{a.title}</h2>
             <p className="text-sm text-muted">{new Date(a.starts_at).toLocaleString("ro-RO")}</p>

@@ -74,4 +74,6 @@ def test_isolated_per_user(client):
     h2 = _auth(client, "n2@example.com")
     nid = client.post(f"{API}/notifications", headers=h1, json={"title": "X"}).json()["id"]
     assert client.post(f"{API}/notifications/{nid}/read", headers=h2).status_code == 404
+    assert client.delete(f"{API}/notifications/{nid}", headers=h2).status_code == 404
+    assert len(client.get(f"{API}/notifications", headers=h1).json()) == 1
     assert client.get(f"{API}/notifications", headers=h2).json() == []

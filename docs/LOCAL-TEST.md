@@ -98,3 +98,10 @@ Migrarea f2a4b6c8d0e1 adaugă rezervarea livrării și reîncercările. `NOTIFIC
 Numărul de necitite și „marchează toate citite” exclud notificările cu termen viitor. O notificare marcată explicit citită nu se mai trimite. Notificările pentru programări expirate/anulate sau utilizatori inactivi nu sunt expediate. SENT înseamnă acceptare pentru cel puțin un dispozitiv, nu afișare confirmată pe toate dispozitivele.
 
 Limite: un mesaj deja acceptat de furnizor nu poate fi retras la anularea programării. Dacă procesul cade după acceptare dar înaintea confirmării în DB, o reluare poate produce duplicate; nu revendicăm livrare exact o dată. Reîncercările pe dispozitive individuale după acceptarea parțială nu sunt încă separate. Livrarea FCM reală, APNs și permisiunile dispozitivului necesită configurare externă și verificare fizică. Nu folosi aceste memento-uri pentru urgențe.
+
+
+## Centrul de notificări
+
+Pagina `/notifications` este accesibilă din antet, meniu și cardul din dashboard. Filtrele Necitite/Viitoare/Toate separă mesajele curente de memento-urile programate. „Marchează toate notificările curente citite” păstrează memento-urile viitoare. Ștergerea cere confirmare și oprește încercările viitoare, fără să retragă mesaje deja trimise. Linkul unei programări deschide și aduce în ecran cardul asociat.
+
+Lista se actualizează la 30 de secunde cât pagina este vizibilă și la revenirea în fereastră; butonul Actualizează permite reîncărcarea imediată. Citirea în aplicație nu confirmă afișarea unei notificări push pe telefon.
