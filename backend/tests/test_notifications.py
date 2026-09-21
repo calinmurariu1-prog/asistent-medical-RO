@@ -12,15 +12,17 @@ def _auth(client, email="notif@example.com"):
     return {"Authorization": f"Bearer {tokens['access_token']}"}
 
 
-def test_immediate_notification_is_sent(client):
+def test_immediate_notification_is_pending_until_real_delivery(client, caplog):
+    caplog.set_level("INFO")
     h = _auth(client)
     r = client.post(
         f"{API}/notifications", headers=h, json={"title": "Ia-ți medicamentul"}
     )
     assert r.status_code == 201, r.text
     body = r.json()
-    assert body["status"] == "sent"
-    assert body["sent_at"] is not None
+    assert body["status"] == "pending"
+    assert body["sent_at"] is None
+    assert "Ia-ți medicamentul" not in caplog.text
 
 
 def test_scheduled_notification_is_pending(client):

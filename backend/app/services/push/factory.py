@@ -21,5 +21,5 @@ def get_push_provider() -> PushProvider:
     except Exception as exc:  # noqa: BLE001  (missing creds/SDK)
         if not settings.PUSH_ALLOW_MOCK:
             raise
-        logger.info("FCM not configured (%s); using mock push sender.", exc)
+        logger.info("FCM not configured (%s); using mock push sender.", type(exc).__name__)
         return _mock

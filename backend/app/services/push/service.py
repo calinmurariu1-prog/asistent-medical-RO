@@ -28,8 +28,9 @@ def register_token(db: Session, user: User, token: str, platform: str) -> PushTo
     return row
 
 
-def unregister_token(db: Session, token: str) -> None:
-    row = db.scalar(select(PushToken).where(PushToken.token == token))
+def unregister_token(db: Session, user: User, token: str) -> None:
+    row = db.scalar(select(PushToken).where(
+        PushToken.token == token, PushToken.user_id == user.id))
     if row is not None:
         db.delete(row)
         db.commit()
@@ -37,46 +38,47 @@ def unregister_token(db: Session, token: str) -> None:
 
 def send_to_user(
     db: Session, user: User, title: str, body: str = "", data: dict | None = None
-) -> int:
-    """Send a push to all of the user's devices; prune tokens that fail.
-
-    Returns the number of devices reached.
-    """
-    tokens = list(
-        db.scalars(select(PushToken).where(PushToken.user_id == user.id)).all()
-    )
+) -> dict[str, int]:
+    """Separate simulated sends from provider acceptance; retain tokens on failures."""
+    tokens = list(db.scalars(select(PushToken).where(PushToken.user_id == user.id)))
+    result = {"delivered": 0, "simulated": 0, "failed": 0, "devices": len(tokens)}
     if not tokens:
-        return 0
+        return result
     provider = get_push_provider()
     message = PushMessage(title=title, body=body, data=data or {})
-    delivered = 0
-    for t in tokens:
-        if provider.send(t.token, message):
-            delivered += 1
+    for token in tokens:
+        if provider.send(token.token, message):
+            result["simulated" if provider.name == "mock" else "delivered"] += 1
         else:
-            # Failed/expired token — drop it so we stop trying.
-            db.delete(t)
-    db.commit()
-    return delivered
+            # A timeout/credentials outage does not prove that the token expired.
+            result["failed"] += 1
+    return result
 
 
 def send_notification(db: Session, notification: Notification) -> int:
     """Push an existing Notification row to the user's devices and mark it sent."""
-    from app.models.enums import NotificationStatus
+    from app.models.enums import NotificationChannel, NotificationStatus
 
+    if notification.channel != NotificationChannel.PUSH:
+        return 0
+    if notification.status in (NotificationStatus.SENT, NotificationStatus.READ):
+        return 0
+    scheduled = notification.scheduled_for
+    if scheduled and scheduled.replace(tzinfo=scheduled.tzinfo or UTC) > datetime.now(UTC):
+        return 0
     user = db.get(User, notification.user_id)
     if user is None:
         return 0
     delivered = send_to_user(
         db,
         user,
-        notification.title,
-        notification.body or "",
+        "Asistent Medical",
+        "Ai o notificare nouă. Deschide aplicația pentru detalii.",
         data={"notification_id": notification.id},
     )
-    if delivered:
+    if delivered["delivered"]:
         notification.status = NotificationStatus.SENT
         notification.sent_at = datetime.now(UTC)
         db.add(notification)
         db.commit()
-    return delivered
+    return delivered["delivered"]

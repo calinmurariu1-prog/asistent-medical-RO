@@ -81,5 +81,5 @@ class FCMPushProvider:
             resp.raise_for_status()
             return True
         except Exception as exc:  # noqa: BLE001
-            logger.warning("[fcm] send failed: %s", exc)
+            logger.warning("[fcm] send failed: %s", type(exc).__name__)
             return False

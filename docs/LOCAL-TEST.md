@@ -80,3 +80,10 @@ Pentru suita automată cu multe conturi fictive, pornește temporar cu `RUN_LOCA
 ## Corectarea analizelor
 
 Secțiunea Analize permite adăugarea, corectarea și ștergerea confirmată a rezultatelor. Introdu valoarea, unitatea, intervalul și data din documentul sursă; confirmarea transcrierii nu este validare medicală. Corectarea păstrează originalul și legătura cu documentul, invalidează explicațiile AI vechi și actualizează graficele. Reprocesarea documentului înlocuiește corecturile manuale ale rezultatelor sale. În timpul procesării, modificările acestor rezultate sunt blocate temporar.
+
+
+## Notificări: simulare și confidențialitate
+
+Testul push din Profil/Setări separă simularea locală, acceptarea de către furnizor și eșecul trimiterii. Acceptarea nu confirmă afișarea pe telefon. Fără FCM configurat, nu se trimit notificări reale. Mesajele push pentru memento-uri folosesc un text generic; detaliile medicale se consultă numai în aplicație. Tokenurile se dezînregistrează numai din contul proprietar, iar o eroare temporară nu le șterge.
+
+Notificările nou create rămân pending până la o trimitere reală; simularea nu completează sent_at. Livrarea programată automată și canalele email/SMS pentru notificări rămân neimplementate. Stările sent din versiunile anterioare nu constituie dovadă de livrare reală și nu sunt rescrise automat. Tokenurile expirate necesită dezînregistrare explicită; eliminarea automată va necesita distingerea erorilor permanente de cele temporare.

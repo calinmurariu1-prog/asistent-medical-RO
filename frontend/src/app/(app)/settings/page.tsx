@@ -22,7 +22,7 @@ import {
   syncNativeHealth,
 } from "@/lib/health-native";
 import { bluetoothAvailable, connectHealthDevice } from "@/lib/bluetooth";
-import { sendTestPush } from "@/lib/push";
+import { pushDeliveryMessage, sendTestPush } from "@/lib/push";
 import type { HealthDevice } from "@/lib/types";
 import { Badge, Button, Card, Input, PageHeader, Spinner } from "@/components/ui";
 
@@ -191,16 +191,14 @@ export default function SettingsPage() {
       <Section
         icon={Bell}
         title="Notificări"
-        desc="Memento-uri pentru medicamente și programări, pe telefon."
+        desc="Mesajele push ascund detaliile medicale. Livrarea reală necesită configurarea serviciului."
       >
         <Button
           variant="outline"
           onClick={() =>
             run("push", async () => {
               const n = await sendTestPush();
-              return n > 0
-                ? `Notificare trimisă către ${n} dispozitiv(e).`
-                : "Niciun dispozitiv înregistrat (deschide aplicația pe telefon și acceptă notificările).";
+              return pushDeliveryMessage(n);
             })
           }
           disabled={busy === "push"}

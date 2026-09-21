@@ -23,7 +23,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 
 ## Dovezi locale
 
-- Backend: 222 teste trecute și un test PostgreSQL omis explicit local, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
+- Backend: 227 teste trecute și un test PostgreSQL omis explicit local, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
 - Ruff trecut; build Next și TypeScript trecute; zece teste unitare pentru refresh/concurență trecute.
 - Export web Capacitor: 37 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
 - Verificările browser acoperă cont, confirmare, profil, PDF, descărcare identică, analize, dashboard, refresh, resetare și deconectare pe desktop și dimensiuni iPhone/Android. Capturi în `docs/screenshots`.
@@ -94,3 +94,12 @@ Valorile `unverified` nu sunt interpretate de AI, nu intră în grafice/compara�
 API-ul și interfața permit creare, corectare și ștergere confirmată. Accesul este limitat la proprietar; operațiile sunt auditate fără valori medicale în jurnal. Corectarea înlocuiește toate câmpurile editabile, recalculează eticheta față de intervalul furnizat și invalidează explicațiile pentru seriile afectate. Originalul rămâne neschimbat; reprocesarea poate înlocui corectura, fapt indicat explicit în formular. Blocarea documentului serializează modificările față de procesare. Confirmarea manuală este transcriere, nu validare clinică.
 
 Testele noi acoperă izolarea conturilor, auditul, invalidarea explicațiilor, date invalide, protecția în timpul procesării și păstrarea originalului. Fluxul browser creare → corectare → reîncărcare → anularea ștergerii → ștergere a trecut pe cele trei dimensiuni; suita browser are 15 scenarii trecute. Erorile explicațiilor și comparațiilor AI sunt afișate în pagină.
+
+
+### Notificări cu rezultate de livrare explicite
+
+Dezînregistrarea dispozitivelor este limitată la contul autentificat, cu validarea tokenului/platformei. API-ul test-push returnează separat delivered (acceptat de furnizor), simulated, failed și devices; Profil și Setări afișează mesaje distincte. Simularea nu marchează notificările sent, iar crearea unei înregistrări nu pretinde livrarea. Notificările viitoare sau de alt canal nu sunt trimise prin push. Eșecurile păstrează tokenurile pentru reîncercare.
+
+Memento-urile push conțin un text generic și identificatorul notificării, fără titlu/body medical. Logurile nu includ titluri sau conținutul excepțiilor FCM. Testele acoperă izolarea conturilor, date invalide, păstrarea tokenurilor, simularea versus acceptarea reală, protecția conținutului și programările viitoare. Livrarea automată programată și validarea pe telefon real rămân deschise; stările sent istorice nu dovedesc livrarea reală.
+
+Verificare pentru acest increment: 227 teste backend locale trecute, un test PostgreSQL omis local, Ruff și build/TypeScript trecute; 18 scenarii browser trecute pe desktop și dimensiuni iPhone/Android. Testele de mesaje push din browser folosesc răspunsuri simulate; nu demonstrează livrarea FCM.

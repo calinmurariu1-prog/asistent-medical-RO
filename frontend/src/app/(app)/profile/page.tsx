@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Bell, Download, User } from "lucide-react";
 import { api, downloadFile } from "@/lib/api";
-import { sendTestPush } from "@/lib/push";
+import { pushDeliveryMessage, sendTestPush } from "@/lib/push";
 import type { PatientProfile } from "@/lib/types";
 import { Button, Card, Input, PageHeader, Spinner } from "@/components/ui";
 
@@ -47,12 +47,11 @@ export default function ProfilePage() {
   const [pushMsg, setPushMsg] = useState<string | null>(null);
   async function testPush() {
     setPushMsg(null);
-    const n = await sendTestPush();
-    setPushMsg(
-      n > 0
-        ? `Notificare trimisă către ${n} dispozitiv(e).`
-        : "Niciun dispozitiv înregistrat. Deschide aplicația pe telefon și acceptă notificările.",
-    );
+    try {
+      setPushMsg(pushDeliveryMessage(await sendTestPush()));
+    } catch (e) {
+      setPushMsg(e instanceof Error ? e.message : "Notificarea nu a putut fi trimisă.");
+    }
   }
 
   async function exportReport(fmt: "pdf" | "docx") {

@@ -1,8 +1,10 @@
 """Module 14 - Notifications."""
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_patient, get_current_user
@@ -18,8 +20,10 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
 class PushTokenIn(BaseModel):
-    token: str
-    platform: str = "android"  # ios | android | web
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    token: str = Field(min_length=1, max_length=400)
+    platform: Literal["ios", "android", "web"] = "android"
 
 
 @router.post("/push-token", status_code=status.HTTP_204_NO_CONTENT)
@@ -36,10 +40,10 @@ def register_push_token(
 @router.delete("/push-token", status_code=status.HTTP_204_NO_CONTENT)
 def delete_push_token(
     payload: PushTokenIn,
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
-    push_service.unregister_token(db, payload.token.strip())
+    push_service.unregister_token(db, user, payload.token)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -52,7 +56,7 @@ def send_test_push(
     delivered = push_service.send_to_user(
         db, user, "Asistent Medical AI", "Notificările push funcționează! 🎉"
     )
-    return {"delivered": delivered}
+    return delivered
 
 
 @router.get("", response_model=list[NotificationOut])

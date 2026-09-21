@@ -1,13 +1,6 @@
-"""Module 14 - notifications (push / email / SMS).
-
-Creation and lifecycle live here. Actual delivery is abstracted behind
-`_dispatch`, which currently logs and marks the notification sent. Real
-channel adapters (FCM/APNs push, SMTP email, SMS gateway) and a scheduler for
-future-dated reminders plug in here without touching the API.
-"""
+"""Persist in-app notifications; only a real adapter can confirm external sending."""
 from __future__ import annotations
 
-import logging
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -20,25 +13,6 @@ from app.models.enums import (
     NotificationStatus,
 )
 from app.models.notification import Notification
-
-logger = logging.getLogger(__name__)
-
-
-def _dispatch(db: Session, notification: Notification) -> None:
-    """Send now if due; otherwise leave PENDING for the scheduler."""
-    now = datetime.now(UTC)
-    if notification.scheduled_for and notification.scheduled_for > now:
-        notification.status = NotificationStatus.PENDING
-        return
-    # TODO: route to the real channel adapter based on notification.channel.
-    logger.info(
-        "Dispatching %s notification to user %s: %s",
-        notification.channel.value,
-        notification.user_id,
-        notification.title,
-    )
-    notification.status = NotificationStatus.SENT
-    notification.sent_at = now
 
 
 def create_notification(
@@ -61,7 +35,7 @@ def create_notification(
         resource_type=resource_type,
         resource_id=str(resource_id) if resource_id is not None else None,
     )
-    _dispatch(db, notification)
+    notification.status = NotificationStatus.PENDING
     db.add(notification)
     db.commit()
     db.refresh(notification)
