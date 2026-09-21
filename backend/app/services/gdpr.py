@@ -15,7 +15,7 @@ from app.models.medication import Medication
 from app.models.medication_reminder import MedicationReminder
 from app.models.notification import Notification
 from app.models.patient import Patient
-from app.models.user import Consent, User
+from app.models.user import AuditLog, Consent, User
 from app.services.storage_cleanup import enqueue
 
 
@@ -49,7 +49,7 @@ def export_user_data(db: Session, user: User) -> dict:
             "exported_at": _iso(datetime.now(UTC)),
             "original_files_included": False,
             "scope": "account_and_clinical_records",
-            "not_included": ["original_file_bytes", "cnp", "billing", "audit_logs",
+            "not_included": ["original_file_bytes", "cnp", "billing", "internal_audit_details",
                              "authentication_secrets"],
         },
         "account": {
@@ -84,6 +84,14 @@ def export_user_data(db: Session, user: User) -> dict:
         {**_record(f), "message": f.message, "rating": f.rating}
         for f in db.scalars(select(Feedback).where(Feedback.user_id == user.id)
                             .order_by(Feedback.id))
+    ]
+
+    data["audit_events"] = [
+        {"id": event.id, "action": event.action, "resource_type": event.resource_type,
+         "resource_id": event.resource_id, "ip_address": event.ip_address,
+         "user_agent": event.user_agent, "created_at": _iso(event.created_at)}
+        for event in db.scalars(select(AuditLog).where(AuditLog.user_id == user.id)
+                                .order_by(AuditLog.created_at, AuditLog.id))
     ]
 
     if patient is None:

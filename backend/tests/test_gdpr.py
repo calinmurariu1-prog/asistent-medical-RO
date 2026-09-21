@@ -196,3 +196,39 @@ def test_account_export_without_patient_keeps_feedback(client, db_session):
     data = client.get(f"{API}/gdpr/export", headers=h).json()
     assert data["patient"] is None
     assert data["feedback"][0]["message"] == "Before profile creation"
+
+
+def test_export_audit_events_are_owner_scoped_without_internal_detail(client, db_session):
+    from datetime import UTC, datetime
+
+    from sqlalchemy import select
+
+    from app.models.user import AuditLog, User
+
+    owner = _auth(client, "audit-export-owner@example.com")
+    other = _auth(client, "audit-export-other@example.com")
+    for email, action in (("audit-export-owner@example.com", "owner_action"),
+                          ("audit-export-other@example.com", "other_action")):
+        user = db_session.scalar(select(User).where(User.email == email))
+        db_session.add(AuditLog(user_id=user.id, action=action, resource_type="patient",
+                               ip_address="192.0.2.1", user_agent="Synthetic browser",
+                               detail="internal-detail-must-stay-private",
+                               created_at=datetime.now(UTC)))
+    db_session.add(AuditLog(user_id=None, action="unattributed_action",
+                           created_at=datetime.now(UTC)))
+    db_session.commit()
+    for headers, present, absent in ((owner, "owner_action", "other_action"),
+                                     (other, "other_action", "owner_action")):
+        response = client.get(f"{API}/gdpr/export", headers=headers)
+        assert response.status_code == 200
+        events = response.json()["audit_events"]
+        assert present in [event["action"] for event in events]
+        assert absent not in [event["action"] for event in events]
+        assert "unattributed_action" not in response.text
+        assert "internal-detail-must-stay-private" not in response.text
+        assert all("detail" not in event for event in events)
+        assert any(event["action"] == "gdpr_export" for event in events)
+        own = next(event for event in events if event["action"] == present)
+        assert own["ip_address"] == "192.0.2.1"
+        assert own["user_agent"] == "Synthetic browser"
+        assert own["created_at"].endswith("+00:00")
