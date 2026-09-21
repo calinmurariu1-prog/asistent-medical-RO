@@ -34,6 +34,9 @@ test("account, recovery, document and session lifecycle",async({page,request,con
  await page.getByRole("button",{name:"Descarcă originalul"}).click();
  const file=await downloaded;
  expect(await readFile((await file.path())!)).toEqual(await readFile(path.resolve("../demo/analize-fictive.pdf")));
+ await page.getByLabel("Document medical").setInputFiles(path.resolve("../demo/analize-fictive.docx"));
+ await page.getByRole("button",{name:"Încarcă",exact:true}).click();
+ await expect(page.getByText("analize-fictive.docx",{exact:true})).toBeVisible();
  await page.goto("/labs");
  await expect(page.getByText("Glicemie",{exact:false}).first()).toBeVisible();
  const cookieMode=process.env.E2E_COOKIES==="true";

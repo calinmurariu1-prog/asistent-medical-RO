@@ -165,3 +165,107 @@ def test_upload_limit_reads_only_bounded_bytes(client, monkeypatch):
     assert client.post(API + "/documents", headers=headers,
                        files={"file": ("big.pdf", b"x" * 11, "application/pdf")}
                        ).status_code == 413
+
+
+def test_docx_paragraphs_and_tables_are_extracted(client):
+    from docx import Document as WordDocument
+
+    from app.services.ocr import DOCX_TYPE
+
+    source = WordDocument()
+    source.add_paragraph("Buletin fictiv de laborator")
+    table = source.add_table(rows=1, cols=3)
+    for cell, value in zip(table.rows[0].cells, ["Glicemie", "105 mg/dL", "70 - 99"], strict=True):
+        cell.text = value
+    buffer = io.BytesIO()
+    source.save(buffer)
+    data = buffer.getvalue()
+    headers = _auth_headers(client)
+    result = client.post(API + "/documents", headers=headers,
+                         files={"file": ("fictiv.docx", data, DOCX_TYPE)})
+    assert result.status_code == 201, result.text
+    body = result.json()
+    assert body["status"] == "done"
+    assert body["category"] == "lab"
+    assert "Buletin fictiv" in body["extracted_text"]
+    assert body["lab_results"][0]["value"] == 105
+    original = client.get(API + f"/documents/{body['id']}/original", headers=headers)
+    assert original.content == data
+
+
+def test_docx_invalid_and_excessively_compressed_rejected(client):
+    import zipfile
+
+    from app.services.ocr import DOCX_TYPE
+
+    headers = _auth_headers(client)
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", "content")
+        archive.writestr("word/document.xml", "x" * 200_000)
+    for data in [b"not a docx", buffer.getvalue()]:
+        result = client.post(API + "/documents", headers=headers,
+                             files={"file": ("invalid.docx", data, DOCX_TYPE)})
+        assert result.status_code == 400
+    assert client.get(API + "/documents", headers=headers).json() == []
+
+
+def test_empty_extraction_is_failed_and_does_not_invoke_ai(client, monkeypatch):
+    from app.services.ai.mock import MockProvider
+
+    calls = []
+
+    def unexpected(*args):
+        calls.append(True)
+        raise AssertionError("AI must not receive empty extraction")
+
+    monkeypatch.setattr("app.services.ocr.extract_text", lambda *args: "")
+    monkeypatch.setattr(MockProvider, "extract_document", unexpected)
+    headers = _auth_headers(client)
+    result = _upload(client, headers).json()
+    assert result["status"] == "failed"
+    assert calls == []
+    assert result["lab_results"] == []
+    assert "Originalul este păstrat" in result["ai_summary"]
+    assert client.get(API + f"/documents/{result['id']}/original",
+                      headers=headers).status_code == 200
+
+
+def test_reprocess_failure_rolls_back_replacement_and_hides_exception(client, monkeypatch, caplog):
+    headers = _auth_headers(client)
+    result = client.post(API + "/documents", headers=headers,
+                         files={"file": ("labs.pdf", _make_text_pdf(SAMPLE_LAB_TEXT),
+                                         "application/pdf")}).json()
+    url = API + f"/documents/{result['id']}"
+    previous = result["lab_results"]
+    assert len(previous) == 3
+
+    def fail(*args):
+        raise RuntimeError("sensitive-provider-content")
+
+    monkeypatch.setattr("app.services.document_processing._persist_lab_values", fail)
+    failed = client.post(url + "/reprocess", headers=headers)
+    assert failed.status_code == 200
+    assert failed.json()["status"] == "failed"
+    assert failed.json()["lab_results"] == previous
+    assert "sensitive-provider-content" not in failed.text
+    assert "sensitive-provider-content" not in caplog.text
+
+
+def test_reprocessing_does_not_duplicate_results_or_allow_busy_document(client, db_session):
+    from app.models.document import Document
+    from app.models.enums import ProcessingStatus
+
+    headers = _auth_headers(client)
+    result = client.post(API + "/documents", headers=headers,
+                         files={"file": ("labs.pdf", _make_text_pdf(SAMPLE_LAB_TEXT),
+                                         "application/pdf")}).json()
+    url = API + f"/documents/{result['id']}/reprocess"
+    for _ in range(2):
+        processed = client.post(url, headers=headers)
+        assert processed.status_code == 200
+        assert len(processed.json()["lab_results"]) == 3
+    document = db_session.get(Document, result["id"])
+    document.status = ProcessingStatus.PROCESSING
+    db_session.commit()
+    assert client.post(url, headers=headers).status_code == 409

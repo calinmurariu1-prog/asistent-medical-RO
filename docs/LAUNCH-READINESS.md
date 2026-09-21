@@ -10,6 +10,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 - Stocare nativă Keychain/Keystore, fără fallback necriptat, iCloud oprit și backup Android dezactivat.
 - Sesiuni web HttpOnly prin proxy de aceeași origine, protecție Origin pentru cererile cu cookie și eliminarea tokenurilor web din localStorage.
 - Refresh automat unic pentru cereri simultane, maximum o reluare; logout pe toate dispozitivele și avertizare la revocare neconfirmată.
+- DOCX cu paragrafe/tabele și validarea arhivei; fără succes fictiv când OCR nu extrage text. Reprocesarea păstrează rezultatele vechi până la succes.
 - Originale locale criptate, persistente, descărcate autentificat cu verificarea proprietarului; încărcare limitată ca dimensiune.
 - Next.js 16.3.5, React 19, compatibilitate export Capacitor; interfața existentă păstrată și antet mobil corectat.
 - Pornire separată 8012/3012, SQLite și chei persistente; PDF fictiv și banner AI simulat.
@@ -17,7 +18,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 
 ## Dovezi locale
 
-- Backend: 154 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
+- Backend: 159 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
 - Ruff trecut; build Next și TypeScript trecute; zece teste unitare pentru refresh/concurență trecute.
 - Export web Capacitor: 36 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
 - Verificările browser acoperă cont, confirmare, profil, PDF, descărcare identică, analize, dashboard, refresh, resetare și deconectare pe desktop și dimensiuni iPhone/Android. Capturi în `docs/screenshots`.

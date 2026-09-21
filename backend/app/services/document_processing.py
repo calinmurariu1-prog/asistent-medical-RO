@@ -10,10 +10,11 @@ import json
 import logging
 from datetime import UTC, datetime
 
+from sqlalchemy import delete, update
 from sqlalchemy.orm import Session
 
 from app.models.document import Document, LabResult
-from app.models.enums import LabFlag, ProcessingStatus
+from app.models.enums import DocumentCategory, LabFlag, ProcessingStatus
 from app.services import ocr
 from app.services.ai.base import AIProvider, ExtractedLabValue
 from app.services.storage import Storage
@@ -65,6 +66,10 @@ def _persist_lab_values(
         )
 
 
+class DocumentBusyError(Exception):
+    pass
+
+
 def process_document(
     db: Session,
     document: Document,
@@ -72,28 +77,46 @@ def process_document(
     ai: AIProvider,
 ) -> Document:
     """Download, extract text, run AI extraction and persist results."""
-    document.status = ProcessingStatus.PROCESSING
-    db.add(document)
+    claimed = db.execute(update(Document).where(
+        Document.id == document.id, Document.status != ProcessingStatus.PROCESSING,
+    ).values(status=ProcessingStatus.PROCESSING))
+    if claimed.rowcount != 1:
+        db.rollback()
+        raise DocumentBusyError()
     db.commit()
 
     try:
         data = storage.get(document.storage_key)
         text = ocr.extract_text(data, document.content_type, document.original_filename)
+        if not text.strip():
+            raise ValueError("empty_extraction")
+        if len(text) > 200_000:
+            raise ValueError("extraction_too_large")
         extraction = ai.extract_document(text, document.category.value)
 
         document.extracted_text = text or None
         document.ai_summary = extraction.summary or None
         document.ai_metadata = json.dumps(extraction.to_metadata(), ensure_ascii=False)
+        # Replace results only after extraction succeeds; rollback preserves prior rows.
+        db.execute(delete(LabResult).where(LabResult.document_id == document.id))
         _persist_lab_values(db, document, extraction.lab_values)
+        if document.category == DocumentCategory.OTHER and extraction.lab_values:
+            document.category = DocumentCategory.LAB
 
         document.status = ProcessingStatus.DONE
         document.processed_at = datetime.now(UTC)
+        db.commit()
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Document %s processing failed", document.id)
+        db.rollback()
+        logger.warning("Document %s processing failed (%s)", document.id, type(exc).__name__)
         document.status = ProcessingStatus.FAILED
-        document.ai_summary = f"Procesare eșuată: {exc}"
+        document.ai_summary = (
+            "Textul nu a putut fi extras sau procesat. Originalul este păstrat. "
+            "Pentru scanări, verifică disponibilitatea OCR. Rezultatele anterioare sunt păstrate."
+        )
 
     db.add(document)
     db.commit()
     db.refresh(document)
+    db.expire(document, ["lab_results"])
     return document

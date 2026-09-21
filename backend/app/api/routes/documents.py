@@ -27,7 +27,7 @@ from app.schemas.document import (
     DocumentDownloadOut,
     DocumentOut,
 )
-from app.services import document_processing
+from app.services import document_processing, ocr
 from app.services.ai import get_ai_provider
 from app.services.ai.base import AIProvider
 from app.services.billing import entitlements
@@ -38,6 +38,7 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 MAX_SIZE_BYTES = 25 * 1024 * 1024  # 25 MB
 ALLOWED_CONTENT_TYPES = {
+    ocr.DOCX_TYPE,
     "application/pdf",
     "image/jpeg",
     "image/jpg",
@@ -61,7 +62,7 @@ def upload_document(
         raise HTTPException(
             status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             f"Tip fișier neacceptat: {file.content_type}. "
-            "Acceptate: PDF, JPG, PNG, DICOM.",
+            "Acceptate: PDF, JPG, PNG, DOCX, DICOM.",
         )
 
     # Free-plan document quota (Premium/Family are unlimited).
@@ -85,6 +86,12 @@ def upload_document(
             status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             f"Fișier prea mare (max {MAX_SIZE_BYTES // (1024 * 1024)} MB)",
         )
+
+    if file.content_type == ocr.DOCX_TYPE or (file.filename or "").lower().endswith(".docx"):
+        try:
+            ocr.validate_docx(data)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
 
     key = build_object_key(patient.id, file.filename or "document")
     storage.put(key, data, file.content_type)
@@ -175,11 +182,10 @@ def reprocess_document(
     ai: AIProvider = Depends(get_ai_provider),
 ) -> Document:
     document = _owned_document(document_id, patient, db)
-    # Drop previously extracted lab results before re-extraction.
-    for lab in list(document.lab_results):
-        db.delete(lab)
-    db.commit()
-    return document_processing.process_document(db, document, storage, ai)
+    try:
+        return document_processing.process_document(db, document, storage, ai)
+    except document_processing.DocumentBusyError:
+        raise HTTPException(409, "Documentul este deja în curs de procesare.") from None
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -30,6 +30,7 @@ export default function DocumentsPage() {
   const { data, loading, reload } = useFetch<DocumentItem[]>("/documents");
   const [category, setCategory] = useState("lab");
   const [uploading, setUploading] = useState(false);
+  const [retrying, setRetrying] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -57,7 +58,7 @@ export default function DocumentsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Documente"
-        subtitle="Încarcă analize și scrisori — AI extrage textul și valorile."
+        subtitle="Încarcă analize și scrisori — Extragem textul și valorile disponibile."
         icon={FileText}
       />
 
@@ -67,11 +68,12 @@ export default function DocumentsPage() {
             ref={fileRef}
             type="file"
             aria-label="Document medical"
-            accept=".pdf,.jpg,.jpeg,.png,.dcm"
+            accept=".pdf,.jpg,.jpeg,.png,.docx,.dcm"
             className="text-sm"
             required
           />
           <select
+            aria-label="Categorie document"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             className="rounded-lg border border-border bg-surface px-3 py-2 text-sm"
@@ -89,7 +91,7 @@ export default function DocumentsPage() {
         </form>
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         <p className="mt-2 text-xs text-muted">
-          Acceptate: PDF, JPG, PNG, DICOM. AI extrage automat textul și valorile.
+          Acceptate: PDF, JPG, PNG, DOCX, DICOM. Scanările necesită OCR disponibil.
         </p>
       </Card>
 
@@ -121,9 +123,15 @@ export default function DocumentsPage() {
                   </div>
                 </div>
                 <Badge tone={d.status === "done" ? "green" : "amber"}>
-                  {d.status}
+                  {{done:"Procesat",failed:"Necesită verificare",processing:"Se procesează",pending:"În așteptare"}[d.status] || d.status}
                 </Badge>
               </div>
+              {d.status === "failed" && <Button disabled={retrying === d.id} onClick={async () => {
+                setRetrying(d.id); setError(null);
+                try { await api.post(`/documents/${d.id}/reprocess`); reload(); }
+                catch (e) { setError(e instanceof Error ? e.message : "Reprocesare eșuată"); }
+                finally { setRetrying(null); }
+              }}>{retrying === d.id ? "Se procesează…" : "Reîncearcă procesarea"}</Button>}
               {d.ai_summary && (
                 <p className="mt-3 rounded-2xl bg-surface-2 p-3 text-sm text-fg/80">
                   {d.ai_summary}

@@ -15,7 +15,7 @@ La pornirile următoare adaugă `-SkipInstall`. Scriptul aplică migrarea Alembi
 
 - Interfață: http://localhost:3012/register
 - API: http://localhost:8012/docs
-- PDF fictiv pentru upload: `demo/analize-fictive.pdf`.
+- Documente fictive pentru upload: `demo/analize-fictive.pdf` și `demo/analize-fictive.docx`.
 
 Contul se creează în interfață. Confirmarea emailului și recuperarea parolei folosesc fișierele din `.local-data/mailbox`: deschide cel mai recent mesaj destinat adresei fictive și copiază linkul în browser. Mesajele nu sunt trimise extern. Nu publica acest director.
 
@@ -27,7 +27,7 @@ Cheile generate o singură dată, baza SQLite, originalele criptate, emailurile 
 
 Recuperarea folosește tokenuri aleatoare, stocate doar ca hash, cu scop, expirare și consum atomic. Migrarea `f6b8d0a2c4e6` invalidează implicit vechile linkuri JWT; solicită un link nou. Resetarea revocă sesiunile existente. Fără `SMTP_HOST`, recuperarea în producție întoarce uniform 503. Pentru email real sunt necesare `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` și un `FRONTEND_URL` HTTPS corect; vezi și setările backend. Nu pune parole în Git.
 
-AI rulează cu `AI_DEFAULT_PROVIDER=mock`, iar interfața afișează permanent modul de test. OCR real, DOCX, SMTP/S3 reale și notificările externe nu au fost validate în acest increment. Webul local folosește cookie-uri HttpOnly prin aceeași origine. Exportul mobil utilizează tokenuri bearer păstrate prin Keychain/Android Keystore; verificarea pe dispozitive fizice rămâne necesară.
+AI rulează cu `AI_DEFAULT_PROVIDER=mock`, iar interfața afișează permanent modul de test. OCR real și SMTP/S3 reale și notificările externe nu au fost validate în acest increment. Webul local folosește cookie-uri HttpOnly prin aceeași origine. Exportul mobil utilizează tokenuri bearer păstrate prin Keychain/Android Keystore; verificarea pe dispozitive fizice rămâne necesară.
 
 ## Verificări repetabile
 
@@ -53,3 +53,9 @@ Scriptul local setează `NEXT_PUBLIC_SESSION_TRANSPORT=cookie` și `BACKEND_URL=
 Pentru activare pe un mediu web viitor: setează variabila publică înainte de build, `BACKEND_URL` la serviciul API accesibil serverului și `FRONTEND_URL` la originea HTTPS reală. Nu este necesară expunerea adresei interne în browser. Nicio configurație Render nu a fost schimbată aici. Exportul mobil forțează explicit transportul native și exclude proxy-ul serverului Next.
 
 La migrare, copia veche a tokenurilor din localStorage este eliminată și utilizatorul se autentifică din nou. Dacă serverul nu confirmă logoutul, interfața avertizează explicit că unele sesiuni pot rămâne active. Ștergerea cookie-urilor locale nu este raportată ca revocare pe toate dispozitivele.
+
+## DOCX și reprocesare
+
+DOCX este acceptat cu text din paragrafe și tabele, fără OCR extern. Arhivele sunt verificate înainte de stocare: maximum 2.000 de intrări și 25 MB decomprimat; criptarea ZIP, expansiunea excesivă și declarațiile XML DTD/ENTITY sunt respinse. Clasificarea automată ca analize se aplică numai categoriei Altele și numai când sunt extrase valori de laborator.
+
+Lipsa textului sau o eroare de procesare produce starea „Necesită verificare”, păstrând originalul. Reprocesarea înlocuiește valorile într-o tranzacție numai după succes; la eșec păstrează rezultatele anterioare. Două procesări ale aceluiași document nu rulează simultan. Un proces întrerupt brutal poate lăsa starea processing; recuperarea joburilor după cădere rămâne de implementat cu procesare în fundal.
