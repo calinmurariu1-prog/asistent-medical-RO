@@ -1,7 +1,8 @@
 # ---- Web framework ----
-fastapi==0.115.6
+fastapi==0.141.1
+starlette==1.3.1
 uvicorn[standard]==0.34.0
-python-multipart==0.0.20
+python-multipart==0.0.31
 
 # ---- Database ----
 sqlalchemy==2.0.36
@@ -16,8 +17,8 @@ email-validator==2.2.0
 # ---- Security / auth ----
 passlib[bcrypt]==1.7.4
 bcrypt==4.2.1
-pyjwt==2.10.1
-cryptography==44.0.0
+pyjwt==2.13.0
+cryptography==50.0.0
 pyotp==2.9.0
 
 # ---- Object storage ----
@@ -29,11 +30,11 @@ openai==1.59.6
 google-generativeai==0.8.3
 
 # ---- OCR / documents ----
-pypdf==5.1.0
-pillow==11.0.0
+pypdf==6.16.1
+pillow==12.3.0
 pytesseract==0.3.13
 pdf2image==1.17.0
-pydicom==3.0.1
+pydicom==3.0.2
 
 # ---- Reports / export ----
 reportlab==4.2.5
@@ -47,5 +48,5 @@ httpx==0.28.1
 python-dateutil==2.9.0.post0
 
 # ---- Testing ----
-pytest==8.3.4
-pytest-asyncio==0.25.0
+pytest==9.0.3
+pytest-asyncio==1.4.0

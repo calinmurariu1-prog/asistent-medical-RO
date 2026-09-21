@@ -36,6 +36,19 @@ jobs:
           DATABASE_URL: sqlite://
         run: pytest -q
 
+  backend-security:
+    name: Backend dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Audit resolved backend dependencies
+        run: |
+          python -m pip install pip-audit==2.10.1
+          python -m pip_audit -r backend/requirements.txt
+
   postgres:
     name: PostgreSQL (migrations + backend tests)
     runs-on: ubuntu-latest
@@ -142,7 +155,7 @@ jobs:
 
   deploy:
     name: Deploy to Render
-    needs: [backend, postgres, frontend]
+    needs: [backend, backend-security, postgres, frontend]
     if: github.event_name == 'push' && github.ref == 'refs/heads/claude/new-isolated-project-oheqvr'
     runs-on: ubuntu-latest
     env:

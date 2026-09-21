@@ -3,6 +3,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
@@ -95,3 +96,27 @@ def test_local_original_is_encrypted_and_persistent(tmp_path, monkeypatch):
     assert LocalStorage().get("../../private") == b"original fictiv"
     storage.delete("../../private")
     assert list((tmp_path / "originals").iterdir()) == []
+
+
+def test_postgres_concurrent_token_consumption(db_session):
+    engine = db_session.get_bind()
+    if engine.dialect.name != "postgresql":
+        pytest.skip("PostgreSQL concurrency is verified in the isolated CI service")
+    user = User(email="postgres-parallel@example.com", hashed_password="test-only")
+    db_session.add(user)
+    db_session.flush()
+    token = create_purpose_token(str(user.id), PASSWORD_RESET, db=db_session)
+    db_session.commit()
+
+    def consume(_):
+        with Session(engine) as db:
+            account = consume_purpose_token(token, PASSWORD_RESET, db)
+            if account:
+                account.token_version += 1
+            db.commit()
+            return account is not None
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(consume, range(2))) == [False, True]
+    db_session.refresh(user)
+    assert user.token_version == 1
