@@ -110,3 +110,83 @@ def test_delete_chat(client):
     chat_id = _new_chat(client, h)
     assert client.delete(f"{API}/chats/{chat_id}", headers=h).status_code == 204
     assert client.get(f"{API}/chats/{chat_id}", headers=h).status_code == 404
+
+
+def test_unrelated_question_does_not_call_provider(client, monkeypatch):
+    from app.services.ai.mock import MockProvider
+
+    def unexpected_call(*args, **kwargs):
+        raise AssertionError("No relevant evidence: provider must not be called")
+
+    monkeypatch.setattr(MockProvider, "chat", unexpected_call)
+    h = _auth_headers(client)
+    _add_lab(client, h)
+    chat_id = _new_chat(client, h)
+    message = client.post(
+        f"{API}/chats/{chat_id}/messages", headers=h,
+        json={"content": "Explică fractura claviculei"},
+    ).json()
+    assert "suficiente informații" in message["content"]
+    assert message["sources"] == []
+
+
+def test_invalid_or_missing_citations_are_rejected(client, monkeypatch):
+    from app.services.ai.mock import MockProvider
+
+    h = _auth_headers(client)
+    _add_lab(client, h)
+    chat_id = _new_chat(client, h)
+    for response in ("Afirmație fără sursă", "Afirmație [S999]", "Text [S1] și [S99]"):
+        monkeypatch.setattr(
+            MockProvider, "chat", lambda *args, response=response, **kwargs: response
+        )
+        message = client.post(
+            f"{API}/chats/{chat_id}/messages", headers=h,
+            json={"content": "Glicemie"},
+        ).json()
+        assert "suficiente informații" in message["content"]
+        assert message["sources"] == []
+
+
+def test_only_cited_sources_are_returned(client, monkeypatch):
+    from app.services.ai.mock import MockProvider
+
+    h = _auth_headers(client)
+    _add_lab(client, h)
+    _add_lab(client, h)
+    monkeypatch.setattr(MockProvider, "chat", lambda *args, **kwargs: "Valoare în dosar [S2].")
+    message = client.post(
+        f"{API}/chats/{_new_chat(client, h)}/messages", headers=h,
+        json={"content": "Glicemie"},
+    ).json()
+    assert [source["ref"] for source in message["sources"]] == ["S2"]
+    assert "NU reprezintă" in message["content"]
+
+
+def test_retrieval_normalizes_romanian_diacritics():
+    from app.services.rag.retriever import _tokenize
+
+    assert _tokenize("Reacție alergică") == _tokenize("Reactie alergica")
+
+
+def test_retrieval_uses_original_text_and_excludes_unverified_values(client, db_session):
+    from app.models.document import Document, LabResult
+    from app.services.rag import build_context
+
+    h = _auth_headers(client)
+    lab_id = _add_lab(client, h).json()["id"]
+    lab = db_session.get(LabResult, lab_id)
+    lab.confidence = "unverified"
+    document = Document(
+        patient_id=lab.patient_id, original_filename="fictiv.txt", storage_key="test-only",
+        extracted_text="Glicemie: text original", ai_summary="Glicemie: rezumat inventat",
+    )
+    db_session.add(document)
+    db_session.commit()
+    retrieved = build_context(db_session, lab.patient_id, "Glicemie")
+    assert "text original" in retrieved.context_text
+    assert "inventat" not in retrieved.context_text
+    assert [source["type"] for source in retrieved.sources] == ["document"]
+    document.extracted_text = None
+    db_session.commit()
+    assert build_context(db_session, lab.patient_id, "Glicemie").is_empty

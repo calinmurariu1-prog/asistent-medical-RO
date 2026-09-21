@@ -23,7 +23,7 @@ Repository: calinmurariu1-prog/asistent-medical-RO. Livrare pe `codex/medical-la
 
 ## Dovezi locale
 
-- Backend: 183 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
+- Backend: 188 teste trecute, inclusiv consum concurent, token expirat/reutilizat/scop greșit, autentificare, MFA, sesiuni și acces documente între utilizatori.
 - Ruff trecut; build Next și TypeScript trecute; zece teste unitare pentru refresh/concurență trecute.
 - Export web Capacitor: 37 pagini construite. Nu au fost testate dispozitive fizice și nu s-au produs APK/IPA semnate.
 - Verificările browser acoperă cont, confirmare, profil, PDF, descărcare identică, analize, dashboard, refresh, resetare și deconectare pe desktop și dimensiuni iPhone/Android. Capturi în `docs/screenshots`.
@@ -37,3 +37,10 @@ Validare pe dispozitive a stocării native securizate, configurare și verificar
 ## Interpretarea intervalelor
 
 Etichetele compară valoarea exclusiv cu intervalul din rezultat, fără diagnostic sau estimare automată a urgenței. Unitățile diferite necesită conversie validată; intervalele diferite nu sunt proiectate ca o singură bandă peste întregul grafic. Aceste precauții sunt conforme cu [explicația MedlinePlus despre rezultatele de laborator](https://medlineplus.gov/lab-tests/how-to-understand-your-lab-results/). Nu există încă un catalog clinic validat de praguri critice.
+
+
+### Chat: surse relevante și abținere
+
+Chatul nu mai folosește rezumatele generate de AI ca dovezi și exclude valorile marcate `unverified`. Selectarea lexicală normalizează diacriticele și exclude fragmentele fără suprapunere cu întrebarea. Fără surse relevante, răspunsul de abținere este generat local, fără apel AI. Răspunsurile fără citări `[S1]` sau cu identificatori inexistenți sunt înlocuite cu abținere; lista surselor include numai citările folosite.
+
+Limită: validarea identificatorilor nu demonstrează că fiecare afirmație este susținută de sursă și nu constituie validare medicală. Potrivirea lexicală poate rata sinonime sau întrebări de continuare. Corpusul de ghiduri clinice validate și routerul complet pentru urgențe rămân de implementat înaintea lansării publice.

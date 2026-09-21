@@ -2,17 +2,24 @@
 from __future__ import annotations
 
 import json
+import re
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.chat import AIChat, AIChatMessage
 from app.models.enums import ChatRole
-from app.services.ai.base import AIProvider
+from app.services.ai.base import DISCLAIMER, AIProvider
 from app.services.rag import build_context
 
 # How many prior turns to include for conversational continuity.
 HISTORY_TURNS = 6
+
+INSUFFICIENT_SOURCES = (
+    "Nu am suficiente informații și surse relevante în dosarul tău medical pentru "
+    "a răspunde verificabil la această întrebare. Încarcă documentele relevante "
+    f"sau discută întrebarea cu medicul. {DISCLAIMER}"
+)
 
 
 def create_chat(db: Session, patient_id: int, title: str | None) -> AIChat:
@@ -48,17 +55,28 @@ def answer(db: Session, ai: AIProvider, chat: AIChat, question: str) -> AIChatMe
     db.commit()
 
     retrieved = build_context(db, chat.patient_id, question)
-    reply_text = ai.chat(
-        question=question,
-        context=retrieved.context_text,
-        history=history,
-    )
+    sources = []
+    reply_text = INSUFFICIENT_SOURCES
+    if not retrieved.is_empty:
+        candidate = ai.chat(
+            question=question,
+            context=retrieved.context_text,
+            history=history,
+        )
+        # This validates citation identity, not clinical correctness or entailment.
+        cited = set(re.findall(r"\[(S[0-9]+)\]", candidate))
+        available = {source["ref"] for source in retrieved.sources}
+        if cited and cited <= available:
+            reply_text = candidate
+            if DISCLAIMER not in reply_text:
+                reply_text = f"{reply_text} {DISCLAIMER}"
+            sources = [source for source in retrieved.sources if source["ref"] in cited]
 
     assistant_msg = AIChatMessage(
         chat_id=chat.id,
         role=ChatRole.ASSISTANT,
         content=reply_text,
-        sources=json.dumps(retrieved.sources, ensure_ascii=False),
+        sources=json.dumps(sources, ensure_ascii=False),
     )
     db.add(assistant_msg)
 

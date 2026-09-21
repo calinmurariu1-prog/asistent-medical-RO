@@ -9,6 +9,7 @@ service does not need to change.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 
 from sqlalchemy import select
@@ -44,7 +45,9 @@ class RetrievedContext:
 
 
 def _tokenize(text: str) -> set[str]:
-    tokens = re.findall(r"[a-zăâîșț0-9]+", text.lower())
+    normalized = "".join(c for c in unicodedata.normalize("NFKD", text.lower())
+                         if not unicodedata.combining(c))
+    tokens = re.findall(r"[a-z0-9]+", normalized)
     return {t for t in tokens if len(t) > 2 and t not in _STOPWORDS}
 
 
@@ -55,7 +58,7 @@ def _collect_snippets(db: Session, patient_id: int) -> list[Snippet]:
         select(Document).where(Document.patient_id == patient_id)
     ).all()
     for doc in documents:
-        body = doc.ai_summary or doc.extracted_text
+        body = doc.extracted_text  # Generated summaries are not primary evidence.
         if body:
             snippets.append(
                 Snippet(
@@ -73,6 +76,8 @@ def _collect_snippets(db: Session, patient_id: int) -> list[Snippet]:
         select(LabResult).where(LabResult.patient_id == patient_id)
     ).all()
     for lab in labs:
+        if lab.confidence == "unverified":
+            continue
         ref = (
             f" (referință {lab.ref_low}-{lab.ref_high})"
             if lab.ref_low is not None and lab.ref_high is not None
@@ -139,11 +144,11 @@ def build_context(
     query_tokens = _tokenize(query)
     for s in snippets:
         overlap = len(query_tokens & _tokenize(s.text))
-        # Small baseline so that, with an unrelated query, we still surface the
-        # record (better to ground on something than to answer from nothing).
-        s.score = overlap + 0.01
+        s.score = overlap
 
-    ranked = sorted(snippets, key=lambda s: s.score, reverse=True)[:max_snippets]
+    ranked = sorted(
+        (s for s in snippets if s.score > 0), key=lambda s: s.score, reverse=True
+    )[:max_snippets]
 
     lines: list[str] = []
     sources: list[dict] = []
