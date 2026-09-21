@@ -44,3 +44,8 @@ Etichetele compară valoarea exclusiv cu intervalul din rezultat, fără diagnos
 Chatul nu mai folosește rezumatele generate de AI ca dovezi și exclude valorile marcate `unverified`. Selectarea lexicală normalizează diacriticele și exclude fragmentele fără suprapunere cu întrebarea. Fără surse relevante, răspunsul de abținere este generat local, fără apel AI. Răspunsurile fără citări `[S1]` sau cu identificatori inexistenți sunt înlocuite cu abținere; lista surselor include numai citările folosite.
 
 Limită: validarea identificatorilor nu demonstrează că fiecare afirmație este susținută de sursă și nu constituie validare medicală. Potrivirea lexicală poate rata sinonime sau întrebări de continuare. Corpusul de ghiduri clinice validate și routerul complet pentru urgențe rămân de implementat înaintea lansării publice.
+
+
+### Interfața chatului
+
+Sursele citate sunt afișate cu titlu și legătură către secțiunea dosarului. Erorile de trimitere sunt anunțate accesibil și păstrează întrebarea pentru reîncercare. Sunt verificate încă trei scenarii de browser (desktop/iPhone/Android), pe lângă cele nouă existente: surse, abținere și eroare de consimțământ. Buildul web și TypeScript au trecut. Chatul afișează permanent indicația 112 pentru urgențe.
