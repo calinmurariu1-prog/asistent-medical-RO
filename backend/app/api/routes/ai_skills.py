@@ -14,7 +14,6 @@ from app.schemas.ai_skill import SkillOut, SkillRunRequest, SkillRunResponse
 from app.services.ai import get_ai_provider, record_ai
 from app.services.ai import skills as skills_service
 from app.services.ai.base import AIProvider
-from app.services.ai.medication_education import explain
 from app.services.ai.mock import MockProvider
 from app.services.ai.safety_router import EMERGENCY_SOURCES, emergency_reply
 
@@ -96,10 +95,8 @@ def run_skill(
             emergency=True, simulated=False, abstained=True,
         )
     require_ai_consent(user, db, ai)
-    if name == "explain_medication":
-        return SkillRunResponse(skill=name, **explain(ai, payload.inputs["name"]))
-    result = skills_service.run_skill(ai, skill, payload.inputs)
-    return SkillRunResponse(skill=name, result=result)
+    result = skills_service.run_skill_result(ai, skill, payload.inputs)
+    return SkillRunResponse(skill=name, **result)
 
 
 @router.post(

@@ -176,3 +176,89 @@ def test_non_emergency_skill_still_requires_consent(client, monkeypatch):
     r = client.post(f"{API}/ai/skills/symptom_info", headers=h,
                     json={"inputs": {"symptom": "Oboseală", "extra": "Nu pot respira"}})
     assert r.status_code == 403
+
+
+def test_uncatalogued_conditions_and_symptoms_abstain_without_completion():
+    from app.services.ai.grounded_skills import run
+
+    class Unavailable:
+        name = "external"
+
+        def complete(self, **kwargs):
+            raise AssertionError("No source must mean no model call")
+
+    for skill, inputs in (("lifestyle_tips", {"condition": "boală fictivă"}),
+                          ("symptom_info", {"symptom": "oboseala cu alte simptome"})):
+        result = run(Unavailable(), skill, inputs)
+        assert result["abstained"] and result["sources"] == []
+    local = run(Unavailable(), "prepare_doctor_visit", {"concern": "temă fictivă"})
+    assert "Fișă locală" in local["result"] and "temă fictivă" in local["result"]
+    assert not local["simulated"]
+
+
+def test_grounded_skill_drops_missing_or_fabricated_citations():
+    from app.services.ai.grounded_skills import run
+
+    class External:
+        name = "external"
+        response = "Afirmație fără sursă"
+
+        def complete(self, **kwargs):
+            assert "Sursa [T1]" in kwargs["user"]
+            return self.response
+
+    provider = External()
+    for name, inputs in (("lifestyle_tips", {"condition": "diabet tip 2"}),
+                         ("symptom_info", {"symptom": "cefalee"}),
+                         ("simplify_text", {"text": "Text de probă. Nu adăuga fapte."})):
+        for candidate in ("", "Fără sursă", "Text [T1] [T2]", "Text [S1]"):
+            provider.response = candidate
+            result = run(provider, name, inputs)
+            assert result["abstained"] and result["sources"] == []
+        provider.response = "Reformulare de probă [T1]"
+        result = run(provider, name, inputs)
+        assert not result["abstained"] and result["sources"][0]["ref"] == "T1"
+
+
+def test_mock_simplification_keeps_full_original_and_labels_unverified_input(client):
+    h = _auth(client)
+    original = "Text fictiv. " * 30 + "NU se modifică tratamentul."
+    r = client.post(f"{API}/ai/skills/simplify_text", headers=h,
+                    json={"inputs": {"text": original}})
+    assert r.status_code == 200
+    body = r.json()
+    assert original in body["result"]
+    assert body["simulated"] and body["abstained"]
+    assert body["sources"][0]["kind"] == "user_input"
+    assert body["sources"][0]["url"] is None
+
+
+def test_review_uses_declared_substances_and_reports_unassessed_pairs(client):
+    h = _auth(client)
+    r = client.post(f"{API}/ai/skills/review_prescription", headers=h,
+                    json={"inputs": {"medications": "warfarin; aspirin; Brand fictiv 10 mg"}})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["abstained"] and "Perechi neevaluate: 2" in body["result"]
+    assert "Brand fictiv 10 mg" in body["result"]
+    assert body["sources"][0]["url"] == "https://www.nhs.uk/medicines/warfarin/"
+    assert "[R1]" in body["result"]
+
+
+def test_skill_input_limits_prevent_unbounded_prompts(client):
+    h = _auth(client)
+    for inputs in ({"text": "x" * 12001}, {str(i): "x" for i in range(9)},
+                   {"x" * 65: "x"}):
+        assert client.post(f"{API}/ai/skills/simplify_text", headers=h,
+                           json={"inputs": inputs}).status_code == 422
+
+
+def test_lifestyle_mock_has_public_source_and_no_personal_schedule(client):
+    h = _auth(client)
+    r = client.post(f"{API}/ai/skills/lifestyle_tips", headers=h,
+                    json={"inputs": {"condition": "Diabet zaharat tip 2"}})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["simulated"] and "[T1]" in body["result"]
+    assert "30 min" not in body["result"]
+    assert body["sources"][0]["url"].endswith("/type-2-diabetes/treatment/")

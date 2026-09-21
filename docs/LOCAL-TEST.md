@@ -137,3 +137,14 @@ Regulile vechi enalapril/spironolactonă, sertralină/tramadol și metformin/fur
 Toate formularele `/ai/skills/{name}` verifică local câmpurile declarate de capabilitate înaintea inițializării furnizorului AI și a verificării consimțământului AI. Semnalele recunoscute primesc mesajul condițional 112, sursele publice și `emergency=true`, fără generare externă sau verificare de disponibilitate MedLLM. Autentificarea rămâne necesară. Cererile obișnuite păstrează consimțământul obligatoriu pentru furnizorul extern. Câmpurile suplimentare nu pot schimba acest comportament.
 
 Pagina Asistent afișează mesajul cu rol de alertă și linkurile surselor. Regulile lexicale sunt limitate, pot produce alerte și pentru texte citate/istorice și nu detectează toate urgențele. Lipsa alertei nu exclude o urgență. Nu reprezintă triaj clinic validat; celelalte răspunsuri medicale ale capabilităților sunt în curs de audit al surselor.
+
+
+## Celelalte capabilități educaționale
+
+Nu mai există un fallback care solicită modelului recomandări medicale fără surse pentru cele șase capabilități. Catalogul inițial pentru simptome acoperă exact durere de cap/cefalee și oboseală, cu sursele [NHS Headaches](https://www.nhs.uk/symptoms/headaches/) și [NHS Tiredness and fatigue](https://www.nhs.uk/symptoms/tiredness-and-fatigue/). Stilul de viață acoperă diabetul de tip 2, din [NHS Treatment](https://www.nhs.uk/conditions/type-2-diabetes/treatment/). Fragmentele românești au fost consultate la 21 septembrie 2026; catalogul nu are validare clinică și are acoperire restrânsă. Pagina NHS despre oboseală indică o dată de revizuire planificată deja trecută; actualitatea clinică trebuie reverificată înaintea lansării. Nu se folosesc potriviri aproximative pentru simptome complexe.
+
+Subiectele necunoscute primesc abstinență fără apel de generare. Modurile simulate sunt etichetate și arată fragmentele locale cu citări. Generarea reală folosește numai fragmentul selectat și respinge citările absente sau cu identificatoare necunoscute; această verificare nu dovedește susținerea fiecărei afirmații de către sursă.
+
+Simplificarea reală citează textul utilizatorului ca sursă neverificată clinic, fără a-i atribui autoritate medicală. În modul simulat nu pretinde reformulare: redă integral originalul, inclusiv finalul și negațiile. Cererile au maximum 8 câmpuri de maximum 12.000 caractere fiecare. Pregătirea vizitei produce local întrebări pentru medic, nu recomandări clinice. Verificarea rețetei compară numai substanțe separate explicit prin punct și virgulă/rând nou (maximum 30) cu catalogul limitat de interacțiuni; mărcile, dozele și combinațiile nerecunoscute rămân neevaluate. Nu verifică validitatea unei prescripții.
+
+Auditul nu este încheiat pentru rezumatul dosarului, comparațiile analizelor și explicațiile de laborator, care au fluxuri separate. Integrarea surselor clinice extinse și evaluarea furnizorului real rămân cerințe pentru lansare.
