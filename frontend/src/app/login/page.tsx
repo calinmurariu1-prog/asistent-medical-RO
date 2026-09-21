@@ -37,7 +37,7 @@ export default function LoginPage() {
     } catch (err) {
       if (err instanceof ApiError && err.message.includes("MFA")) {
         setMfaNeeded(true);
-        setError("Introdu codul MFA.");
+        setError("Introdu codul MFA sau un cod de rezervă nefolosit.");
       } else {
         setError(err instanceof ApiError ? err.message : "Eroare la autentificare");
       }
@@ -79,6 +79,8 @@ export default function LoginPage() {
           {mfaNeeded && (
             <Input
               placeholder="Cod MFA"
+              aria-label="Cod MFA sau cod de rezervă"
+              maxLength={64}
               value={mfaCode}
               onChange={(e) => setMfaCode(e.target.value)}
             />

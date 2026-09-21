@@ -35,6 +35,7 @@ from app.schemas.auth import (
     EmailVerifyRequest,
     LoginRequest,
     MFAActivateRequest,
+    MFAActivateResponse,
     MFASetupResponse,
     PasswordResetConfirm,
     PasswordResetRequest,
@@ -43,7 +44,7 @@ from app.schemas.auth import (
     TokenPair,
     UserOut,
 )
-from app.services import audit
+from app.services import audit, mfa_recovery
 from app.services.email import send_password_reset_email, send_verification_email
 from app.services.token_service import (
     EMAIL_VERIFY,
@@ -113,14 +114,23 @@ def login(
     if not user.is_active:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Account disabled")
 
+    recovery_used = False
     if user.mfa_enabled:
         if not payload.mfa_code:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "MFA code required")
         secret = decrypt_field(user.mfa_secret)
         if not secret or not pyotp.TOTP(secret).verify(payload.mfa_code, valid_window=1):
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid MFA code")
+            if not mfa_recovery.consume(db, user.id, payload.mfa_code):
+                db.rollback()
+                raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid MFA code")
+            db.execute(update(User).where(User.id == user.id).values(
+                token_version=User.token_version + 1))
+            db.refresh(user)
+            recovery_used = True
 
-    audit.record(db, user_id=user.id, action="login", ip_address=_client_ip(request))
+    audit.record(db, user_id=user.id,
+                 action="login_mfa_recovery" if recovery_used else "login",
+                 ip_address=_client_ip(request))
     return TokenPair(
         access_token=create_access_token(str(user.id), user.token_version),
         refresh_token=create_refresh_token(str(user.id), user.token_version),
@@ -200,8 +210,10 @@ def verify_email(
 @router.post("/mfa/setup", response_model=MFASetupResponse,
              dependencies=[Depends(_auth_limiter)])
 def mfa_setup(
+    response: Response,
     current: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> MFASetupResponse:
+    response.headers["Cache-Control"] = "no-store"
     secret = pyotp.random_base32()
     changed = db.execute(update(User).where(
         User.id == current.id, User.mfa_enabled.is_(False),
@@ -216,12 +228,15 @@ def mfa_setup(
     return MFASetupResponse(secret=secret, otpauth_uri=uri)
 
 
-@router.post("/mfa/activate", dependencies=[Depends(_auth_limiter)])
+@router.post("/mfa/activate", response_model=MFAActivateResponse,
+             dependencies=[Depends(_auth_limiter)])
 def mfa_activate(
     payload: MFAActivateRequest,
+    response: Response,
     current: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> dict[str, str]:
+) -> MFAActivateResponse:
+    response.headers["Cache-Control"] = "no-store"
     secret = decrypt_field(current.mfa_secret)
     if not secret:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Run /mfa/setup first")
@@ -236,8 +251,12 @@ def mfa_activate(
     if changed.rowcount != 1:
         db.rollback()
         raise HTTPException(409, "Configurarea MFA s-a schimbat. Reia autentificarea.")
+    codes = mfa_recovery.issue(db, current.id)
     audit.record(db, user_id=current.id, action="mfa_activate")
-    return {"detail": "MFA activat. Autentifică-te din nou cu parola și codul MFA."}
+    return MFAActivateResponse(
+        detail="MFA activat. Autentifică-te din nou cu parola și codul MFA.",
+        recovery_codes=codes,
+    )
 
 
 @router.get("/me", response_model=UserOut)

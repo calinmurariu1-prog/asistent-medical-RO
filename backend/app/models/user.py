@@ -116,3 +116,12 @@ class RecoveryToken(Base):
     purpose: Mapped[str] = mapped_column(String(24))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class MFARecoveryCode(Base):
+    """High-entropy single-use MFA backup codes; plaintext is never persisted."""
+    __tablename__ = "mfa_recovery_codes"
+
+    code_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

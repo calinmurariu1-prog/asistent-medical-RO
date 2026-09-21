@@ -135,3 +135,39 @@ def test_mfa_activation_rejects_replaced_setup_snapshot(client, db_session, monk
     assert user.mfa_enabled is False
     assert decrypt_field(user.mfa_secret) == replacement
     assert client.get(f"{API}/auth/me", headers=headers).status_code == 200
+
+
+def test_mfa_backup_codes_are_hashed_one_use_and_revokes_previous_tokens(client, db_session):
+    import pyotp
+    from sqlalchemy import select
+
+    from app.models.user import MFARecoveryCode
+
+    _register(client)
+    credentials = {"email": "ana@example.com", "password": "Parola1234"}
+    original = client.post(f"{API}/auth/login", json=credentials).json()
+    headers = {"Authorization": f"Bearer {original['access_token']}"}
+    secret = client.post(f"{API}/auth/mfa/setup", headers=headers).json()["secret"]
+    activation = client.post(f"{API}/auth/mfa/activate", headers=headers,
+                             json={"code": pyotp.TOTP(secret).now()}).json()
+    codes = activation["recovery_codes"]
+    assert len(codes) == len(set(codes)) == 10
+    hashes = list(db_session.scalars(select(MFARecoveryCode.code_hash)))
+    assert len(hashes) == 10 and not set(hashes).intersection(codes)
+    fresh = client.post(f"{API}/auth/login", json={**credentials, "mfa_code": codes[0]})
+    assert fresh.status_code == 200
+    assert client.post(f"{API}/auth/login", json={
+        **credentials, "mfa_code": codes[0]}).status_code == 401
+    wrong = client.post(f"{API}/auth/login", json={
+        **credentials, "password": "wrong", "mfa_code": codes[1]})
+    assert wrong.status_code == 401
+    second = client.post(f"{API}/auth/login", json={**credentials, "mfa_code": codes[1]})
+    assert second.status_code == 200
+    assert client.post(f"{API}/auth/refresh", json={
+        "refresh_token": fresh.json()["refresh_token"]}).status_code == 401
+    headers = {"Authorization": f"Bearer {second.json()['access_token']}"}
+    exported = client.get(f"{API}/gdpr/export", headers=headers)
+    assert not any(code in exported.text for code in codes + hashes)
+    assert client.post(f"{API}/gdpr/delete-account", headers=headers,
+                       json={"password": "Parola1234", "confirm": True}).status_code == 204
+    assert list(db_session.scalars(select(MFARecoveryCode))) == []

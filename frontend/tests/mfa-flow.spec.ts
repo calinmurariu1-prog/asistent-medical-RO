@@ -27,11 +27,13 @@ test("configure MFA, require code on login, and preserve enabled state", async (
   await section.getByLabel("Cod de confirmare").fill(totp(secret));
   await section.getByRole("button", {name: "Activează MFA", exact: true}).click();
   await expect(section.getByRole("status")).toContainText("Sesiunile anterioare au fost revocate");
+  const backup = (await section.getByLabel("Coduri de rezervă").inputValue()).split("\n")[0];
+  await section.getByRole("checkbox").check();
   await section.getByRole("link", {name: "Continuă la autentificare"}).click();
   await page.getByPlaceholder("Email", {exact: true}).fill(email);
   await page.getByPlaceholder("Parolă", {exact: true}).fill("Testing-pass-123!");
   await page.getByRole("button", {name: "Intră în cont", exact: true}).click();
-  await page.getByPlaceholder("Cod MFA").fill(totp(secret));
+  await page.getByPlaceholder("Cod MFA").fill(backup);
   await page.getByRole("button", {name: "Intră în cont", exact: true}).click();
   await expect(page).toHaveURL(/dashboard/);
   await page.goto("/settings");
