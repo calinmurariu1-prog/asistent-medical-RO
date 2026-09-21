@@ -232,3 +232,37 @@ def test_export_audit_events_are_owner_scoped_without_internal_detail(client, db
         assert own["ip_address"] == "192.0.2.1"
         assert own["user_agent"] == "Synthetic browser"
         assert own["created_at"].endswith("+00:00")
+
+
+def test_export_subscription_without_patient_excludes_provider_secrets(client, db_session):
+    from datetime import UTC, datetime
+
+    from sqlalchemy import select
+
+    from app.models.subscription import Subscription
+    from app.models.user import User
+
+    owner = _auth(client, "subscription-owner@example.com")
+    other = _auth(client, "subscription-other@example.com")
+    user = db_session.scalar(select(User).where(User.email == "subscription-owner@example.com"))
+    row = Subscription(user_id=user.id, cancel_at_period_end=True,
+                       current_period_end=datetime(2027, 1, 1, tzinfo=UTC),
+                       external_customer_id="private-customer-marker",
+                       external_subscription_id="private-purchase-token-marker")
+    db_session.add(row)
+    db_session.commit()
+    response = client.get(f"{API}/gdpr/export", headers=owner)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["patient"] is None
+    assert data["subscription"]["id"] == row.id
+    assert data["subscription"]["cancel_at_period_end"] is True
+    assert data["subscription"]["current_period_end"] == "2027-01-01T00:00:00+00:00"
+    assert data["subscription"]["plan"] == row.plan.value
+    assert data["subscription"]["status"] == row.status.value
+    assert data["subscription"]["provider"] == row.provider.value
+    assert data["subscription"]["trial_end"] is None
+    assert "private-customer-marker" not in response.text
+    assert "private-purchase-token-marker" not in response.text
+    assert "billing_provider_identifiers" in data["export_metadata"]["not_included"]
+    assert client.get(f"{API}/gdpr/export", headers=other).json()["subscription"] is None

@@ -15,7 +15,7 @@ Aplicația este o versiune locală de test cu date fictive și AI simulat. Nu es
 | Analize | Parser, verificarea concordanței valorii/unității/intervalului, corectare manuală auditată, data documentului propagată, istoric și grafice. Valorile neconfirmate și seriile cu unități/date incompatibile sunt excluse din interpretare/comparație. |
 | Medicație | Tratament transcris, doză/frecvență/instrucțiuni/perioadă/note, activ/istoric, editare și ștergere. Memento-uri zilnice explicite, maximum 12 per tratament, cu fus IANA, pauză/reactivare și reguli documentate pentru ora de vară. |
 | Programări și notificări | Creare/reprogramare/anulare/ștergere, memento înaintea consultației, inbox necitite/viitoare/toate, citire și ștergere. Worker cu rezervări, reluare și reîncercări persistente. |
-| Export | PDF/Word și JSON cu profil, acorduri, dosar, documente extrase, analize, medicație, memento-uri, programări, conversații, contacte, date/dispozitive de sănătate, notificări, feedback și evenimentele proprii de audit. |
+| Export | PDF/Word și JSON cu profil, acorduri, dosar, documente extrase, analize, medicație, memento-uri, programări, conversații, contacte, date/dispozitive de sănătate, notificări, feedback, starea abonamentului și evenimentele proprii de audit. |
 | Ștergere și stocare | Originale locale criptate, intenții persistente de curățare după ștergere sau upload întrerupt, reîncercări după repornire, ștergere cont cu cascadare și eliminarea emailurilor locale. |
 
 ## AI: comportament și limite
@@ -47,7 +47,7 @@ Push-ul simulat nu marchează livrare reală. Acceptarea de FCM/APNs nu dovedeș
 1. Configurare și verificare externă PostgreSQL de producție, S3, SMTP, OCR real, furnizor AI, FCM/APNs; cheile rămân în variabile de mediu. Emailurile locale și simularea nu înlocuiesc aceste servicii.
 2. Evaluare medicală independentă a surselor, citărilor, regulilor de alarmă și rezultatelor AI; acoperirea actuală este limitată.
 3. Testare fizică Android/iOS: sesiuni, descărcare/partajare, push, PWA, accesibilitate și integrarea datelor de sănătate. iOS necesită macOS/Xcode, manifest de confidențialitate integrat și semnare.
-4. Exportul nu este încă un pachet integral: lipsesc originalele într-o singură arhivă, CNP și datele de facturare. Detaliile interne libere de audit și secretele de autentificare sunt excluse explicit. Exportul nu este o certificare GDPR.
+4. Exportul nu este încă un pachet integral: lipsesc originalele într-o singură arhivă, CNP și facturile externe. Starea abonamentului local este inclusă; identificatorii furnizorului sunt excluși deoarece pot reprezenta tokenuri de cumpărare. Detaliile interne libere de audit și secretele de autentificare sunt excluse explicit. Exportul nu este o certificare GDPR.
 5. Politici externe de retenție, backup, S3 versioning/Object Lock, restaurare și ștergere verificată. Intenția de curățare nu constituie atomicitate distribuită cu S3; scrierile externe foarte întârziate necesită reconciliere.
 6. Recurențe de medicație mai complexe decât ore zilnice și evidența administrării; niciun orar nu se deduce automat din doză. Canalele de notificare email/SMS nu sunt implementate complet.
 7. Verificarea documentelor contractuale și a politicilor de confidențialitate, limitelor operaționale și monitorizării înainte de date reale.
@@ -59,3 +59,5 @@ Push-ul simulat nu marchează livrare reală. Acceptarea de FCM/APNs nu dovedeș
 - Migrațiile Alembic și verificarea PostgreSQL rulează în CI. Pentru publicare, se verifică rezultatele **reviziei exacte** din PR; rezultatele unui commit anterior nu certifică următorul.
 
 În acest increment nu au fost schimbate servicii Render, activate servicii plătite, folosite date medicale reale sau efectuat merge în ramura de lansare.
+
+Increment export abonament: 9 teste GDPR trecute, inclusiv izolare între conturi, cont fără pacient și excluderea identificatorilor furnizorului.

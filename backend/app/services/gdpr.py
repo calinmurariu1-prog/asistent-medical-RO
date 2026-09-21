@@ -15,6 +15,7 @@ from app.models.medication import Medication
 from app.models.medication_reminder import MedicationReminder
 from app.models.notification import Notification
 from app.models.patient import Patient
+from app.models.subscription import Subscription
 from app.models.user import AuditLog, Consent, User
 from app.services.storage_cleanup import enqueue
 
@@ -49,8 +50,10 @@ def export_user_data(db: Session, user: User) -> dict:
             "exported_at": _iso(datetime.now(UTC)),
             "original_files_included": False,
             "scope": "account_and_clinical_records",
-            "not_included": ["original_file_bytes", "cnp", "billing", "internal_audit_details",
-                             "authentication_secrets"],
+            "not_included": [
+                "original_file_bytes", "cnp", "external_billing_records",
+                "billing_provider_identifiers", "internal_audit_details", "authentication_secrets",
+            ],
         },
         "account": {
             "id": user.id,
@@ -71,6 +74,15 @@ def export_user_data(db: Session, user: User) -> dict:
             for c in db.scalars(select(Consent).where(Consent.user_id == user.id))
         ],
     }
+
+    subscription = db.scalar(select(Subscription).where(Subscription.user_id == user.id))
+    data["subscription"] = ({
+        **_record(subscription), "plan": subscription.plan.value,
+        "status": subscription.status.value, "provider": subscription.provider.value,
+        "current_period_end": _iso(subscription.current_period_end),
+        "trial_end": _iso(subscription.trial_end),
+        "cancel_at_period_end": subscription.cancel_at_period_end,
+    } if subscription else None)
 
     data["notifications"] = [
         {**_record(n), "channel": n.channel.value, "title": n.title, "body": n.body,
