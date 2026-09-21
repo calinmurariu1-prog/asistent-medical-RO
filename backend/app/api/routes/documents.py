@@ -29,7 +29,14 @@ from app.schemas.document import (
     DocumentDownloadOut,
     DocumentOut,
 )
-from app.services import audit, document_processing, lab_analysis, ocr, storage_cleanup
+from app.services import (
+    audit,
+    document_processing,
+    document_upload,
+    lab_analysis,
+    ocr,
+    storage_cleanup,
+)
 from app.services.ai import get_ai_provider
 from app.services.ai.base import AIProvider
 from app.services.billing import entitlements
@@ -97,7 +104,6 @@ def upload_document(
             raise HTTPException(400, str(exc)) from None
 
     key = build_object_key(patient.id, file.filename or "document")
-    storage.put(key, data, file.content_type)
 
     document = Document(
         patient_id=patient.id,
@@ -108,8 +114,11 @@ def upload_document(
         storage_key=key,
         document_date=document_date,
     )
-    db.add(document)
-    db.commit()
+    try:
+        document_upload.persist(db, storage, document, data)
+    except Exception:  # noqa: BLE001
+        raise HTTPException(503, "Încărcarea nu a fost confirmată. "
+                            "Reîncarcă lista înainte de a reîncerca.") from None
     db.refresh(document)
 
     try:

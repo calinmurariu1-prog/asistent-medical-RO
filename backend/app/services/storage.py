@@ -96,7 +96,7 @@ class LocalStorage:
 
     def put(self, key: str, data: bytes, content_type: str | None = None) -> None:
         target = self._path(key)
-        temporary = target.with_suffix("." + uuid.uuid4().hex + ".tmp")
+        temporary = target.with_suffix(".tmp")  # Object keys are unique and never reused.
         try:
             temporary.write_bytes(_fernet().encrypt(data))
             temporary.chmod(0o600)
@@ -108,7 +108,9 @@ class LocalStorage:
         return _fernet().decrypt(self._path(key).read_bytes())
 
     def delete(self, key: str) -> None:
-        self._path(key).unlink(missing_ok=True)
+        target = self._path(key)
+        target.unlink(missing_ok=True)
+        target.with_suffix(".tmp").unlink(missing_ok=True)
 
     def presigned_url(self, key: str, expires: int = 3600) -> str:
         raise ValueError("Local originals require an authenticated download")
