@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { api, clearTokens, getToken, setTokens, usesCookieSession } from "@/lib/api";
+import { api, clearTokens, getToken, setTokens, usesCookieSession, initializeSession } from "@/lib/api";
 import type { TokenPair, User } from "@/lib/types";
 
 interface AuthState {
@@ -29,16 +29,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    if (usesCookieSession) clearTokens();
-    if (!usesCookieSession && !getToken()) {
-      setLoading(false);
-      return;
-    }
-    api
-      .get<User>("/auth/me")
-      .then(setUser)
-      .catch(() => { /* unauthenticated or temporarily offline */ })
-      .finally(() => setLoading(false));
+    let active = true;
+    (async () => {
+      try {
+        await initializeSession();
+        if (!usesCookieSession && !getToken()) return;
+        const me = await api.get<User>("/auth/me");
+        if (active) setUser(me);
+      } catch { /* login will show a storage or authentication error when retried */ }
+      finally { if (active) setLoading(false); }
+    })();
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -58,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
       mfa_code: mfaCode || null,
     });
-    setTokens(tokens.access_token, tokens.refresh_token);
+    await setTokens(tokens.access_token, tokens.refresh_token);
     const me = await api.get<User>("/auth/me");
     setUser(me);
     router.push("/dashboard");
@@ -80,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (usesCookieSession && failed) {
       try { await api.post("/auth/browser/clear"); } catch { /* server may be offline */ }
     }
-    clearTokens();
+    try { await clearTokens(); } catch { failed = true; }
     setUser(null);
     router.push(failed ? "/login?logout=unconfirmed" : "/login");
   }

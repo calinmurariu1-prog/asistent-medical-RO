@@ -125,3 +125,11 @@ webhook-urile fiecărui furnizor. Vezi `docs/BILLING.md` (în lucru).
 Pachetele native și pluginurile sunt actualizate împreună. Ghiduri oficiale: [Capacitor 8](https://capacitorjs.com/docs/updating/8-0), [8.5](https://capacitorjs.com/docs/updating/8-5). Proiectul iOS se generează din șablonul actual pe macOS. Nu există încă verificare pe dispozitiv fizic sau build iOS în această livrare.
 
 Versiunile indirecte tar, sharp, uuid și minimatch sunt corectate prin overrides; utilitarul de iconițe folosește același CLI Capacitor ca proiectul. CI rulează auditul npm complet, generarea iconițelor și buildul APK pentru a detecta incompatibilități.
+
+## Stocarea nativă a sesiunii
+
+Exportul mobil setează `NEXT_PUBLIC_SESSION_TRANSPORT=native`. Tokenurile sunt păstrate ca o singură pereche în [SecureStorage](https://github.com/aparajita/capacitor-secure-storage), prin iOS Keychain și Android Keystore. Sincronizarea iCloud este dezactivată; pe iOS cheia este accesibilă numai când dispozitivul este deblocat și nu migrează la alt dispozitiv. Backupul Android al aplicației este dezactivat.
+
+Copia veche din localStorage este eliminată, fără transfer automat: autentifică-te din nou după actualizare. Pluginul este apelat numai pe platformă nativă și numai dacă este disponibil. Nu se folosește implementarea web necriptată și nu se revine la localStorage dacă sistemul refuză stocarea. Deschiderea exportului mobil într-un browser obișnuit nu permite autentificarea; folosește versiunea web cu HttpOnly.
+
+Testele automatizate verifică restaurarea, datele incomplete, erorile de scriere/ștergere și concurența salvare–logout. Ele nu înlocuiesc verificarea pe dispozitive: login, închiderea/redeschiderea aplicației, blocare/deblocare, refresh, logout și reinstalare. iOS Keychain poate păstra datele după dezinstalare; revocarea server-side rămâne autoritatea pentru validitatea sesiunii.

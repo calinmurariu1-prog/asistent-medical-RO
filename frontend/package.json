@@ -16,6 +16,7 @@
     "test:unit": "node --test tests/session.test.mjs"
   },
   "dependencies": {
+    "@aparajita/capacitor-secure-storage": "^8.0.0",
     "@capacitor-community/bluetooth-le": "8.3.0",
     "@capacitor/android": "8.5.2",
     "@capacitor/app": "8.1.1",

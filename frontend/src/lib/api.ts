@@ -1,17 +1,40 @@
+import type { TokenVault } from "./token-vault";
 export const usesCookieSession = process.env.NEXT_PUBLIC_SESSION_TRANSPORT === "cookie";
 const BASE_URL = usesCookieSession ? "" : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000");
 const PREFIX = "/api/v1";
+const usesNativeSession = process.env.NEXT_PUBLIC_SESSION_TRANSPORT === "native";
+let nativeVault: TokenVault | null = null;
+let nativeLoading: Promise<TokenVault> | null = null;
+async function loadNativeVault(): Promise<TokenVault> {
+  if (!nativeLoading) {
+    window.localStorage.removeItem(TOKEN_KEY);
+    window.localStorage.removeItem(REFRESH_KEY);
+    nativeLoading = import("./native-token-vault")
+      .then(module => module.createNativeTokenVault())
+      .then(vault => { nativeVault = vault; return vault; })
+      .catch(() => {
+        nativeLoading = null;
+        throw new ApiError(503, "Stocarea securizată a sesiunii nu este disponibilă.");
+      });
+  }
+  return nativeLoading;
+}
+export async function initializeSession(): Promise<void> {
+  if (usesNativeSession) await loadNativeVault();
+  else if (usesCookieSession) await clearTokens();
+}
 
 const TOKEN_KEY = "am_access_token";
 const REFRESH_KEY = "am_refresh_token";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return usesCookieSession ? null : window.localStorage.getItem(TOKEN_KEY);
+  return usesCookieSession ? null : usesNativeSession ? nativeVault?.access ?? null : window.localStorage.getItem(TOKEN_KEY);
 }
 
-export function setTokens(access: string, refresh: string): void {
+export async function setTokens(access: string, refresh: string): Promise<void> {
   generation++;
+  if (usesNativeSession) { await (await loadNativeVault()).save({access, refresh}); return; }
   if (usesCookieSession) {
     window.localStorage.removeItem(TOKEN_KEY);
     window.localStorage.removeItem(REFRESH_KEY);
@@ -21,10 +44,11 @@ export function setTokens(access: string, refresh: string): void {
   window.localStorage.setItem(REFRESH_KEY, refresh);
 }
 
-export function clearTokens(): void {
+export async function clearTokens(): Promise<void> {
   generation++;
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(REFRESH_KEY);
+  if (usesNativeSession) await (await loadNativeVault()).clear();
 }
 
 export class ApiError extends Error {
@@ -40,7 +64,7 @@ let generation = 0;
 let sessionRevision = 0;
 async function refreshSession(): Promise<boolean> {
   if (refreshing) return refreshing;
-  const refresh = window.localStorage.getItem(REFRESH_KEY);
+  const refresh = usesNativeSession ? (await loadNativeVault()).refresh : window.localStorage.getItem(REFRESH_KEY);
   if (!usesCookieSession && !refresh) return false;
   const ticket = generation;
   refreshing = (async () => {
@@ -51,14 +75,17 @@ async function refreshSession(): Promise<boolean> {
     if (ticket !== generation) return false;
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) {
-        clearTokens(); window.dispatchEvent(new Event("session-expired"));
+        await clearTokens(); window.dispatchEvent(new Event("session-expired"));
       }
       return false;
     }
     const tokens = await res.json();
     if (ticket !== generation) return false;
     sessionRevision++;
-    if (!usesCookieSession) {
+    if (usesNativeSession) {
+      await (await loadNativeVault()).save({access: tokens.access_token, refresh: tokens.refresh_token});
+      if (ticket !== generation) return false;
+    } else if (!usesCookieSession) {
       window.localStorage.setItem(TOKEN_KEY, tokens.access_token);
       window.localStorage.setItem(REFRESH_KEY, tokens.refresh_token);
     }
@@ -68,6 +95,7 @@ async function refreshSession(): Promise<boolean> {
 }
 
 async function response(path: string, options: RequestInit = {}): Promise<Response> {
+  if (usesNativeSession) await loadNativeVault();
   const target = usesCookieSession && ["/auth/login", "/auth/logout-all"].includes(path)
     ? path.replace("/auth/", "/auth/browser/") : path;
   const revision = sessionRevision;
@@ -86,7 +114,7 @@ async function response(path: string, options: RequestInit = {}): Promise<Respon
   if (res.status === 401 && (usesCookieSession || attemptedToken) && !credentialPath) {
     if ((usesCookieSession ? sessionRevision !== revision : (getToken() && getToken() !== attemptedToken)) || await refreshSession()) res = await send();
     if (ticket !== generation) throw new ApiError(401, "Sesiunea s-a schimbat.");
-    if (res.status === 401) {clearTokens(); window.dispatchEvent(new Event("session-expired"));}
+    if (res.status === 401) {await clearTokens(); window.dispatchEvent(new Event("session-expired"));}
   }
   if (!res.ok) {
     let message = "Cererea nu a putut fi finalizată.";
