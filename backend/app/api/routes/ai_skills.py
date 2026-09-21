@@ -14,6 +14,7 @@ from app.schemas.ai_skill import SkillOut, SkillRunRequest, SkillRunResponse
 from app.services.ai import get_ai_provider, record_ai
 from app.services.ai import skills as skills_service
 from app.services.ai.base import AIProvider
+from app.services.ai.medication_education import explain
 
 router = APIRouter(prefix="/ai", tags=["ai-skills"])
 
@@ -72,6 +73,8 @@ def run_skill(
             f"Câmpuri obligatorii lipsă: {', '.join(missing)}",
         )
 
+    if name == "explain_medication":
+        return SkillRunResponse(skill=name, **explain(ai, payload.inputs["name"]))
     result = skills_service.run_skill(ai, skill, payload.inputs)
     return SkillRunResponse(skill=name, result=result)
 

@@ -7,6 +7,11 @@ import { api } from "@/lib/api";
 import type { Medication } from "@/lib/types";
 import { Badge, Button, Card, EmptyState, Input, PageHeader, Spinner } from "@/components/ui";
 
+interface MedicationExplanation {
+  result: string;
+  sources: {ref: string; title: string; url: string}[];
+}
+
 interface CheckResult {
   interactions: { drug_a: string; drug_b: string; severity: string; description: string; source_title: string; source_url: string; source_checked_on: string }[];
   duplicates: { substance: string; medications: string[] }[];
@@ -24,7 +29,7 @@ export default function MedicationsPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [check, setCheck] = useState<CheckResult | null>(null);
-  const [explains, setExplains] = useState<Record<number, string>>({});
+  const [explains, setExplains] = useState<Record<number, MedicationExplanation>>({});
   async function action(work: () => Promise<unknown>, success: string) {
     setBusy(true); setError(""); setMessage("");
     try { await work(); setCheck(null);setExplains({});setMessage(success);reload(); }
@@ -58,8 +63,8 @@ export default function MedicationsPage() {
   async function explain(med: Medication) {
     setBusy(true);setError("");
     try {
-      const result = await api.post<{result:string}>("/ai/skills/explain_medication",{inputs:{name:med.name}});
-      setExplains(previous=>({...previous,[med.id]:result.result}));
+      const result = await api.post<MedicationExplanation>("/ai/skills/explain_medication",{inputs:{name:med.active_substance || med.name}});
+      setExplains(previous=>({...previous,[med.id]:result}));
     } catch(e) {setError(e instanceof Error ? e.message : "Explicația nu este disponibilă.");}
     finally {setBusy(false);}
   }
@@ -127,7 +132,7 @@ export default function MedicationsPage() {
           <Button variant="outline" disabled={locked} onClick={()=>explain(m)}><Sparkles size={16} />Explică</Button>
           <Button variant="outline" disabled={locked} onClick={()=>setDeleting(m)}>Șterge</Button>
         </div>
-        {explains[m.id] && <p className="mt-3 whitespace-pre-wrap rounded-xl bg-surface-2 p-3 text-sm">{explains[m.id]}</p>}
+        {explains[m.id] && <div className="mt-3 whitespace-pre-wrap break-words rounded-xl bg-surface-2 p-3 text-sm"><p>{explains[m.id].result}</p>{explains[m.id].sources.map(source => <a key={source.ref} className="mt-2 block text-primary underline" href={source.url} target="_blank" rel="noopener noreferrer">Consultă sursa: {source.title}</a>)}</div>}
       </Card>)}</div>}
   </div>;
 }

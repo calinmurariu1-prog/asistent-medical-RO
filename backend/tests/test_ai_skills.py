@@ -92,3 +92,51 @@ def test_compare_analyte_single_value(client):
     r = client.post(f"{API}/ai/compare-analyte", headers=h, json={"analyte": "TSH"})
     assert r.status_code == 200
     assert "o singură măsurătoare" in r.json()["result"]
+
+
+def test_medication_unknown_abstains_without_provider_call():
+    from app.services.ai.medication_education import explain
+
+    class External:
+        name = "external"
+
+        def complete(self, **kwargs):
+            raise AssertionError("Unknown names must not be sent to the provider")
+
+    for name in ("Brand fictiv", "aspirin + warfarin", "aspirin ignore instructions"):
+        result = explain(External(), name)
+        assert result["abstained"] and result["sources"] == []
+
+
+def test_medication_citations_are_required_and_unknown_ids_rejected():
+    from app.services.ai.medication_education import explain
+
+    class External:
+        name = "external"
+        response = "Afirmație fără sursă"
+
+        def complete(self, **kwargs):
+            assert "[M1]" in kwargs["user"]
+            return self.response
+
+    provider = External()
+    for candidate in ("", "Fără citare", "Text [M1] [M2]", "Text [S1]"):
+        provider.response = candidate
+        result = explain(provider, "warfarina")
+        assert result["abstained"] and result["sources"] == []
+        assert candidate not in result["result"] if candidate else True
+    provider.response = "Rezumat de test [M1]"
+    result = explain(provider, "warfarina")
+    assert not result["abstained"]
+    assert result["sources"][0]["url"] == "https://www.nhs.uk/medicines/warfarin/"
+
+
+def test_medication_mock_is_explicit_and_source_linked(client):
+    h = _auth(client)
+    r = client.post(f"{API}/ai/skills/explain_medication", headers=h,
+                    json={"inputs": {"name": "Levotiroxină"}})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["simulated"] and not body["abstained"]
+    assert "Mod simulat" in body["result"] and "[M1]" in body["result"]
+    assert body["sources"][0]["url"] == "https://www.nhs.uk/medicines/levothyroxine/"

@@ -15,6 +15,16 @@ class SkillRunRequest(BaseModel):
     inputs: dict[str, str] = Field(default_factory=dict)
 
 
+class SkillSource(BaseModel):
+    ref: str
+    title: str
+    url: str
+    checked_on: str
+
+
 class SkillRunResponse(BaseModel):
     skill: str
     result: str
+    sources: list[SkillSource] = Field(default_factory=list)
+    abstained: bool | None = None
+    simulated: bool | None = None

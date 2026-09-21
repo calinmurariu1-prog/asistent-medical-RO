@@ -123,3 +123,10 @@ Catalogul educațional consultat la 21 septembrie 2026 cuprinde cinci perechi: w
 Se potrivesc numai substanțele declarate explicit și câteva sinonime română/engleză, fără deducție din marcă sau interpretarea preparatelor combinate. API raportează numărul perechilor fără regulă și medicamentele cu substanță absentă/nerecunoscută. Perechile de substanțe identice pot avea un mesaj separat de repetare, dar nu primesc o evaluare clinică. Severity este acum `requires_review`, nu un scor medical. Nu se evaluează doze, funcție renală, boli asociate sau siguranță individuală.
 
 Regulile vechi enalapril/spironolactonă, sertralină/tramadol și metformin/furosemid sunt retrase din catalog până la documentare și evaluare clinică; apar ca neevaluate, niciodată drept combinații sigure. Catalogul nu este exhaustiv și necesită revizie clinică înaintea utilizării reale. Nu există căutări externe cu datele pacientului. Memento-urile de medicație la ore alese explicit rămân de implementat.
+
+
+## Explicația educațională a unui medicament
+
+`/ai/skills/explain_medication` folosește un catalog inițial de trei substanțe (warfarină, aspirină, levotiroxină), cu rezumate românești din paginile NHS citate și consultate la 21 septembrie 2026. Butonul Explică folosește substanța activă declarată; denumirile comerciale și combinațiile necunoscute primesc un răspuns de informație insuficientă, fără apel la furnizorul AI. Extinderea catalogului și revizia clinică rămân necesare.
+
+În modul simulat se afișează explicit un rezumat local cu sursa, nu o interpretare AI. Furnizorul real primește numai fragmentul catalogului și denumirea canonică, fără numele comercial sau datele dosarului. Răspunsurile fără citarea M1 sau cu alte identificatoare de citare sunt înlocuite cu abstinență. Răspunsul API include sources, simulated și abstained, iar pagina Medicație oferă linkul sursei. Verificarea identificatorului nu demonstrează că fiecare afirmație este susținută de sursă; evaluarea clinică a furnizorului real rămâne obligatorie. Nu se oferă doze sau modificări autonome de tratament. Celelalte funcții AI sunt în curs de audit separat.

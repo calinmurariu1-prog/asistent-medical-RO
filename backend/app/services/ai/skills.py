@@ -13,6 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from app.services.ai.base import DISCLAIMER, AIProvider
+from app.services.ai.medication_education import explain
 
 _GUARD = (
     "Ești un asistent medical informativ, în limba română. NU pui diagnostic și "
@@ -52,6 +53,8 @@ def _with_disclaimer(text: str) -> str:
 
 def run_skill(provider: AIProvider, skill: Skill, data: dict) -> str:
     """Execute a skill: deterministic mock for the offline provider, else LLM."""
+    if skill.name == "explain_medication":
+        return explain(provider, data["name"])["result"]
     if getattr(provider, "name", "") == "mock":
         return _with_disclaimer(skill.mock(data))
     system, user = skill.prompt(data)
