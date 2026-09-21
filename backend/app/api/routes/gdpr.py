@@ -9,11 +9,12 @@ from sqlalchemy.orm import Session
 from app.api.deps import ai_consent_version, get_current_user
 from app.core.browser_session import clear_browser_cookies
 from app.core.database import get_db
+from app.core.rate_limit import RateLimiter
 from app.core.security import verify_password
 from app.models.enums import ConsentType
 from app.models.user import Consent, User
 from app.schemas.gdpr import ConsentIn, ConsentOut, DeleteAccountRequest
-from app.services import audit, gdpr, storage_cleanup
+from app.services import audit, gdpr, record_archive, storage_cleanup
 from app.services.ai import get_ai_provider
 from app.services.ai.base import AIProvider
 from app.services.storage import Storage, get_storage
@@ -37,6 +38,28 @@ def export_my_data(
     response.headers["Pragma"] = "no-cache"
     audit.record(db, user_id=user.id, action="gdpr_export", ip_address=_client_ip(request))
     return gdpr.export_user_data(db, user)
+
+
+@router.get("/export/archive", dependencies=[Depends(RateLimiter(2, 60))])
+def export_archive(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db),
+    storage: Storage = Depends(get_storage),
+) -> Response:
+    try:
+        content = record_archive.build(db, user, storage)
+    except record_archive.ArchiveTooLarge:
+        raise HTTPException(413, "Arhiva depășește 25 MB sau 1000 de documente. "
+                            "Descarcă JSON și originalele separat.",
+                            headers={"Cache-Control": "no-store"}) from None
+    except Exception:  # noqa: BLE001 (no partial archive or private provider details)
+        raise HTTPException(503, "Arhiva nu a putut fi pregătită complet. "
+                            "Un original poate fi indisponibil. Reîncearcă.",
+                            headers={"Cache-Control": "no-store"}) from None
+    audit.record(db, user_id=user.id, action="gdpr_archive_export")
+    return Response(content, media_type="application/zip", headers={
+        "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": 'attachment; filename="dosar-medical.zip"',
+    })
 
 
 @router.post("/delete-account", status_code=status.HTTP_204_NO_CONTENT)

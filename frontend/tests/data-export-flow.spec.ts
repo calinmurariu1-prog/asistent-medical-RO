@@ -30,6 +30,14 @@ test("download owned JSON export and retry after service error", async ({ page }
   expect(data.account.hashed_password).toBeUndefined();
   await expect(section.getByRole("status")).toContainText("Descărcarea a fost inițiată");
   await expect(section.getByRole("alert")).toHaveCount(0);
+  const archiveDownload = page.waitForEvent("download");
+  await section.getByRole("button", {name: "Descarcă arhiva cu originale"}).click();
+  const archiveFile = await archiveDownload;
+  expect(archiveFile.suggestedFilename()).toMatch(/\.zip$/);
+  const archiveBytes = await readFile((await archiveFile.path())!);
+  expect(archiveBytes.subarray(0, 2).toString()).toBe("PK");
+  expect(archiveBytes.includes(Buffer.from("dosar.json"))).toBe(true);
+  expect(archiveBytes.includes(Buffer.from(email))).toBe(true);
   await section.scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await section.screenshot({ path: `../docs/screenshots/data-export-${info.project.name}.png` });
