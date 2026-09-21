@@ -8,7 +8,7 @@ Aplicația este o versiune locală de test cu date fictive și AI simulat. Nu es
 
 | Zonă | Comportament implementat |
 | --- | --- |
-| Cont și sesiuni | Înregistrare/login, confirmare email, recuperare parolă cu tokenuri opace consumate atomic, revocare sesiuni după resetare, configurare MFA, coduri de rezervă de unică folosință și regenerare cu parolă plus al doilea factor, limitarea încercărilor, refresh unic pentru cereri simultane și logout pe toate dispozitivele. |
+| Cont și sesiuni | Înregistrare/login, confirmare email și solicitarea unui link nou din Setări, recuperare parolă cu tokenuri opace consumate atomic, revocare sesiuni după resetare, configurare MFA, coduri de rezervă de unică folosință și regenerare cu parolă plus al doilea factor, limitarea încercărilor, refresh unic pentru cereri simultane și logout pe toate dispozitivele. |
 | Web și mobil | Next.js/FastAPI păstrate, web responsive, dark mode, PWA și export Capacitor. Web: cookie HttpOnly și verificare Origin; nativ: Keychain/Keystore fără fallback necriptat. |
 | Profil și dosar | Profil cu nume, naștere, sex, greutate, înălțime, telefon și grupă sanguină declarată; erori recuperabile, validare și audit fără valori personale; istoric/observații/diagnostice consemnate, alergii, vaccinări și contacte de urgență cu creare, corectare și ștergere confirmată. |
 | Documente | PDF/JPG/PNG/DOCX/DICOM, păstrarea originalului, extragere disponibilă, erori explicite când OCR lipsește, limite de fișier și arhivă DOCX. Descărcare autentificată numai de proprietar. |
@@ -75,3 +75,6 @@ Push-ul simulat nu marchează livrare reală. Acceptarea de FCM/APNs nu dovedeș
 Export identificator: POST /gdpr/export/with-identifier cere include_cnp explicit, parola și MFA/TOTP sau cod de rezervă valid dacă MFA este activ. Codul de rezervă se consumă atomic; auditul nu conține identificatorul sau parolele. Dacă decriptarea eșuează, exportul este refuzat. 11 teste export/GDPR și 3 scenarii browser trecute, plus Ruff și build/TypeScript.
 
 Erori de validare: handlerul API păstrează numai loc/type/msg și elimină input/context, inclusiv pentru parole, MFA, CNP și JSON invalid. Cele 12 teste securitate/profil/export sensibil au trecut; Ruff trecut.
+
+Confirmare email: endpoint autentificat /auth/email/resend, limitat ca frecvență, livrează numai la adresa contului și nu returnează tokenul. Conturile confirmate nu primesc alt token. Lipsa SMTP în producție sau trimiterea eșuată este raportată ca indisponibilitate. 17 teste recuperare/autentificare trecute, un test PostgreSQL omis local; build/TypeScript trecut.
+Șase scenarii browser cont/recuperare/deconectare au trecut cu solicitarea linkului nou; aplicația locală a fost repornită cu limitările normale.

@@ -14,6 +14,7 @@ import {
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { EmailVerification } from "@/components/email-verification";
 import { MFASettings } from "@/components/mfa-settings";
 import { DataExport } from "@/components/data-export";
 import { AIConsent } from "@/components/ai-consent";
@@ -209,6 +210,7 @@ export default function SettingsPage() {
         </Button>
       </Section>
 
+      <EmailVerification />
       <MFASettings />
       <DataExport />
 

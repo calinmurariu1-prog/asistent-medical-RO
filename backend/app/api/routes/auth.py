@@ -195,6 +195,28 @@ def password_reset_confirm(
     return {"detail": "Password updated"}
 
 
+@router.post("/email/resend", dependencies=[Depends(_auth_limiter)])
+def resend_verification(
+    current: User = Depends(get_current_user), db: Session = Depends(get_db),
+) -> dict[str, str]:
+    if current.is_email_verified:
+        return {"detail": "Adresa de email este deja confirmată."}
+    if settings.is_production and not settings.SMTP_HOST:
+        raise HTTPException(503, "Serviciul de email este temporar indisponibil.")
+    token = create_purpose_token(str(current.id), EMAIL_VERIFY, db=db)
+    db.commit()
+    try:
+        delivered = send_verification_email(current.email, token)
+    except Exception:  # noqa: BLE001 (local mailbox failures must not disclose paths)
+        delivered = False
+    if not delivered:
+        raise HTTPException(503, "Mesajul nu a putut fi trimis. Reîncearcă mai târziu.")
+    audit.record(db, user_id=current.id, action="email_verification_resend")
+    detail = ("Mesajul a fost salvat în cutia de email de test a aplicației locale."
+              if not settings.SMTP_HOST else "Linkul a fost transmis serviciului de email.")
+    return {"detail": detail}
+
+
 @router.post("/email/verify")
 def verify_email(
     payload: EmailVerifyRequest, db: Session = Depends(get_db)

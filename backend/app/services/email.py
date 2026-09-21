@@ -46,9 +46,9 @@ def send_email(to: str, subject: str, body: str) -> bool:
         return False
 
 
-def send_verification_email(to: str, token: str) -> None:
+def send_verification_email(to: str, token: str) -> bool:
     link = f"{settings.FRONTEND_URL}/verify-email#token={token}"
-    send_email(
+    return send_email(
         to,
         "Confirmă adresa de email — Asistent Medical AI",
         "Bun venit! Confirmă-ți adresa de email accesând linkul de mai jos:\n\n"

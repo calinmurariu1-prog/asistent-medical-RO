@@ -120,3 +120,26 @@ def test_postgres_concurrent_token_consumption(db_session):
         assert sorted(pool.map(consume, range(2))) == [False, True]
     db_session.refresh(user)
     assert user.token_version == 1
+
+
+def test_resend_verification_is_authenticated_private_and_recoverable(client, monkeypatch):
+    from app.api.routes import auth
+
+    make_user(client)
+    token = client.post(API + "/auth/login", json={
+        "email": "recovery@example.com", "password": "Password1234"}).json()["access_token"]
+    headers = {"Authorization": "Bearer " + token}
+    assert client.post(API + "/auth/email/resend").status_code == 401
+    sent = []
+    monkeypatch.setattr(auth, "send_verification_email", lambda email, code: sent.append(
+        (email, code)) or True)
+    response = client.post(API + "/auth/email/resend", headers=headers)
+    assert response.status_code == 200
+    assert sent[0][0] == "recovery@example.com"
+    assert sent[0][1] not in response.text
+    monkeypatch.setattr(auth, "send_verification_email", lambda *args: False)
+    assert client.post(API + "/auth/email/resend", headers=headers).status_code == 503
+    assert client.post(API + "/auth/email/verify", json={"token": sent[0][1]}).status_code == 200
+    response = client.post(API + "/auth/email/resend", headers=headers)
+    assert response.status_code == 200
+    assert "deja confirmată" in response.json()["detail"]

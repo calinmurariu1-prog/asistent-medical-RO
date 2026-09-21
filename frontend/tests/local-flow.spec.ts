@@ -20,6 +20,10 @@ test("account, recovery, document and session lifecycle",async({page,request,con
  await page.getByRole("button",{name:"Creează cont",exact:true}).click();
  await expect(page).toHaveURL(/dashboard/);
  await expect(page.getByText("Versiune de test",{exact:false})).toBeVisible();
+ await page.goto("/settings");
+ const emailSection=page.locator('[aria-labelledby="email-verification-title"]');
+ await emailSection.getByRole("button",{name:"Trimite un link nou de confirmare"}).click();
+ await expect(emailSection.getByRole("status")).toContainText("cutia de email de test");
  const verify=await mailbox(email,"verify-email");
  await page.goto(verify);
  await page.getByRole("button",{name:"Confirmă emailul"}).click();
