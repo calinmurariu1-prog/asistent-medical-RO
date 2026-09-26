@@ -5,8 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   Activity,
+  Bell,
   CalendarDays,
   CreditCard,
+  ClipboardList,
   FileText,
   HeartPulse,
   LayoutDashboard,
@@ -30,6 +32,7 @@ import { ThemeToggle } from "@/components/theme-provider";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/record", label: "Dosar medical", icon: ClipboardList },
   { href: "/labs", label: "Analize", icon: Activity },
   { href: "/health", label: "Date de sănătate", icon: HeartPulse },
   { href: "/documents", label: "Documente", icon: FileText },
@@ -37,6 +40,7 @@ const nav = [
   { href: "/assistant", label: "Asistent AI", icon: Sparkles },
   { href: "/medications", label: "Medicamente", icon: Pill },
   { href: "/appointments", label: "Programări", icon: CalendarDays },
+  { href: "/notifications", label: "Notificări", icon: Bell },
   { href: "/doctors", label: "Găsește medici", icon: MapPin },
   { href: "/subscription", label: "Abonament", icon: CreditCard },
   { href: "/settings", label: "Setări", icon: Settings },
@@ -44,7 +48,7 @@ const nav = [
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, loggingOut, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -53,8 +57,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   usePushRegistration(); // native: register for push notifications
 
   useEffect(() => {
-    if (!loading && !user) router.replace("/login");
-  }, [loading, user, router]);
+    if (!loading && !user && !loggingOut) router.replace("/login");
+  }, [loading, user, loggingOut, router]);
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
@@ -64,7 +68,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (loading || !user) return <Spinner />;
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
+    <div className="pt-safe flex h-[100dvh] overflow-hidden">
       {mobileOpen && (
         <div
           onClick={() => setMobileOpen(false)}
@@ -107,22 +111,24 @@ export function AppShell({ children }: { children: ReactNode }) {
           className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-fg/70 transition hover:bg-bg hover:text-fg"
         >
           <LogOut size={18} />
-          Deconectare
+          Deconectare de pe toate dispozitivele
         </button>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border/70 bg-surface px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
+        {process.env.NEXT_PUBLIC_TEST_MODE === "true" && <p role="status" className="bg-amber-100 p-3 text-sm text-amber-950">Versiune de test · Folosește date fictive. AI simulat, fără interpretare medicală reală.</p>}
+        <header className="flex items-center justify-between gap-3 border-b border-border/70 bg-surface px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               onClick={() => setMobileOpen(true)}
               aria-label="Deschide meniul"
-              className="rounded-xl border border-border p-2 text-fg/70 transition hover:bg-surface-2 sm:hidden"
+              className="shrink-0 rounded-xl border border-border p-2 text-fg/70 transition hover:bg-surface-2 sm:hidden"
             >
               <Menu size={18} />
             </button>
             <div className="truncate text-sm text-muted">{user.email}</div>
           </div>
+          <Link href="/notifications" aria-label="Deschide notificările" className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-border"><Bell size={18} /></Link>
           <ThemeToggle />
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 sm:p-6 sm:pb-6">

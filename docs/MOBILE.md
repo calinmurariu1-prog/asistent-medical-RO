@@ -10,9 +10,9 @@ Next.js (static export → out/)  ──►  Capacitor WebView  ──►  APK/A
 ```
 
 ## Cerințe
-- **Android:** [Android Studio](https://developer.android.com/studio) (SDK + emulator).
-- **iOS:** **macOS** cu **Xcode** (obligatoriu — Apple nu permite build iOS pe alt OS).
-- Node 18+ și dependențele instalate (`npm ci` în `frontend/`).
+- **Android:** Android Studio Otter 2025.2.1+, JDK 21, SDK 36; Android 7/API 24 minim.
+- **iOS:** iOS 15+, **macOS** cu **Xcode 26+** (obligatoriu — Apple nu permite build iOS pe alt OS).
+- Node 22+ și dependențele instalate (`npm ci` în `frontend/`).
 
 > Build-ul iOS/semnarea și publicarea în store se fac pe mașina ta (Xcode /
 > Android Studio) — nu în CI-ul actual.
@@ -119,3 +119,24 @@ aplicațiile din store (nu poți folosi doar Stripe pe mobil). Planul:
 Backend-ul e deja pregătit: modelul `Subscription` are `provider`
 (`stripe`/`apple`/`google`) și `external_*` pentru a lega abonamentul de
 webhook-urile fiecărui furnizor. Vezi `docs/BILLING.md` (în lucru).
+
+## Actualizare Capacitor 8.5
+
+Pachetele native și pluginurile sunt actualizate împreună. Ghiduri oficiale: [Capacitor 8](https://capacitorjs.com/docs/updating/8-0), [8.5](https://capacitorjs.com/docs/updating/8-5). Proiectul iOS se generează din șablonul actual pe macOS. Nu există încă verificare pe dispozitiv fizic sau build iOS în această livrare.
+
+Versiunile indirecte tar, sharp, uuid și minimatch sunt corectate prin overrides; utilitarul de iconițe folosește același CLI Capacitor ca proiectul. CI rulează auditul npm complet, generarea iconițelor și buildul APK pentru a detecta incompatibilități.
+
+## Stocarea nativă a sesiunii
+
+Exportul mobil setează `NEXT_PUBLIC_SESSION_TRANSPORT=native`. Tokenurile sunt păstrate ca o singură pereche în [SecureStorage](https://github.com/aparajita/capacitor-secure-storage), prin iOS Keychain și Android Keystore. Sincronizarea iCloud este dezactivată; pe iOS cheia este accesibilă numai când dispozitivul este deblocat și nu migrează la alt dispozitiv. Backupul Android al aplicației este dezactivat.
+
+Copia veche din localStorage este eliminată, fără transfer automat: autentifică-te din nou după actualizare. Pluginul este apelat numai pe platformă nativă și numai dacă este disponibil. Nu se folosește implementarea web necriptată și nu se revine la localStorage dacă sistemul refuză stocarea. Deschiderea exportului mobil într-un browser obișnuit nu permite autentificarea; folosește versiunea web cu HttpOnly.
+
+Testele automatizate verifică restaurarea, datele incomplete, erorile de scriere/ștergere și concurența salvare–logout. Ele nu înlocuiesc verificarea pe dispozitive: login, închiderea/redeschiderea aplicației, blocare/deblocare, refresh, logout și reinstalare. iOS Keychain poate păstra datele după dezinstalare; revocarea server-side rămâne autoritatea pentru validitatea sesiunii.
+
+
+## Exporturi prin dialogul nativ
+Exportul JSON din Setări, rapoartele PDF/DOCX din Profil și originalele din Documente folosesc `@capacitor/filesystem` 8.1.3 și `@capacitor/share` 8.0.2. Se scrie o copie în cache-ul privat `medical-exports/<timestamp-uuid>/export.<extensie>`, apoi se deschide dialogul sistemului, fără alegerea automată a unei aplicații destinatare. Android FileProvider expune numai acest subdirector. Nu se cer permisiuni generale pentru stocare externă. Fișierul temporar este necriptat pentru a putea fi citit de aplicația aleasă; utilizatorul inițiază explicit exportul. Nu se șterge imediat la închiderea dialogului, deoarece destinatarul poate citi ulterior.
+La următorul export se șterg numai directoarele proprii mai vechi de 24 de ore. Închiderea aplicației nu garantează ștergerea exact la 24 de ore; sistemul poate curăța cache-ul. Copiile salvate/trimise de utilizator nu sunt controlate de aplicație. Limita nativă este 25 MB; fișierele mai mari necesită versiunea web. Anularea/eroarea nu este prezentată drept salvare reușită. Toate aceste descărcări folosesc adaptorul comun, cu răspunsuri autentificate și erori vizibile. Browserul păstrează numele original; copia nativă are un nume generic și extensia fișierului.
+Pe macOS, după crearea proiectului iOS și `npx cap sync ios`, adaugă în manifestul de confidențialitate al targetului App motivul `C617.1` pentru `NSPrivacyAccessedAPICategoryFileTimestamp`, păstrând celelalte declarații deja necesare. Acesta este motivul recomandat de documentația oficială Filesystem pentru API-urile de timestamp ale fișierelor. Verifică includerea manifestului în target înainte de arhivare.
+Surse: [Filesystem](https://capacitorjs.com/docs/apis/filesystem), [Share](https://capacitorjs.com/docs/apis/share). Testele automate folosesc adaptoare simulate pentru bytes, cale privată, curățare, anulare și erori; buildul web/Capacitor și sincronizarea Android nu dovedesc funcționarea pe un dispozitiv real. Buildul și semnarea iOS necesită macOS/Xcode și contul dezvoltatorului.

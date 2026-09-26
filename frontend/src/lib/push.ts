@@ -48,7 +48,13 @@ export function usePushRegistration(): void {
 }
 
 /** Send a test push to the current user's registered devices. */
-export async function sendTestPush(): Promise<number> {
-  const r = await api.post<{ delivered: number }>("/notifications/test-push");
-  return r.delivered;
+export async function sendTestPush(): Promise<{delivered: number; simulated: number; failed: number; devices: number}> {
+  return api.post("/notifications/test-push");
+}
+
+export function pushDeliveryMessage(n: {delivered: number; simulated: number; failed: number}): string {
+  if (n.simulated > 0) return `Simulare locală pentru ${n.simulated} dispozitiv(e). Nu s-a trimis nicio notificare reală.`;
+  if (n.delivered > 0) return `Serviciul a acceptat notificarea pentru ${n.delivered} dispozitiv(e). Afișarea pe telefon nu este confirmată.${n.failed ? ` ${n.failed} încercări au eșuat.` : ""}`;
+  if (n.failed > 0) return "Trimiterea nu a reușit. Dispozitivele au fost păstrate pentru reîncercare.";
+  return "Niciun dispozitiv înregistrat (deschide aplicația pe telefon și acceptă notificările).";
 }

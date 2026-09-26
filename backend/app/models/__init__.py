@@ -13,6 +13,7 @@ from app.models.feedback import Feedback
 from app.models.health import HealthSample
 from app.models.health_device import HealthDevice
 from app.models.medication import Medication
+from app.models.medication_reminder import MedicationReminder
 from app.models.notification import Notification
 from app.models.patient import (
     Allergy,
@@ -21,11 +22,13 @@ from app.models.patient import (
     Vaccine,
 )
 from app.models.push_token import PushToken
+from app.models.storage_deletion import StorageDeletion
 from app.models.subscription import Subscription
 from app.models.user import AuditLog, Consent, User
 
 __all__ = [
     "User",
+    "StorageDeletion",
     "Consent",
     "AuditLog",
     "Patient",
@@ -40,6 +43,7 @@ __all__ = [
     "Document",
     "LabResult",
     "Medication",
+    "MedicationReminder",
     "Appointment",
     "AIChat",
     "AIChatMessage",

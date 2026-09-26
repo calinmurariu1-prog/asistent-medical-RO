@@ -66,3 +66,163 @@ def test_me_requires_auth(client):
 
 def test_health(client):
     assert client.get("/health").json()["status"] == "ok"
+
+
+def test_mfa_activation_revokes_old_sessions_and_cannot_replace_active_secret(client, db_session):
+    import pyotp
+    from sqlalchemy import select
+
+    from app.core.security import decrypt_field
+    from app.models.user import AuditLog, User
+
+    _register(client)
+    credentials = {"email": "ana@example.com", "password": "Parola1234"}
+    old = client.post(f"{API}/auth/login", json=credentials).json()
+    headers = {"Authorization": f"Bearer {old['access_token']}"}
+    setup = client.post(f"{API}/auth/mfa/setup", headers=headers)
+    assert setup.status_code == 200
+    secret = setup.json()["secret"]
+    code = pyotp.TOTP(secret).now()
+    assert client.post(f"{API}/auth/mfa/activate", headers=headers,
+                       json={"code": code}).status_code == 200
+    assert client.get(f"{API}/auth/me", headers=headers).status_code == 401
+    assert client.post(f"{API}/auth/refresh",
+                       json={"refresh_token": old["refresh_token"]}).status_code == 401
+    assert client.post(f"{API}/auth/login", json=credentials).status_code == 401
+    fresh = client.post(f"{API}/auth/login", json={**credentials, "mfa_code": code})
+    assert fresh.status_code == 200
+    headers = {"Authorization": f"Bearer {fresh.json()['access_token']}"}
+    assert client.post(f"{API}/auth/mfa/setup", headers=headers).status_code == 409
+    assert client.post(f"{API}/auth/mfa/activate", headers=headers,
+                       json={"code": code}).status_code == 409
+    user = db_session.scalar(select(User).where(User.email == credentials["email"]))
+    db_session.refresh(user)
+    assert decrypt_field(user.mfa_secret) == secret
+    events = db_session.scalars(select(AuditLog).where(AuditLog.action.like("mfa_%"))).all()
+    assert {e.action for e in events} == {"mfa_setup", "mfa_activate"}
+    assert len(events) == 2
+    assert all(e.detail is None for e in events)
+
+
+def test_mfa_activation_rejects_replaced_setup_snapshot(client, db_session, monkeypatch):
+    import pyotp
+    from sqlalchemy import select, update
+
+    from app.core.security import decrypt_field, encrypt_field
+    from app.models.user import User
+
+    _register(client)
+    tokens = client.post(f"{API}/auth/login", json={
+        "email": "ana@example.com", "password": "Parola1234"}).json()
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+    secret = client.post(f"{API}/auth/mfa/setup", headers=headers).json()["secret"]
+    replacement = pyotp.random_base32()
+    verify = pyotp.TOTP.verify
+
+    def replace_during_verification(totp, code, **kwargs):
+        result = verify(totp, code, **kwargs)
+        db_session.execute(update(User).execution_options(synchronize_session=False).values(
+            mfa_secret=encrypt_field(replacement)))
+        db_session.commit()
+        return result
+
+    monkeypatch.setattr(pyotp.TOTP, "verify", replace_during_verification)
+    result = client.post(f"{API}/auth/mfa/activate", headers=headers,
+                         json={"code": pyotp.TOTP(secret).now()})
+    assert result.status_code == 409
+    user = db_session.scalar(select(User))
+    db_session.refresh(user)
+    assert user.mfa_enabled is False
+    assert decrypt_field(user.mfa_secret) == replacement
+    assert client.get(f"{API}/auth/me", headers=headers).status_code == 200
+
+
+def test_mfa_backup_codes_are_hashed_one_use_and_revokes_previous_tokens(client, db_session):
+    import pyotp
+    from sqlalchemy import select
+
+    from app.models.user import MFARecoveryCode
+
+    _register(client)
+    credentials = {"email": "ana@example.com", "password": "Parola1234"}
+    original = client.post(f"{API}/auth/login", json=credentials).json()
+    headers = {"Authorization": f"Bearer {original['access_token']}"}
+    secret = client.post(f"{API}/auth/mfa/setup", headers=headers).json()["secret"]
+    activation = client.post(f"{API}/auth/mfa/activate", headers=headers,
+                             json={"code": pyotp.TOTP(secret).now()}).json()
+    codes = activation["recovery_codes"]
+    assert len(codes) == len(set(codes)) == 10
+    hashes = list(db_session.scalars(select(MFARecoveryCode.code_hash)))
+    assert len(hashes) == 10 and not set(hashes).intersection(codes)
+    fresh = client.post(f"{API}/auth/login", json={**credentials, "mfa_code": codes[0]})
+    assert fresh.status_code == 200
+    assert client.post(f"{API}/auth/login", json={
+        **credentials, "mfa_code": codes[0]}).status_code == 401
+    wrong = client.post(f"{API}/auth/login", json={
+        **credentials, "password": "wrong", "mfa_code": codes[1]})
+    assert wrong.status_code == 401
+    second = client.post(f"{API}/auth/login", json={**credentials, "mfa_code": codes[1]})
+    assert second.status_code == 200
+    assert client.post(f"{API}/auth/refresh", json={
+        "refresh_token": fresh.json()["refresh_token"]}).status_code == 401
+    headers = {"Authorization": f"Bearer {second.json()['access_token']}"}
+    exported = client.get(f"{API}/gdpr/export", headers=headers)
+    assert not any(code in exported.text for code in codes + hashes)
+    assert client.post(f"{API}/gdpr/delete-account", headers=headers,
+                       json={"password": "Parola1234", "confirm": True}).status_code == 204
+    assert list(db_session.scalars(select(MFARecoveryCode))) == []
+
+
+def test_regenerate_backup_codes_requires_both_factors_and_invalidates_old_set(client):
+    import pyotp
+
+    _register(client)
+    credentials = {"email": "ana@example.com", "password": "Parola1234"}
+    tokens = client.post(f"{API}/auth/login", json=credentials).json()
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+    secret = client.post(f"{API}/auth/mfa/setup", headers=headers).json()["secret"]
+    codes = client.post(f"{API}/auth/mfa/activate", headers=headers,
+                        json={"code": pyotp.TOTP(secret).now()}).json()["recovery_codes"]
+    tokens = client.post(f"{API}/auth/login", json={
+        **credentials, "mfa_code": codes[0]}).json()
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+    for password, code in [("wrong", codes[1]), ("Parola1234", "invalid")]:
+        assert client.post(f"{API}/auth/mfa/recovery-codes", headers=headers,
+                           json={"password": password, "code": code}).status_code == 400
+        assert client.get(f"{API}/auth/me", headers=headers).status_code == 200
+    response = client.post(f"{API}/auth/mfa/recovery-codes", headers=headers,
+                           json={"password": "Parola1234", "code": codes[1]})
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    replacements = response.json()["recovery_codes"]
+    assert len(replacements) == 10
+    assert not set(replacements).intersection(codes)
+    assert client.get(f"{API}/auth/me", headers=headers).status_code == 401
+    assert client.post(f"{API}/auth/login", json={
+        **credentials, "mfa_code": codes[2]}).status_code == 401
+    assert client.post(f"{API}/auth/login", json={
+        **credentials, "mfa_code": replacements[0]}).status_code == 200
+
+
+def test_logout_all_increments_latest_version_even_with_stale_identity(db_session):
+    from sqlalchemy import select, update
+
+    from app.api.routes.auth import logout_all
+    from app.models.user import AuditLog, User
+
+    user = User(email="stale-logout@example.com", hashed_password="synthetic")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    initial = user.token_version
+    db_session.execute(update(User).execution_options(synchronize_session=False).where(
+        User.id == user.id).values(token_version=initial + 4))
+    # Keep an old ORM snapshot as if a concurrent session change committed after
+    # authentication resolved this request. Logout must use the database counter.
+    assert user.token_version == initial
+    logout_all(current=user, db=db_session)
+    db_session.refresh(user)
+    assert user.token_version == initial + 5
+    events = db_session.scalars(select(AuditLog).where(
+        AuditLog.user_id == user.id, AuditLog.action == "logout_all")).all()
+    assert len(events) == 1 and events[0].detail is None

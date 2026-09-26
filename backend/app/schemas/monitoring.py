@@ -19,6 +19,7 @@ class MonitoringParam(BaseModel):
     flag: str
     trend: str | None
     points: list[MonitoringPoint]
+    comparison_warning: str | None = None
 
 
 class MonitoringDashboardOut(BaseModel):

@@ -53,6 +53,10 @@ class Document(Base, TimestampMixin):
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai_metadata: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON blob
+    processing_token: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    processing_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     patient: Mapped[Patient] = relationship(back_populates="documents")
@@ -85,7 +89,7 @@ class LabResult(Base, TimestampMixin):
     ref_low: Mapped[float | None] = mapped_column(Float, nullable=True)
     ref_high: Mapped[float | None] = mapped_column(Float, nullable=True)
     flag: Mapped[LabFlag] = mapped_column(
-        Enum(LabFlag, native_enum=False), default=LabFlag.NORMAL, nullable=False
+        Enum(LabFlag, native_enum=False), default=LabFlag.UNKNOWN, nullable=False
     )
     measured_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     ai_explanation: Mapped[str | None] = mapped_column(Text, nullable=True)

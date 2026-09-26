@@ -79,3 +79,49 @@ def test_login_rate_limited(client, monkeypatch):
     assert statuses[:limit] == [401] * limit  # allowed (bad creds)
     assert statuses[limit] == 429            # blocked by the limiter
     reset_rate_limits()
+
+
+def test_api_success_auth_and_validation_responses_are_not_cacheable(client):
+    from tests.test_gdpr import _auth
+
+    headers = _auth(client, "cache-privacy@example.com")
+    responses = [
+        client.get(f"{API}/patients/me", headers=headers),
+        client.get(f"{API}/patients/me"),
+        client.put(f"{API}/patients/me", headers=headers, json={"birth_date": "invalid"}),
+        client.post(f"{API}/auth/login", json={
+            "email": "cache-privacy@example.com", "password": "Parola1234"}),
+        client.get(f"{API}/route-does-not-exist"),
+    ]
+    assert [response.status_code for response in responses] == [200, 401, 422, 200, 404]
+    for response in responses:
+        assert response.headers["cache-control"] == "no-store"
+        assert response.headers["pragma"] == "no-cache"
+        assert response.headers["expires"] == "0"
+
+
+def test_validation_does_not_echo_passwords_codes_or_medical_input(client):
+    from tests.test_gdpr import _auth
+
+    password = "secret-password-marker-" * 10
+    response = client.post(f"{API}/auth/register", json={
+        "email": "private-validation@example.com", "password": password})
+    assert response.status_code == 422
+    assert password not in response.text
+    assert response.json()["detail"][0]["loc"] == ["body", "password"]
+    headers = _auth(client, "private-validation-owner@example.com")
+    identifier = "private-identifier-marker"
+    response = client.put(f"{API}/patients/me", headers=headers, json={"cnp": identifier})
+    assert response.status_code == 422
+    assert identifier not in response.text
+    code = "private-mfa-code-marker-" * 10
+    response = client.post(f"{API}/gdpr/export/with-identifier", headers=headers,
+                           json={"password": "Parola1234", "mfa_code": code, "include_cnp": True})
+    assert response.status_code == 422
+    assert code not in response.text
+    for error in response.json()["detail"]:
+        assert set(error) == {"loc", "type", "msg"}
+    malformed = client.post(f"{API}/auth/login", content='{ "password": "private-json-marker"',
+                            headers={"Content-Type": "application/json"})
+    assert malformed.status_code == 422
+    assert "private-json-marker" not in malformed.text

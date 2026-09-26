@@ -1,15 +1,15 @@
-"""Cross-check AI-extracted lab values against the deterministic parser.
+"""Check AI-extracted lab fields against deterministic extraction.
 
-An LLM (Gemini Flash) can invent or mis-read numbers. The regex-based
-`parse_lab_values` reads the exact document text, so wherever it independently
-finds the same number we treat the value as *verified*. Everything else is left
-*unverified* and shown to the user as "de confirmat".
+Agreement covers analyte, numeric value, spelling-normalized unit and reference
+bounds. Verification describes extraction agreement, not clinical validation.
 """
 from __future__ import annotations
 
+import math
 import re
 
 from app.services.ai.base import ExtractedLabValue
+from app.services.ai.lab_units import normalize_unit
 
 VERIFIED = "verified"
 UNVERIFIED = "unverified"
@@ -23,24 +23,27 @@ def _norm(analyte: str) -> str:
     return re.sub(r"[^a-z0-9]", "", s)
 
 
-def _matches(value: float, candidates: list[float]) -> bool:
-    # Agree within 0.5% (or a tiny absolute epsilon for values near zero).
-    return any(abs(value - c) <= max(0.01, abs(c) * 0.005) for c in candidates)
+def _same_number(left: float | None, right: float | None) -> bool:
+    if left is None or right is None:
+        return left is right
+    return math.isfinite(left) and math.isfinite(right) and math.isclose(
+        left, right, rel_tol=1e-9, abs_tol=1e-12
+    )
 
 
 def reconcile_confidence(
     values: list[ExtractedLabValue], deterministic: list[ExtractedLabValue]
 ) -> None:
-    """Set `confidence` on each value in place, using `deterministic` as truth."""
-    index: dict[str, list[float]] = {}
-    for d in deterministic:
-        if d.value is not None:
-            index.setdefault(_norm(d.analyte), []).append(d.value)
-
-    for v in values:
-        if v.confidence == VERIFIED:
-            continue  # already trusted (e.g. came straight from the parser)
-        if v.value is not None and _matches(v.value, index.get(_norm(v.analyte), [])):
-            v.confidence = VERIFIED
-        else:
-            v.confidence = UNVERIFIED
+    """Require agreement on analyte, value, unit and both reference bounds."""
+    for value in values:
+        value.unit = normalize_unit(value.unit)
+        matches = any(
+            source.confidence == VERIFIED and value.value is not None
+            and _norm(value.analyte) == _norm(source.analyte)
+            and normalize_unit(value.unit) == normalize_unit(source.unit)
+            and _same_number(value.value, source.value)
+            and _same_number(value.ref_low, source.ref_low)
+            and _same_number(value.ref_high, source.ref_high)
+            for source in deterministic
+        )
+        value.confidence = VERIFIED if matches else UNVERIFIED

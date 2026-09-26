@@ -8,13 +8,16 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, datetime
+import math
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
+from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.models.document import Document, LabResult
-from app.models.enums import LabFlag, ProcessingStatus
-from app.services import ocr
+from app.models.enums import DocumentCategory, LabFlag, ProcessingStatus
+from app.services import lab_analysis, ocr
 from app.services.ai.base import AIProvider, ExtractedLabValue
 from app.services.storage import Storage
 
@@ -22,22 +25,16 @@ logger = logging.getLogger(__name__)
 
 
 def compute_flag(value: float | None, low: float | None, high: float | None) -> LabFlag:
-    """Classify a lab value against its reference interval.
-
-    "Critical" uses a generic multiplicative margin relative to the exceeded
-    bound (>=50% above the upper limit, or <=50% below the lower limit), since
-    a domain-agnostic parser cannot know analyte-specific panic values. Refine
-    per-analyte thresholds later if a clinical table is added.
-    """
+    """Compare only with supplied bounds; never infer clinical critical thresholds."""
     if value is None or (low is None and high is None):
-        return LabFlag.NORMAL
+        return LabFlag.UNKNOWN
+    if any(n is not None and not math.isfinite(n) for n in (value, low, high)):
+        return LabFlag.UNKNOWN
+    if low is not None and high is not None and low > high:
+        return LabFlag.UNKNOWN
     if high is not None and value > high:
-        if high > 0 and value >= high * 1.5:
-            return LabFlag.CRITICAL_HIGH
         return LabFlag.HIGH
     if low is not None and value < low:
-        if low > 0 and value <= low * 0.5:
-            return LabFlag.CRITICAL_LOW
         return LabFlag.LOW
     return LabFlag.NORMAL
 
@@ -48,6 +45,8 @@ def _persist_lab_values(
     for v in values:
         if not v.analyte:
             continue
+        if any(n is not None and not math.isfinite(n) for n in (v.value, v.ref_low, v.ref_high)):
+            raise ValueError("non_finite_lab_value")
         db.add(
             LabResult(
                 patient_id=document.patient_id,
@@ -58,11 +57,16 @@ def _persist_lab_values(
                 unit=v.unit,
                 ref_low=v.ref_low,
                 ref_high=v.ref_high,
-                flag=compute_flag(v.value, v.ref_low, v.ref_high),
+                flag=(compute_flag(v.value, v.ref_low, v.ref_high)
+                      if v.confidence == "verified" else LabFlag.UNKNOWN),
                 measured_on=document.document_date,
                 confidence=getattr(v, "confidence", "verified"),
             )
         )
+
+
+class DocumentBusyError(Exception):
+    pass
 
 
 def process_document(
@@ -72,28 +76,76 @@ def process_document(
     ai: AIProvider,
 ) -> Document:
     """Download, extract text, run AI extraction and persist results."""
-    document.status = ProcessingStatus.PROCESSING
-    db.add(document)
+    now = datetime.now(UTC)
+    token = str(uuid4())
+    document_id = document.id
+    claimed = db.execute(update(Document).execution_options(synchronize_session=False).where(
+        Document.id == document_id,
+        or_(Document.status != ProcessingStatus.PROCESSING,
+            Document.processing_until < now,
+            and_(Document.processing_until.is_(None),
+                 Document.updated_at < now - timedelta(minutes=20))),
+    ).values(status=ProcessingStatus.PROCESSING, processing_token=token,
+             processing_until=now + timedelta(minutes=20)))
+    if claimed.rowcount != 1:
+        db.rollback()
+        raise DocumentBusyError()
     db.commit()
+    db.refresh(document)
 
     try:
         data = storage.get(document.storage_key)
         text = ocr.extract_text(data, document.content_type, document.original_filename)
+        if not text.strip():
+            raise ValueError("empty_extraction")
+        if len(text) > 200_000:
+            raise ValueError("extraction_too_large")
         extraction = ai.extract_document(text, document.category.value)
 
+        # Lock/fence before touching results: an expired worker cannot overwrite
+        # a newer attempt, or resurrect a deleted document.
+        owned = db.execute(update(Document).execution_options(synchronize_session=False).where(
+            Document.id == document_id, Document.processing_token == token,
+        ).values(processing_token=token))
+        if owned.rowcount != 1:
+            db.rollback()
+            raise DocumentBusyError()
         document.extracted_text = text or None
         document.ai_summary = extraction.summary or None
         document.ai_metadata = json.dumps(extraction.to_metadata(), ensure_ascii=False)
+        previous_analytes = list(db.scalars(select(LabResult.analyte).where(
+            LabResult.document_id == document.id)))
+        # Replace results only after extraction succeeds; rollback preserves prior rows.
+        db.execute(delete(LabResult).where(LabResult.document_id == document.id))
         _persist_lab_values(db, document, extraction.lab_values)
+        lab_analysis.invalidate_explanations(db, document.patient_id,
+            previous_analytes + [v.analyte for v in extraction.lab_values])
+        if document.category == DocumentCategory.OTHER and extraction.lab_values:
+            document.category = DocumentCategory.LAB
 
+        document.processing_token = None
+        document.processing_until = None
         document.status = ProcessingStatus.DONE
         document.processed_at = datetime.now(UTC)
+        db.commit()
+    except DocumentBusyError:
+        raise
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Document %s processing failed", document.id)
-        document.status = ProcessingStatus.FAILED
-        document.ai_summary = f"Procesare eșuată: {exc}"
+        db.rollback()
+        logger.warning("Document %s processing failed (%s)", document_id, type(exc).__name__)
+        failed = db.execute(update(Document).execution_options(synchronize_session=False).where(
+            Document.id == document_id, Document.processing_token == token,
+        ).values(status=ProcessingStatus.FAILED, processing_token=None, processing_until=None,
+                 ai_summary=(
+                     "Textul nu a putut fi extras sau procesat. Originalul este păstrat. "
+                     "Pentru scanări, verifică disponibilitatea OCR. "
+                     "Rezultatele anterioare sunt păstrate."
+                 )))
+        if failed.rowcount != 1:
+            db.rollback()
+            raise DocumentBusyError() from None
+        db.commit()
 
-    db.add(document)
-    db.commit()
     db.refresh(document)
+    db.expire(document, ["lab_results"])
     return document

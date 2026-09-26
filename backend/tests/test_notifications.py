@@ -12,15 +12,17 @@ def _auth(client, email="notif@example.com"):
     return {"Authorization": f"Bearer {tokens['access_token']}"}
 
 
-def test_immediate_notification_is_sent(client):
+def test_immediate_notification_is_pending_until_real_delivery(client, caplog):
+    caplog.set_level("INFO")
     h = _auth(client)
     r = client.post(
         f"{API}/notifications", headers=h, json={"title": "Ia-ți medicamentul"}
     )
     assert r.status_code == 201, r.text
     body = r.json()
-    assert body["status"] == "sent"
-    assert body["sent_at"] is not None
+    assert body["status"] == "pending"
+    assert body["sent_at"] is None
+    assert "Ia-ți medicamentul" not in caplog.text
 
 
 def test_scheduled_notification_is_pending(client):
@@ -57,8 +59,10 @@ def test_appointment_reminders_are_idempotent(client):
         json={"title": "Analize", "starts_at": "2027-05-01T10:00:00Z"},
     )
     first = client.post(f"{API}/notifications/reminders/appointments", headers=h).json()
-    assert len(first) == 1
-    assert first[0]["resource_type"] == "appointment"
+    assert first == []  # New appointments already persist their reminder atomically.
+    notifications = client.get(f"{API}/notifications", headers=h).json()
+    assert len(notifications) == 1
+    assert notifications[0]["resource_type"] == "appointment"
 
     # Running again does not create a duplicate reminder.
     second = client.post(f"{API}/notifications/reminders/appointments", headers=h).json()
@@ -70,4 +74,6 @@ def test_isolated_per_user(client):
     h2 = _auth(client, "n2@example.com")
     nid = client.post(f"{API}/notifications", headers=h1, json={"title": "X"}).json()["id"]
     assert client.post(f"{API}/notifications/{nid}/read", headers=h2).status_code == 404
+    assert client.delete(f"{API}/notifications/{nid}", headers=h2).status_code == 404
+    assert len(client.get(f"{API}/notifications", headers=h1).json()) == 1
     assert client.get(f"{API}/notifications", headers=h2).json() == []

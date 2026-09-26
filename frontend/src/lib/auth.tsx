@@ -8,15 +8,17 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { api, clearTokens, getToken, setTokens } from "@/lib/api";
+import { api, clearTokens, getToken, setTokens, usesCookieSession, initializeSession } from "@/lib/api";
 import type { TokenPair, User } from "@/lib/types";
 
 interface AuthState {
   user: User | null;
   loading: boolean;
+  loggingOut: boolean;
   login: (email: string, password: string, mfaCode?: string) => Promise<void>;
   register: (email: string, password: string, fullName?: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  finishAccountDeletion: (pending: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -24,27 +26,41 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    if (!getToken()) {
-      setLoading(false);
-      return;
-    }
-    api
-      .get<User>("/auth/me")
-      .then(setUser)
-      .catch(() => clearTokens())
-      .finally(() => setLoading(false));
+    let active = true;
+    (async () => {
+      try {
+        await initializeSession();
+        if (!usesCookieSession && !getToken()) return;
+        const me = await api.get<User>("/auth/me");
+        if (active) setUser(me);
+      } catch { /* login will show a storage or authentication error when retried */ }
+      finally { if (active) setLoading(false); }
+    })();
+    return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    const expired = () => {
+      setUser(null);
+      const publicPaths = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/verify-email"];
+      if (!publicPaths.includes(window.location.pathname)) router.push("/login");
+    };
+    window.addEventListener("session-expired", expired);
+    return () => window.removeEventListener("session-expired", expired);
+  }, [router]);
+
   async function login(email: string, password: string, mfaCode?: string) {
+    setLoggingOut(false);
     const tokens = await api.post<TokenPair>("/auth/login", {
       email,
       password,
       mfa_code: mfaCode || null,
     });
-    setTokens(tokens.access_token, tokens.refresh_token);
+    await setTokens(tokens.access_token, tokens.refresh_token);
     const me = await api.get<User>("/auth/me");
     setUser(me);
     router.push("/dashboard");
@@ -59,14 +75,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await login(email, password);
   }
 
-  function logout() {
-    clearTokens();
+  async function logout() {
+    setLoggingOut(true);
+    let failed = false;
+    try { await api.post("/auth/logout-all"); } catch { failed = true; }
+    if (usesCookieSession && failed) {
+      try { await api.post("/auth/browser/clear"); } catch { /* server may be offline */ }
+    }
+    try { await clearTokens(); } catch { failed = true; }
     setUser(null);
-    router.push("/login");
+    router.push(failed ? "/login?logout=unconfirmed" : "/login");
+  }
+
+  async function finishAccountDeletion(pending: boolean) {
+    setLoggingOut(true);
+    let deviceFailed = false;
+    try { await clearTokens(); } catch { deviceFailed = true; }
+    setUser(null);
+    router.push(`/login?deleted=${pending ? "pending" : "complete"}${deviceFailed ? "&deviceCleanup=failed" : ""}`);
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, loggingOut, login, register, logout, finishAccountDeletion }}>
       {children}
     </AuthContext.Provider>
   );

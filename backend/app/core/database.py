@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from datetime import datetime
+from sqlite3 import Connection as SQLiteConnection
 
-from sqlalchemy import DateTime, create_engine, func
+from sqlalchemy import DateTime, create_engine, event, func
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -13,6 +15,15 @@ from sqlalchemy.orm import (
 )
 
 from app.core.config import settings
+
+
+@event.listens_for(Engine, "connect")
+def enable_sqlite_foreign_keys(connection, _record):
+    if isinstance(connection, SQLiteConnection):
+        cursor = connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
 
 engine = create_engine(
     settings.DATABASE_URL,

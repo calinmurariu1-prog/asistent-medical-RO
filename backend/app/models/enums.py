@@ -50,6 +50,7 @@ class ProcessingStatus(str, enum.Enum):
 
 
 class LabFlag(str, enum.Enum):
+    UNKNOWN = "unknown"
     NORMAL = "normal"
     HIGH = "high"
     LOW = "low"
@@ -58,6 +59,7 @@ class LabFlag(str, enum.Enum):
 
 
 class MedicalEventType(str, enum.Enum):
+    OBSERVATION = "observation"
     DIAGNOSIS = "diagnosis"
     PROCEDURE = "procedure"
     SURGERY = "surgery"

@@ -4,10 +4,11 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_patient, require_ai_consent
+from app.api.deps import get_current_patient, get_current_user, require_ai_consent
 from app.core.database import get_db
 from app.models.chat import AIChat, AIChatMessage
 from app.models.patient import Patient
+from app.models.user import User
 from app.schemas.chat import (
     ChatCreate,
     ChatDetailOut,
@@ -18,6 +19,7 @@ from app.schemas.chat import (
 from app.services import chat_service
 from app.services.ai import get_ai_provider
 from app.services.ai.base import AIProvider
+from app.services.ai.safety_router import emergency_reply
 
 router = APIRouter(prefix="/chats", tags=["chat"])
 
@@ -58,15 +60,17 @@ def get_chat(
 @router.post(
     "/{chat_id}/messages",
     response_model=MessageOut,
-    dependencies=[Depends(require_ai_consent)],
 )
 def post_message(
     chat_id: int,
     payload: MessageIn,
+    user: User = Depends(get_current_user),
     patient: Patient = Depends(get_current_patient),
     db: Session = Depends(get_db),
     ai: AIProvider = Depends(get_ai_provider),
 ) -> AIChatMessage:
+    if emergency_reply(payload.content) is None:
+        require_ai_consent(user, db, ai)
     chat = _owned_chat(chat_id, patient, db)
     return chat_service.answer(db, ai, chat, payload.content)
 

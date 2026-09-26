@@ -17,7 +17,9 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-    mfa_code: str | None = Field(default=None, description="TOTP code if MFA is enabled")
+    mfa_code: str | None = Field(
+        default=None, max_length=64,
+        description="TOTP or single-use recovery code if MFA is enabled")
 
 
 class TokenPair(BaseModel):
@@ -68,3 +70,13 @@ class UserOut(BaseModel):
     is_email_verified: bool
     mfa_enabled: bool
     created_at: datetime
+
+
+class MFAActivateResponse(BaseModel):
+    detail: str
+    recovery_codes: list[str]
+
+
+class MFARecoveryRegenerateRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=128)
+    code: str = Field(min_length=1, max_length=64)

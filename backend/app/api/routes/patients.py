@@ -1,6 +1,8 @@
 """Module 2 - Patient profile endpoints."""
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -8,13 +10,17 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_patient
 from app.core.database import get_db
 from app.core.security import encrypt_field
-from app.models.patient import Allergy, Patient
+from app.models.clinical import Doctor
+from app.models.patient import Allergy, EmergencyContact, Patient
 from app.schemas.patient import (
     AllergyIn,
     AllergyOut,
+    EmergencyContactIn,
+    EmergencyContactOut,
     PatientOut,
     PatientUpdate,
 )
+from app.services import audit
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -41,13 +47,20 @@ def update_my_profile(
     db: Session = Depends(get_db),
 ) -> PatientOut:
     data = payload.model_dump(exclude_unset=True)
-    cnp = data.pop("cnp", None)
-    if cnp is not None:
-        patient.cnp_encrypted = encrypt_field(cnp)
+    changed_fields = sorted(data)
+    doctor_id = data.get("family_doctor_id")
+    if doctor_id is not None and db.get(Doctor, doctor_id) is None:
+        raise HTTPException(404, "Medicul selectat nu există.")
+    if "cnp" in data:
+        cnp = data.pop("cnp")
+        patient.cnp_encrypted = encrypt_field(cnp) if cnp else None
     for key, value in data.items():
         setattr(patient, key, value)
     db.add(patient)
-    db.commit()
+    # Field names only: profile content and the identifier never enter audit detail.
+    audit.record(db, user_id=patient.user_id, action="patient_update",
+                 resource_type="patient", resource_id=patient.id,
+                 detail=json.dumps({"fields": changed_fields}))
     db.refresh(patient)
     return _to_out(patient)
 
@@ -71,6 +84,8 @@ def add_allergy(
     db.add(allergy)
     db.commit()
     db.refresh(allergy)
+    audit.record(db, user_id=patient.user_id, action="allergy_create",
+                 resource_type="allergy", resource_id=allergy.id)
     return allergy
 
 
@@ -85,4 +100,72 @@ def delete_allergy(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Allergy not found")
     db.delete(allergy)
     db.commit()
+    audit.record(db, user_id=patient.user_id, action="allergy_delete",
+                 resource_type="allergy", resource_id=allergy_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/me/allergies/{allergy_id}", response_model=AllergyOut)
+def update_allergy(allergy_id: int, payload: AllergyIn,
+                   patient: Patient = Depends(get_current_patient), db: Session = Depends(get_db)):
+    allergy = db.get(Allergy, allergy_id)
+    if allergy is None or allergy.patient_id != patient.id:
+        raise HTTPException(404, "Alergie inexistentă")
+    for key, value in payload.model_dump().items():
+        setattr(allergy, key, value)
+    db.commit()
+    db.refresh(allergy)
+    audit.record(db, user_id=patient.user_id, action="allergy_update",
+                 resource_type="allergy", resource_id=allergy.id)
+    return allergy
+
+
+@router.get("/me/emergency-contacts", response_model=list[EmergencyContactOut])
+def list_emergency_contacts(patient: Patient = Depends(get_current_patient),
+                            db: Session = Depends(get_db)):
+    return list(db.scalars(select(EmergencyContact).where(
+        EmergencyContact.patient_id == patient.id).order_by(EmergencyContact.id)))
+
+
+@router.post("/me/emergency-contacts", response_model=EmergencyContactOut, status_code=201)
+def create_emergency_contact(payload: EmergencyContactIn,
+                             patient: Patient = Depends(get_current_patient),
+                             db: Session = Depends(get_db)):
+    contact = EmergencyContact(patient_id=patient.id, **payload.model_dump())
+    db.add(contact)
+    db.flush()
+    audit.record(db, user_id=patient.user_id, action="emergency_contact.create",
+                 resource_type="emergency_contact", resource_id=contact.id)
+    db.refresh(contact)
+    return contact
+
+
+def _owned_contact(contact_id: int, patient: Patient, db: Session) -> EmergencyContact:
+    contact = db.scalar(select(EmergencyContact).where(
+        EmergencyContact.id == contact_id, EmergencyContact.patient_id == patient.id))
+    if contact is None:
+        raise HTTPException(404, "Contact inexistent")
+    return contact
+
+
+@router.put("/me/emergency-contacts/{contact_id}", response_model=EmergencyContactOut)
+def update_emergency_contact(contact_id: int, payload: EmergencyContactIn,
+                             patient: Patient = Depends(get_current_patient),
+                             db: Session = Depends(get_db)):
+    contact = _owned_contact(contact_id, patient, db)
+    for key, value in payload.model_dump().items():
+        setattr(contact, key, value)
+    audit.record(db, user_id=patient.user_id, action="emergency_contact.update",
+                 resource_type="emergency_contact", resource_id=contact.id)
+    db.refresh(contact)
+    return contact
+
+
+@router.delete("/me/emergency-contacts/{contact_id}", status_code=204)
+def delete_emergency_contact(contact_id: int, patient: Patient = Depends(get_current_patient),
+                             db: Session = Depends(get_db)):
+    contact = _owned_contact(contact_id, patient, db)
+    db.delete(contact)
+    audit.record(db, user_id=patient.user_id, action="emergency_contact.delete",
+                 resource_type="emergency_contact", resource_id=contact_id)
+    return Response(status_code=204)

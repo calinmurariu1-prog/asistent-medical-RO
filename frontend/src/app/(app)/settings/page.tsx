@@ -14,6 +14,10 @@ import {
 import { useFetch } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { EmailVerification } from "@/components/email-verification";
+import { MFASettings } from "@/components/mfa-settings";
+import { DataExport } from "@/components/data-export";
+import { AIConsent } from "@/components/ai-consent";
 import {
   healthNativeAvailable,
   isAutoSyncEnabled,
@@ -21,7 +25,7 @@ import {
   syncNativeHealth,
 } from "@/lib/health-native";
 import { bluetoothAvailable, connectHealthDevice } from "@/lib/bluetooth";
-import { sendTestPush } from "@/lib/push";
+import { pushDeliveryMessage, sendTestPush } from "@/lib/push";
 import type { HealthDevice } from "@/lib/types";
 import { Badge, Button, Card, Input, PageHeader, Spinner } from "@/components/ui";
 
@@ -53,7 +57,7 @@ function Section({
 }
 
 export default function SettingsPage() {
-  const { logout } = useAuth();
+  const { logout, finishAccountDeletion } = useAuth();
   const devices = useFetch<HealthDevice[]>("/health-data/devices");
   const [native, setNative] = useState(false);
   const [ble, setBle] = useState(false);
@@ -97,6 +101,8 @@ export default function SettingsPage() {
 
       {msg && <p className="text-sm text-brand-green">{msg}</p>}
       {err && <p className="text-sm text-red-600">{err}</p>}
+
+      <AIConsent />
 
       {/* Watch / health apps */}
       <Section
@@ -188,16 +194,14 @@ export default function SettingsPage() {
       <Section
         icon={Bell}
         title="Notificări"
-        desc="Memento-uri pentru medicamente și programări, pe telefon."
+        desc="Mesajele push ascund detaliile medicale. Livrarea reală necesită configurarea serviciului."
       >
         <Button
           variant="outline"
           onClick={() =>
             run("push", async () => {
               const n = await sendTestPush();
-              return n > 0
-                ? `Notificare trimisă către ${n} dispozitiv(e).`
-                : "Niciun dispozitiv înregistrat (deschide aplicația pe telefon și acceptă notificările).";
+              return pushDeliveryMessage(n);
             })
           }
           disabled={busy === "push"}
@@ -206,13 +210,17 @@ export default function SettingsPage() {
         </Button>
       </Section>
 
+      <EmailVerification />
+      <MFASettings />
+      <DataExport />
+
       {/* Account */}
-      <AccountSection logout={logout} />
+      <AccountSection logout={logout} finishAccountDeletion={finishAccountDeletion} />
     </div>
   );
 }
 
-function AccountSection({ logout }: { logout: () => void }) {
+function AccountSection({ logout, finishAccountDeletion }: { logout: () => Promise<void>; finishAccountDeletion: (pending: boolean) => Promise<void> }) {
   const [confirming, setConfirming] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -222,8 +230,8 @@ function AccountSection({ logout }: { logout: () => void }) {
     setDeleting(true);
     setError(null);
     try {
-      await api.post("/gdpr/delete-account", { password, confirm: true });
-      logout();
+      const result = await api.post<{cleanup_pending?: boolean} | undefined>("/gdpr/delete-account", { password, confirm: true });
+      await finishAccountDeletion(Boolean(result?.cleanup_pending));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ștergere eșuată");
     } finally {
@@ -247,7 +255,7 @@ function AccountSection({ logout }: { logout: () => void }) {
       {confirming && (
         <div className="space-y-2 rounded-2xl border border-red-500/30 bg-red-500/5 p-3">
           <p className="text-sm">
-            Această acțiune șterge definitiv contul și toate datele tale medicale.
+            Această acțiune șterge definitiv contul și datele din dosar. Ștergerea originalelor poate continua în fundal dacă stocarea este temporar indisponibilă.
             Introdu parola pentru a confirma.
           </p>
           <Input

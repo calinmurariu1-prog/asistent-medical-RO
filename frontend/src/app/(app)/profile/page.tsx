@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Bell, Download, User } from "lucide-react";
+import { saveExport } from "@/lib/file-export";
 import { api, downloadFile } from "@/lib/api";
-import { sendTestPush } from "@/lib/push";
+import { pushDeliveryMessage, sendTestPush } from "@/lib/push";
 import type { PatientProfile } from "@/lib/types";
 import { Button, Card, Input, PageHeader, Spinner } from "@/components/ui";
 
@@ -12,23 +13,33 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const [loadError, setLoadError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
-    api
-      .get<PatientProfile>("/patients/me")
-      .then(setProfile)
-      .finally(() => setLoading(false));
-  }, []);
+    let active = true;
+    setLoading(true); setLoadError("");
+    api.get<PatientProfile>("/patients/me")
+      .then(value => { if (active) setProfile(value); })
+      .catch(e => { if (active) setLoadError(e instanceof Error ? e.message : "Profilul nu a putut fi încărcat."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [loadAttempt]);
 
   function update<K extends keyof PatientProfile>(
     key: K,
     value: PatientProfile[K],
   ) {
+    setSaved(false); setSaveError("");
     setProfile((p) => (p ? { ...p, [key]: value } : p));
   }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!profile) return;
+    if (!profile || saving) return;
+    setSaving(true); setSaved(false); setSaveError("");
+    try {
     const updated = await api.put<PatientProfile>("/patients/me", {
       first_name: profile.first_name,
       last_name: profile.last_name,
@@ -41,32 +52,40 @@ export default function ProfilePage() {
     });
     setProfile(updated);
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Profilul nu a putut fi salvat.");
+    } finally { setSaving(false); }
   }
 
   const [pushMsg, setPushMsg] = useState<string | null>(null);
   async function testPush() {
     setPushMsg(null);
-    const n = await sendTestPush();
-    setPushMsg(
-      n > 0
-        ? `Notificare trimisă către ${n} dispozitiv(e).`
-        : "Niciun dispozitiv înregistrat. Deschide aplicația pe telefon și acceptă notificările.",
-    );
+    try {
+      setPushMsg(pushDeliveryMessage(await sendTestPush()));
+    } catch (e) {
+      setPushMsg(e instanceof Error ? e.message : "Notificarea nu a putut fi trimisă.");
+    }
   }
 
+  const [exporting, setExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState("");
+  const [exportError, setExportError] = useState("");
   async function exportReport(fmt: "pdf" | "docx") {
-    const blob = await downloadFile(`/export/report.${fmt}`);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `raport-medical.${fmt}`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (exporting) return;
+    setExporting(true); setExportMessage(""); setExportError("");
+    try {
+      const blob = await downloadFile(`/export/report.${fmt}`);
+      setExportMessage(await saveExport(blob, `raport-medical.${fmt}`));
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : "Raportul nu a putut fi descărcat.");
+    } finally { setExporting(false); }
   }
 
   if (loading) return <Spinner />;
-  if (!profile) return null;
+  if (!profile) return <Card className="space-y-3">
+    <p role="alert">{loadError || "Profil indisponibil."}</p>
+    <Button onClick={() => setLoadAttempt(value => value + 1)}>Reîncearcă încărcarea profilului</Button>
+  </Card>;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -77,10 +96,12 @@ export default function ProfilePage() {
       />
 
       <Card>
-        <form onSubmit={save} className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={save}>
+          <fieldset disabled={saving} className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm">
             Prenume
             <Input
+              maxLength={120}
               value={profile.first_name || ""}
               onChange={(e) => update("first_name", e.target.value)}
             />
@@ -88,6 +109,7 @@ export default function ProfilePage() {
           <label className="text-sm">
             Nume
             <Input
+              maxLength={120}
               value={profile.last_name || ""}
               onChange={(e) => update("last_name", e.target.value)}
             />
@@ -97,14 +119,14 @@ export default function ProfilePage() {
             <Input
               type="date"
               value={profile.birth_date || ""}
-              onChange={(e) => update("birth_date", e.target.value)}
+              onChange={(e) => update("birth_date", e.target.value || null)}
             />
           </label>
           <label className="text-sm">
             Sex
             <select
               value={profile.sex || ""}
-              onChange={(e) => update("sex", e.target.value)}
+              onChange={(e) => update("sex", e.target.value || null)}
               className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm"
             >
               <option value="">-</option>
@@ -117,6 +139,7 @@ export default function ProfilePage() {
             Greutate (kg)
             <Input
               type="number"
+              min={0} max={700} step="any"
               value={profile.weight_kg ?? ""}
               onChange={(e) =>
                 update("weight_kg", e.target.value ? Number(e.target.value) : null)
@@ -127,19 +150,40 @@ export default function ProfilePage() {
             Înălțime (cm)
             <Input
               type="number"
+              min={0} max={300} step="any"
               value={profile.height_cm ?? ""}
               onChange={(e) =>
                 update("height_cm", e.target.value ? Number(e.target.value) : null)
               }
             />
           </label>
+          <label className="text-sm">
+            Telefon
+            <Input type="tel" autoComplete="tel" maxLength={40}
+              value={profile.phone || ""}
+              onChange={e => update("phone", e.target.value || null)} />
+          </label>
+          <label className="text-sm">
+            Grupa sanguină
+            <select value={profile.blood_type || ""}
+              onChange={e => update("blood_type", e.target.value || null)}
+              className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm">
+              <option value="">Nespecificată</option>
+              <option value="unknown">Nu o cunosc</option>
+              {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map(group =>
+                <option key={group} value={group}>{group}</option>)}
+            </select>
+            <span className="mt-1 block text-xs text-muted">Date declarate de tine; nu reprezintă o confirmare medicală.</span>
+          </label>
           <div className="sm:col-span-2 flex items-center gap-3">
-            <Button type="submit">Salvează</Button>
+            <Button type="submit" disabled={saving}>{saving ? "Se salvează…" : "Salvează"}</Button>
             {profile.bmi && (
               <span className="text-sm text-muted">IMC: {profile.bmi}</span>
             )}
-            {saved && <span className="text-sm text-brand-green">Salvat ✓</span>}
+            {saved && <span role="status" className="text-sm text-brand-green">Profil salvat.</span>}
           </div>
+          </fieldset>
+          {saveError && <p role="alert" className="mt-3 text-sm text-red-600">{saveError}</p>}
         </form>
       </Card>
 
@@ -158,11 +202,15 @@ export default function ProfilePage() {
 
       <Card>
         <div className="mb-3 font-semibold">Export raport medical</div>
+        <p className="mb-3 text-sm text-muted">În browser se descarcă fișierul. În aplicația mobilă alegi
+          destinația în dialogul sistemului. Raportul conține date medicale; păstrează-l în siguranță.</p>
+        {exportMessage && <p role="status" className="mb-3 text-sm">{exportMessage}</p>}
+        {exportError && <p role="alert" className="mb-3 text-sm text-red-600">{exportError}</p>}
         <div className="flex gap-3">
-          <Button variant="outline" onClick={() => exportReport("pdf")}>
+          <Button variant="outline" disabled={exporting} onClick={() => exportReport("pdf")}>
             <Download size={16} /> PDF
           </Button>
-          <Button variant="outline" onClick={() => exportReport("docx")}>
+          <Button variant="outline" disabled={exporting} onClick={() => exportReport("docx")}>
             <Download size={16} /> Word
           </Button>
         </div>

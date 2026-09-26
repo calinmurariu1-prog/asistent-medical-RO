@@ -1,8 +1,13 @@
 """FastAPI application entrypoint."""
 from __future__ import annotations
 
-from fastapi import FastAPI
+import asyncio
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # Ensure all models are registered on Base.metadata.
 import app.models  # noqa: F401,E402
@@ -12,7 +17,26 @@ from app.core.config import settings, validate_production_config
 # Fail fast if deployed to production with insecure default secrets.
 validate_production_config(settings)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from app.services.notification_delivery import worker as notification_worker
+    from app.services.storage_cleanup import worker
+    stop = asyncio.Event()
+    task = asyncio.create_task(worker(stop)) if settings.STORAGE_CLEANUP_ENABLED else None
+    notifications = (asyncio.create_task(notification_worker(stop))
+                     if settings.NOTIFICATION_WORKER_ENABLED else None)
+    try:
+        yield
+    finally:
+        stop.set()
+        if task:
+            await task
+        if notifications:
+            await notifications
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title=settings.PROJECT_NAME,
     version="0.1.0",
     description=(
@@ -23,6 +47,15 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+@app.exception_handler(RequestValidationError)
+async def private_validation_error(request: Request, exc: RequestValidationError):
+    """Keep actionable errors, never echo submitted inputs or validator context."""
+    details = [{"loc": error["loc"], "type": error["type"], "msg": error["msg"]}
+               for error in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": details},
+                        headers={"Cache-Control": "no-store"})
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,6 +70,12 @@ app.add_middleware(
 async def security_headers(request, call_next):
     """Baseline security headers on every response."""
     response = await call_next(request)
+    if request.url.path.startswith(settings.API_V1_PREFIX.rstrip("/") + "/"):
+        # Enforce on the server as well as fetch(): clients/proxies must not
+        # retain medical records, credentials, validation inputs or signed URLs.
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"

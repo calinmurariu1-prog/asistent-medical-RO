@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date
+from urllib.parse import quote
 
 from fastapi import (
     APIRouter,
@@ -13,20 +14,29 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import func, select
+from fastapi.responses import JSONResponse
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_patient
+from app.api.deps import get_current_patient, require_ai_consent
 from app.core.database import get_db
-from app.models.document import Document
-from app.models.enums import DocumentCategory
+from app.models.document import Document, LabResult
+from app.models.enums import DocumentCategory, ProcessingStatus
 from app.models.patient import Patient
 from app.schemas.document import (
+    DocumentDateUpdate,
     DocumentDetailOut,
     DocumentDownloadOut,
     DocumentOut,
 )
-from app.services import document_processing
+from app.services import (
+    audit,
+    document_processing,
+    document_upload,
+    lab_analysis,
+    ocr,
+    storage_cleanup,
+)
 from app.services.ai import get_ai_provider
 from app.services.ai.base import AIProvider
 from app.services.billing import entitlements
@@ -37,6 +47,7 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 MAX_SIZE_BYTES = 25 * 1024 * 1024  # 25 MB
 ALLOWED_CONTENT_TYPES = {
+    ocr.DOCX_TYPE,
     "application/pdf",
     "image/jpeg",
     "image/jpg",
@@ -46,7 +57,8 @@ ALLOWED_CONTENT_TYPES = {
 }
 
 
-@router.post("", response_model=DocumentDetailOut, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=DocumentDetailOut, status_code=status.HTTP_201_CREATED,
+             dependencies=[Depends(require_ai_consent)])
 def upload_document(
     file: UploadFile = File(...),
     category: DocumentCategory = Form(DocumentCategory.OTHER),
@@ -60,7 +72,7 @@ def upload_document(
         raise HTTPException(
             status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             f"Tip fișier neacceptat: {file.content_type}. "
-            "Acceptate: PDF, JPG, PNG, DICOM.",
+            "Acceptate: PDF, JPG, PNG, DOCX, DICOM.",
         )
 
     # Free-plan document quota (Premium/Family are unlimited).
@@ -76,7 +88,7 @@ def upload_document(
             "Fă upgrade la Premium pentru documente nelimitate.",
         )
 
-    data = file.file.read()
+    data = file.file.read(MAX_SIZE_BYTES + 1)
     if len(data) == 0:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Fișier gol")
     if len(data) > MAX_SIZE_BYTES:
@@ -85,8 +97,13 @@ def upload_document(
             f"Fișier prea mare (max {MAX_SIZE_BYTES // (1024 * 1024)} MB)",
         )
 
+    if file.content_type == ocr.DOCX_TYPE or (file.filename or "").lower().endswith(".docx"):
+        try:
+            ocr.validate_docx(data)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+
     key = build_object_key(patient.id, file.filename or "document")
-    storage.put(key, data, file.content_type)
 
     document = Document(
         patient_id=patient.id,
@@ -97,11 +114,19 @@ def upload_document(
         storage_key=key,
         document_date=document_date,
     )
-    db.add(document)
-    db.commit()
+    try:
+        document_upload.persist(db, storage, document, data)
+    except Exception:  # noqa: BLE001
+        raise HTTPException(503, "Încărcarea nu a fost confirmată. "
+                            "Reîncarcă lista înainte de a reîncerca.") from None
     db.refresh(document)
 
-    return document_processing.process_document(db, document, storage, ai)
+    try:
+        return document_processing.process_document(db, document, storage, ai)
+    except document_processing.DocumentBusyError:
+        raise HTTPException(
+            409, "Procesarea nu mai este curentă. Reîncarcă lista documentelor."
+        ) from None
 
 
 def _owned_document(document_id: int, patient: Patient, db: Session) -> Document:
@@ -133,6 +158,29 @@ def get_document(
     return _owned_document(document_id, patient, db)
 
 
+@router.get("/{document_id}/original")
+def original_document(
+    document_id: int, patient: Patient = Depends(get_current_patient),
+    db: Session = Depends(get_db), storage: Storage = Depends(get_storage),
+) -> Response:
+    document = _owned_document(document_id, patient, db)
+    try:
+        data = storage.get(document.storage_key)
+    except FileNotFoundError:
+        raise HTTPException(404, "Original indisponibil",
+                            headers={"Cache-Control": "no-store"}) from None
+    except Exception:  # noqa: BLE001 (do not expose provider paths, keys or decryption errors)
+        raise HTTPException(503, "Originalul nu poate fi descărcat momentan. Reîncearcă.",
+                            headers={"Cache-Control": "no-store", "Retry-After": "30"}) from None
+    audit.record(db, user_id=patient.user_id, action="document_original_access",
+                 resource_type="document", resource_id=document.id)
+    return Response(data, media_type="application/octet-stream", headers={
+        "Content-Disposition": ("attachment; filename*=UTF-8''"
+                                + quote(document.original_filename, safe="")),
+        "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+    })
+
+
 @router.get("/{document_id}/download", response_model=DocumentDownloadOut)
 def download_document(
     document_id: int,
@@ -141,11 +189,17 @@ def download_document(
     storage: Storage = Depends(get_storage),
 ) -> DocumentDownloadOut:
     document = _owned_document(document_id, patient, db)
+    from app.core.config import settings
+    if settings.STORAGE_BACKEND == "local":
+        raise HTTPException(409, "Folosește descărcarea autentificată a originalului.")
     url = storage.presigned_url(document.storage_key, expires=3600)
+    audit.record(db, user_id=patient.user_id, action="document_download_link_issued",
+                 resource_type="document", resource_id=document.id)
     return DocumentDownloadOut(url=url, expires_in=3600)
 
 
-@router.post("/{document_id}/reprocess", response_model=DocumentDetailOut)
+@router.post("/{document_id}/reprocess", response_model=DocumentDetailOut,
+             dependencies=[Depends(require_ai_consent)])
 def reprocess_document(
     document_id: int,
     patient: Patient = Depends(get_current_patient),
@@ -154,11 +208,10 @@ def reprocess_document(
     ai: AIProvider = Depends(get_ai_provider),
 ) -> Document:
     document = _owned_document(document_id, patient, db)
-    # Drop previously extracted lab results before re-extraction.
-    for lab in list(document.lab_results):
-        db.delete(lab)
-    db.commit()
-    return document_processing.process_document(db, document, storage, ai)
+    try:
+        return document_processing.process_document(db, document, storage, ai)
+    except document_processing.DocumentBusyError:
+        raise HTTPException(409, "Documentul este deja în curs de procesare.") from None
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -169,10 +222,47 @@ def delete_document(
     storage: Storage = Depends(get_storage),
 ) -> Response:
     document = _owned_document(document_id, patient, db)
-    try:
-        storage.delete(document.storage_key)
-    except Exception:  # noqa: BLE001  (best-effort; DB row is source of truth)
-        pass
+    analytes = list(db.scalars(select(LabResult.analyte).where(
+        LabResult.document_id == document_id)))
+    lab_analysis.invalidate_explanations(db, patient.id, analytes)
+    jobs = storage_cleanup.enqueue(db, [document.storage_key])
     db.delete(document)
-    db.commit()
+    audit.record(db, user_id=patient.user_id, action="document_delete",
+                 resource_type="document", resource_id=document_id)
+    try:
+        storage_cleanup.process_pending(db, storage, jobs)
+        complete = storage_cleanup.pending_count(db, jobs) == 0
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        complete = False
+    if not complete:
+        return JSONResponse(status_code=202, content={
+            "cleanup_pending": True,
+            "detail": "Documentul a fost eliminat din dosar. Ștergerea originalului este în curs.",
+        })
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/{document_id}/date", response_model=DocumentDetailOut)
+def update_document_date(document_id: int, payload: DocumentDateUpdate,
+                         patient: Patient = Depends(get_current_patient),
+                         db: Session = Depends(get_db)):
+    document = _owned_document(document_id, patient, db)
+    # Atomic update refuses a concurrent processing claim; original bytes stay intact.
+    changed = db.execute(update(Document).where(
+        Document.id == document_id, Document.status != ProcessingStatus.PROCESSING,
+    ).values(document_date=payload.document_date))
+    if changed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, "Așteaptă terminarea procesării înainte de a schimba data.")
+    analytes = list(db.scalars(select(LabResult.analyte).where(
+        LabResult.document_id == document_id)))
+    db.execute(update(LabResult).where(LabResult.document_id == document_id).values(
+        measured_on=payload.document_date))
+    lab_analysis.invalidate_explanations(db, patient.id, analytes)
+    db.commit()
+    db.refresh(document)
+    db.expire(document, ["lab_results"])
+    audit.record(db, user_id=patient.user_id, action="document_date_update",
+                 resource_type="document", resource_id=document_id)
+    return document

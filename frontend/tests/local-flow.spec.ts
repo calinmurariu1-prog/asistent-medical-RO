@@ -1,0 +1,158 @@
+import {test,expect} from "@playwright/test";
+import {readFile,readdir} from "node:fs/promises";
+import path from "node:path";
+const api=process.env.E2E_API||"http://localhost:8012/api/v1";
+async function mailbox(email:string, kind:string) {
+  const dir=process.env.E2E_MAILBOX||path.resolve("../.local-data/mailbox");
+  for(const name of await readdir(dir)) {
+    const content=(await readFile(path.join(dir,name),"utf8")).replace(/\r/g, "");
+    if(content.includes(`To: ${email}\n`)&&content.includes(kind)) return content.match(/https?:\/\/[^\s]+/)![0];
+  }
+  throw new Error("Test mailbox message not found");
+}
+test("account, recovery, document and session lifecycle",async({page,request,context},info)=>{
+ const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+ const email=`browser-${Date.now()}-${info.project.name}@example.com`;
+ await page.goto("/register");
+ await page.getByPlaceholder("Nume complet").fill("Pacient Fictiv");
+ await page.getByPlaceholder("Email",{exact:true}).fill(email);
+ await page.getByPlaceholder("Parolă (min. 8 caractere)").fill("Testing-pass-123!");
+ await page.getByRole("button",{name:"Creează cont",exact:true}).click();
+ await expect(page).toHaveURL(/dashboard/);
+ await expect(page.getByText("Versiune de test",{exact:false})).toBeVisible();
+ await page.goto("/settings");
+ const emailSection=page.locator('[aria-labelledby="email-verification-title"]');
+ await emailSection.getByRole("button",{name:"Trimite un link nou de confirmare"}).click();
+ await expect(emailSection.getByRole("status")).toContainText("cutia de email de test");
+ const verify=await mailbox(email,"verify-email");
+ await page.goto(verify);
+ await page.getByRole("button",{name:"Confirmă emailul"}).click();
+ await expect(page.getByRole("status")).toContainText("confirmată");
+ await page.goto("/settings");
+ await expect(page.getByText("Mod simulat:",{exact:false})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Salvează acordul AI"})).toBeDisabled();
+ await page.getByRole("checkbox",{name:"Sunt de acord cu procesarea AI",exact:false}).check();
+ await page.getByRole("button",{name:"Salvează acordul AI"}).click();
+ await expect(page.getByRole("status").filter({hasText:"Acordul a fost salvat"})).toBeVisible();
+ await page.getByRole("button",{name:"Retrage acordul AI"}).click();
+ await expect(page.getByRole("status").filter({hasText:"Acordul a fost retras"})).toBeVisible();
+ await page.reload();
+ await expect(page.getByText("Nu ai un acord activ",{exact:false})).toBeVisible();
+ await page.goto("/profile");
+ await expect(page.getByRole("heading",{name:"Profil",exact:false}).first()).toBeVisible();
+ await page.route("**/export/report.pdf", route => route.fulfill({status:503,
+   contentType:"application/json",body:JSON.stringify({detail:"Raport temporar indisponibil"})}));
+ await page.getByRole("button",{name:"PDF",exact:true}).click();
+ await expect(page.getByRole("alert").filter({hasText:"Raport temporar indisponibil"})).toBeVisible();
+ await page.unroute("**/export/report.pdf");
+ for (const [label, extension, signature] of [["PDF","pdf","%PDF"],["Word","docx","PK"]]) {
+   const pending=page.waitForEvent("download");
+   await page.getByRole("button",{name:label,exact:true}).click();
+   const report=await pending;
+   expect(report.suggestedFilename()).toBe(`raport-medical.${extension}`);
+   const bytes=await readFile((await report.path())!);
+   expect(bytes.subarray(0,signature.length).toString()).toBe(signature);
+ }
+ await expect(page.getByRole("alert").filter({hasText:"Raport temporar indisponibil"})).toHaveCount(0);
+ await page.goto("/documents");
+ await page.getByLabel("Document medical").setInputFiles(path.resolve("../demo/analize-fictive.pdf"));
+ await page.getByRole("button",{name:"Încarcă",exact:true}).click();
+ await expect(page.getByText("analize-fictive.pdf",{exact:true})).toBeVisible();
+ await page.route("**/documents/*/original",route=>route.fulfill({status:503,
+   contentType:"application/json",body:JSON.stringify({detail:"Original temporar indisponibil"})}));
+ await page.getByRole("button",{name:"Descarcă originalul"}).click();
+ await expect(page.getByRole("alert").filter({hasText:"Original temporar indisponibil"})).toBeVisible();
+ await page.unroute("**/documents/*/original");
+ const downloaded=page.waitForEvent("download");
+ await page.getByRole("button",{name:"Descarcă originalul"}).click();
+ const file=await downloaded;
+ expect(await readFile((await file.path())!)).toEqual(await readFile(path.resolve("../demo/analize-fictive.pdf")));
+ await page.goto("/labs");
+ await page.getByRole("button",{name:"Grafic",exact:true}).first().click();
+ await expect(page.getByText("Comparație indisponibilă",{exact:false}).first()).toBeVisible();
+ await page.goto("/documents");
+ await page.getByRole("button",{name:"Corectează data"}).click();
+ await page.getByLabel("Data corectată",{exact:true}).fill("2026-01-10");
+ await page.getByRole("button",{name:"Salvează data",exact:true}).click();
+ await expect(page.getByText("Data documentului: 2026-01-10",{exact:true})).toBeVisible();
+ await page.getByLabel("Data documentului (opțional)",{exact:true}).fill("2026-03-10");
+ await page.getByLabel("Document medical").setInputFiles(path.resolve("../demo/analize-fictive.docx"));
+ await page.getByRole("button",{name:"Încarcă",exact:true}).click();
+ await expect(page.getByText("analize-fictive.docx",{exact:true})).toBeVisible();
+ await page.goto("/labs");
+ await expect(page.getByText("Glicemie",{exact:false}).first()).toBeVisible();
+ await page.getByRole("button",{name:"Grafic",exact:true}).first().click();
+ await expect(page.getByRole("img",{name:"Evoluția valorilor în timp",exact:true}).first()).toBeVisible();
+ await page.getByRole("button",{name:"Explică",exact:true}).first().click();
+ await expect(page.getByText(/Nu există aici o sursă clinică suficientă/)).toBeVisible();
+ await expect(page.getByText(/Surse din dosarul tău/)).toBeVisible();
+ const cookieMode=process.env.E2E_COOKIES==="true";
+ const oldToken=cookieMode ? (await context.cookies()).find(c=>c.name==="am_browser_access")?.value : await page.evaluate(()=>localStorage.getItem("am_access_token"));
+ if(cookieMode) {
+   expect(await page.evaluate(()=>localStorage.getItem("am_access_token"))).toBeNull();
+   expect(await page.evaluate(()=>document.cookie)).not.toContain("am_browser_access");
+   await page.reload();
+   await expect(page.getByText("Glicemie",{exact:false}).first()).toBeVisible();
+ }
+ let refreshCount=0;
+ page.on("request",r=>{if(r.url().endsWith("/refresh"))refreshCount++;});
+ if(cookieMode) {
+   const access=(await context.cookies()).find(c=>c.name==="am_browser_access")!;
+   await context.addCookies([{...access,value:"expired-test-token"}]);
+ } else await page.evaluate(()=>localStorage.setItem("am_access_token","expired-test-token"));
+ await page.goto("/dashboard");
+ await expect(page.getByText("Versiune de test",{exact:false})).toBeVisible();
+ expect(refreshCount).toBe(1);
+ await page.getByRole("button",{name:"Rezumat AI",exact:true}).click();
+ await expect(page.getByText(/Mod simulat — rezumat factual local/)).toBeVisible();
+ await expect(page.getByText(/Surse din dosarul tău/)).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
+ if(info.project.name!=="desktop") await page.getByRole("button",{name:"Deschide meniul"}).click();
+ await page.getByRole("button",{name:"Deconectare de pe toate dispozitivele"}).click();
+ await expect(page).toHaveURL(/login/);
+ expect((await request.get(api+"/auth/me",{headers:{Authorization:`Bearer ${oldToken}`}})).status()).toBe(401);
+ await page.getByRole("link",{name:"Am uitat parola"}).click();
+ await page.getByLabel("Email",{exact:true}).fill(email);
+ await page.getByRole("button",{name:"Trimite linkul"}).click();
+ await expect(page.getByRole("status")).toContainText("vei primi");
+ const reset=await mailbox(email,"reset-password");
+ await page.goto(reset);
+ await page.getByLabel("Parolă nouă",{exact:true}).fill("Changed-pass-123!");
+ await page.getByRole("button",{name:"Schimbă parola"}).click();
+ await expect(page.getByRole("status")).toContainText("schimbată");
+ const token=new URLSearchParams(new URL(reset).hash.slice(1)).get("token");
+ expect((await request.post(api+"/auth/password-reset/confirm",{data:{token,new_password:"Another-pass-123!"}})).status()).toBe(400);
+ await page.getByRole("link",{name:"Înapoi la autentificare"}).click();
+ await page.getByPlaceholder("Email",{exact:true}).fill(email);
+ await page.getByPlaceholder("Parolă",{exact:true}).fill("Changed-pass-123!");
+ await page.getByRole("button",{name:"Intră în cont"}).click();
+ await expect(page).toHaveURL(/dashboard/);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy();
+ await page.getByRole("button",{name:"Comută tema"}).click();
+ await expect(page.locator("html")).toHaveClass(/dark/);
+ await page.screenshot({path:`../docs/screenshots/local-${info.project.name}.png`,fullPage:true});
+ await page.goto("/settings");
+ await page.getByRole("button",{name:"Șterge contul",exact:true}).click();
+ await page.getByPlaceholder("Parola",{exact:true}).fill("Changed-pass-123!");
+ await page.getByRole("button",{name:"Confirmă ștergerea",exact:true}).click();
+ await expect(page).toHaveURL(/login\?deleted=complete/);
+ await expect(page.getByRole("status")).toContainText("Contul și originalele");
+ expect((await request.post(api+"/auth/login",{data:{email,password:"Changed-pass-123!"}})).status()).toBe(401);
+ expect(errors).toEqual([]);
+});
+
+
+test("failed logout reports unconfirmed server revocation",async({page},info)=>{
+ const email=`logout-${Date.now()}-${info.project.name}@example.com`;
+ await page.goto("/register");
+ await page.getByPlaceholder("Nume complet").fill("Test Deconectare");
+ await page.getByPlaceholder("Email",{exact:true}).fill(email);
+ await page.getByPlaceholder("Parolă (min. 8 caractere)").fill("Testing-pass-123!");
+ await page.getByRole("button",{name:"Creează cont",exact:true}).click();
+ await expect(page).toHaveURL(/dashboard/);
+ await page.route("**/*logout-all",route=>route.abort());
+ if(info.project.name!=="desktop") await page.getByRole("button",{name:"Deschide meniul"}).click();
+ await page.getByRole("button",{name:"Deconectare de pe toate dispozitivele"}).click();
+ await expect(page.getByText("Serverul nu a confirmat deconectarea",{exact:false})).toBeVisible();
+ expect(await page.evaluate(()=>localStorage.getItem("am_access_token"))).toBeNull();
+});

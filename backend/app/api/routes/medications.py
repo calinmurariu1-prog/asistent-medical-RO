@@ -1,13 +1,16 @@
 """Module 9 - Medications and interaction/duplicate checks."""
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_patient
 from app.core.database import get_db
 from app.models.medication import Medication
+from app.models.medication_reminder import MedicationReminder
 from app.models.patient import Patient
 from app.schemas.medication import (
     MedicationCheckOut,
@@ -15,7 +18,8 @@ from app.schemas.medication import (
     MedicationOut,
     MedicationUpdate,
 )
-from app.services import medication_check
+from app.schemas.medication_reminder import ReminderInput, ReminderOut
+from app.services import audit, medication_check, medication_reminders
 
 router = APIRouter(prefix="/medications", tags=["medications"])
 
@@ -40,7 +44,9 @@ def add_medication(
 ) -> Medication:
     med = Medication(patient_id=patient.id, **payload.model_dump())
     db.add(med)
-    db.commit()
+    db.flush()
+    audit.record(db, user_id=patient.user_id, action="medication.create",
+                 resource_type="medication", resource_id=med.id)
     db.refresh(med)
     return med
 
@@ -67,6 +73,8 @@ def check_interactions(
         interactions=[w.__dict__ for w in result.interactions],
         duplicates=[w.__dict__ for w in result.duplicates],
         disclaimer=result.disclaimer,
+        unassessed_pairs=result.unassessed_pairs,
+        unidentified_medications=result.unidentified_medications,
     )
 
 
@@ -77,11 +85,24 @@ def update_medication(
     patient: Patient = Depends(get_current_patient),
     db: Session = Depends(get_db),
 ) -> Medication:
-    med = _owned(med_id, patient, db)
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    locked = db.execute(update(Medication).where(
+        Medication.id == med_id, Medication.patient_id == patient.id,
+    ).values(is_active=Medication.is_active).execution_options(synchronize_session=False))
+    if locked.rowcount != 1:
+        raise HTTPException(404, "Medicament inexistent")
+    med = db.get(Medication, med_id, populate_existing=True)
+    changes = payload.model_dump(exclude_unset=True)
+    if any(key in changes and changes[key] is None for key in ("name", "is_active")):
+        raise HTTPException(422, "Numele și starea tratamentului sunt obligatorii")
+    start = changes.get("start_date", med.start_date)
+    end = changes.get("end_date", med.end_date)
+    if start and end and end < start:
+        raise HTTPException(422, "Data de sfârșit nu poate preceda data de început")
+    for key, value in changes.items():
         setattr(med, key, value)
-    db.add(med)
-    db.commit()
+    medication_reminders.sync_medication(db, med, patient.user_id)
+    audit.record(db, user_id=patient.user_id, action="medication.update",
+                 resource_type="medication", resource_id=med.id)
     db.refresh(med)
     return med
 
@@ -92,7 +113,92 @@ def delete_medication(
     patient: Patient = Depends(get_current_patient),
     db: Session = Depends(get_db),
 ) -> Response:
-    med = _owned(med_id, patient, db)
+    med = _locked_med(med_id, patient, db)
+    for reminder in db.scalars(select(MedicationReminder).where(
+        MedicationReminder.medication_id == med.id
+    )):
+        medication_reminders.clear_notifications(db, reminder.id)
     db.delete(med)
-    db.commit()
+    audit.record(db, user_id=patient.user_id, action="medication.delete",
+                 resource_type="medication", resource_id=med_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+
+def _locked_med(med_id: int, patient: Patient, db: Session) -> Medication:
+    locked = db.execute(update(Medication).where(
+        Medication.id == med_id, Medication.patient_id == patient.id,
+    ).values(is_active=Medication.is_active).execution_options(synchronize_session=False))
+    if locked.rowcount != 1:
+        raise HTTPException(404, "Medicament inexistent")
+    return db.get(Medication, med_id, populate_existing=True)
+
+
+def _owned_reminder(db: Session, med_id: int, reminder_id: int) -> MedicationReminder:
+    reminder = db.get(MedicationReminder, reminder_id, populate_existing=True)
+    if reminder is None or reminder.medication_id != med_id:
+        raise HTTPException(404, "Memento inexistent")
+    return reminder
+
+
+def _schedule(db: Session, med: Medication, patient: Patient,
+              payload: ReminderInput, reminder: MedicationReminder | None = None):
+    existing = list(db.scalars(select(MedicationReminder).where(
+        MedicationReminder.medication_id == med.id)))
+    if reminder is None and len(existing) >= 12:
+        raise HTTPException(422, "Poți defini cel mult 12 ore zilnice pentru un tratament")
+    if any(r.id != (reminder.id if reminder else None) and r.local_time == payload.local_time
+           and r.timezone == payload.timezone for r in existing):
+        raise HTTPException(409, "Există deja un memento pentru această oră și fus orar")
+    if reminder is None:
+        reminder = MedicationReminder(medication_id=med.id)
+        db.add(reminder)
+    else:
+        medication_reminders.clear_notifications(db, reminder.id)
+    for key, value in payload.model_dump().items():
+        setattr(reminder, key, value)
+    reminder.next_occurrence = medication_reminders.next_due(med, reminder, datetime.now(UTC))
+    db.flush()
+    medication_reminders.enqueue(db, med, reminder, patient.user_id)
+    return reminder
+
+
+@router.get("/{med_id}/reminders", response_model=list[ReminderOut])
+def list_reminders(med_id: int, patient: Patient = Depends(get_current_patient),
+                   db: Session = Depends(get_db)):
+    _owned(med_id, patient, db)
+    return list(db.scalars(select(MedicationReminder).where(
+        MedicationReminder.medication_id == med_id).order_by(MedicationReminder.local_time)))
+
+
+@router.post("/{med_id}/reminders", response_model=ReminderOut, status_code=201)
+def add_reminder(med_id: int, payload: ReminderInput,
+                 patient: Patient = Depends(get_current_patient), db: Session = Depends(get_db)):
+    med = _locked_med(med_id, patient, db)
+    reminder = _schedule(db, med, patient, payload)
+    audit.record(db, user_id=patient.user_id, action="medication_reminder.create",
+                 resource_type="medication_reminder", resource_id=reminder.id)
+    db.refresh(reminder)
+    return reminder
+
+
+@router.put("/{med_id}/reminders/{reminder_id}", response_model=ReminderOut)
+def edit_reminder(med_id: int, reminder_id: int, payload: ReminderInput,
+                  patient: Patient = Depends(get_current_patient), db: Session = Depends(get_db)):
+    med = _locked_med(med_id, patient, db)
+    reminder = _schedule(db, med, patient, payload, _owned_reminder(db, med_id, reminder_id))
+    audit.record(db, user_id=patient.user_id, action="medication_reminder.update",
+                 resource_type="medication_reminder", resource_id=reminder.id)
+    db.refresh(reminder)
+    return reminder
+
+
+@router.delete("/{med_id}/reminders/{reminder_id}", status_code=204)
+def delete_reminder(med_id: int, reminder_id: int,
+                    patient: Patient = Depends(get_current_patient), db: Session = Depends(get_db)):
+    _locked_med(med_id, patient, db)
+    reminder = _owned_reminder(db, med_id, reminder_id)
+    medication_reminders.clear_notifications(db, reminder.id)
+    db.delete(reminder)
+    audit.record(db, user_id=patient.user_id, action="medication_reminder.delete",
+                 resource_type="medication_reminder", resource_id=reminder_id)

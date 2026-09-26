@@ -7,13 +7,17 @@ const isMobile = process.env.MOBILE_BUILD === "1";
 
 const nextConfig = {
   reactStrictMode: true,
-  eslint: { ignoreDuringBuilds: true },
   ...(isMobile
     ? {
         output: "export",
         images: { unoptimized: true },
       }
-    : {}),
+    : {
+        async rewrites() {
+          const backend = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+          return [{ source: "/api/:path*", destination: `${backend.replace(/\/$/, "")}/api/:path*` }];
+        },
+      }),
 };
 
 export default nextConfig;

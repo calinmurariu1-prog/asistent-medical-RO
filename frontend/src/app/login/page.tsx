@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
@@ -16,6 +16,17 @@ export default function LoginPage() {
   const [mfaNeeded, setMfaNeeded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    if (query.get("mfa") === "enabled") setNotice("MFA este activ. Introdu parola, apoi codul din aplicația de autentificare.");
+    if (query.get("deleted") === "complete") setNotice("Contul și originalele din stocarea aplicației au fost șterse.");
+    if (query.get("deleted") === "pending") setNotice("Contul a fost șters. Ștergerea originalelor este încă în curs; aplicația o reîncearcă automat.");
+    if (query.get("deviceCleanup") === "failed") setError("Contul este șters, dar datele sesiunii locale nu au putut fi curățate de pe acest dispozitiv.");
+    if (new URLSearchParams(window.location.search).get("logout") === "unconfirmed")
+      setError("Serverul nu a confirmat deconectarea. Unele sesiuni pot fi încă active. Reconectează-te pentru a reîncerca.");
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -26,7 +37,7 @@ export default function LoginPage() {
     } catch (err) {
       if (err instanceof ApiError && err.message.includes("MFA")) {
         setMfaNeeded(true);
-        setError("Introdu codul MFA.");
+        setError("Introdu codul MFA sau un cod de rezervă nefolosit.");
       } else {
         setError(err instanceof ApiError ? err.message : "Eroare la autentificare");
       }
@@ -49,6 +60,7 @@ export default function LoginPage() {
           </div>
         </div>
         <h1 className="text-xl font-bold">Bine ai revenit</h1>
+        {notice && <p role="status" className="mt-3 text-sm text-muted">{notice}</p>}
         <form onSubmit={onSubmit} className="mt-5 space-y-3">
           <Input
             type="email"
@@ -67,6 +79,8 @@ export default function LoginPage() {
           {mfaNeeded && (
             <Input
               placeholder="Cod MFA"
+              aria-label="Cod MFA sau cod de rezervă"
+              maxLength={64}
               value={mfaCode}
               onChange={(e) => setMfaCode(e.target.value)}
             />
@@ -76,6 +90,7 @@ export default function LoginPage() {
             {loading ? "Se conectează…" : "Intră în cont"}
           </Button>
         </form>
+        <Link href="/forgot-password" className="mt-4 block text-brand-blue">Am uitat parola</Link>
         <p className="mt-4 text-center text-sm text-muted">
           Nu ai cont?{" "}
           <Link href="/register" className="text-brand-blue hover:underline">

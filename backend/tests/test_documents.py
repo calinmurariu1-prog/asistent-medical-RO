@@ -141,3 +141,296 @@ def _make_text_pdf(text: str) -> bytes:
     buf = io.BytesIO()
     writer.write(buf)
     return buf.getvalue()
+
+
+def test_original_endpoint_checks_owner(client):
+    owner = _auth_headers(client, "owner-original@example.com")
+    other = _auth_headers(client, "other-original@example.com")
+    data = _make_text_pdf(SAMPLE_LAB_TEXT)
+    result = client.post(API + "/documents", headers=owner,
+                         files={"file": ("original.pdf", data, "application/pdf")})
+    assert result.status_code == 201
+    url = API + f"/documents/{result.json()['id']}/original"
+    assert client.get(url).status_code == 401
+    assert client.get(url, headers=other).status_code == 404
+    downloaded = client.get(url, headers=owner)
+    assert downloaded.status_code == 200
+    assert downloaded.content == data
+    assert downloaded.headers["cache-control"] == "no-store"
+
+
+def test_upload_limit_reads_only_bounded_bytes(client, monkeypatch):
+    monkeypatch.setattr("app.api.routes.documents.MAX_SIZE_BYTES", 10)
+    headers = _auth_headers(client, "limit-original@example.com")
+    assert client.post(API + "/documents", headers=headers,
+                       files={"file": ("big.pdf", b"x" * 11, "application/pdf")}
+                       ).status_code == 413
+
+
+def test_docx_paragraphs_and_tables_are_extracted(client):
+    from docx import Document as WordDocument
+
+    from app.services.ocr import DOCX_TYPE
+
+    source = WordDocument()
+    source.add_paragraph("Buletin fictiv de laborator")
+    table = source.add_table(rows=1, cols=3)
+    for cell, value in zip(table.rows[0].cells, ["Glicemie", "105 mg/dL", "70 - 99"], strict=True):
+        cell.text = value
+    buffer = io.BytesIO()
+    source.save(buffer)
+    data = buffer.getvalue()
+    headers = _auth_headers(client)
+    result = client.post(API + "/documents", headers=headers,
+                         files={"file": ("fictiv.docx", data, DOCX_TYPE)})
+    assert result.status_code == 201, result.text
+    body = result.json()
+    assert body["status"] == "done"
+    assert body["category"] == "lab"
+    assert "Buletin fictiv" in body["extracted_text"]
+    assert body["lab_results"][0]["value"] == 105
+    original = client.get(API + f"/documents/{body['id']}/original", headers=headers)
+    assert original.content == data
+
+
+def test_docx_invalid_and_excessively_compressed_rejected(client):
+    import zipfile
+
+    from app.services.ocr import DOCX_TYPE
+
+    headers = _auth_headers(client)
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", "content")
+        archive.writestr("word/document.xml", "x" * 200_000)
+    for data in [b"not a docx", buffer.getvalue()]:
+        result = client.post(API + "/documents", headers=headers,
+                             files={"file": ("invalid.docx", data, DOCX_TYPE)})
+        assert result.status_code == 400
+    assert client.get(API + "/documents", headers=headers).json() == []
+
+
+def test_empty_extraction_is_failed_and_does_not_invoke_ai(client, monkeypatch):
+    from app.services.ai.mock import MockProvider
+
+    calls = []
+
+    def unexpected(*args):
+        calls.append(True)
+        raise AssertionError("AI must not receive empty extraction")
+
+    monkeypatch.setattr("app.services.ocr.extract_text", lambda *args: "")
+    monkeypatch.setattr(MockProvider, "extract_document", unexpected)
+    headers = _auth_headers(client)
+    result = _upload(client, headers).json()
+    assert result["status"] == "failed"
+    assert calls == []
+    assert result["lab_results"] == []
+    assert "Originalul este păstrat" in result["ai_summary"]
+    assert client.get(API + f"/documents/{result['id']}/original",
+                      headers=headers).status_code == 200
+
+
+def test_reprocess_failure_rolls_back_replacement_and_hides_exception(client, monkeypatch, caplog):
+    headers = _auth_headers(client)
+    result = client.post(API + "/documents", headers=headers,
+                         files={"file": ("labs.pdf", _make_text_pdf(SAMPLE_LAB_TEXT),
+                                         "application/pdf")}).json()
+    url = API + f"/documents/{result['id']}"
+    previous = result["lab_results"]
+    assert len(previous) == 3
+
+    def fail(*args):
+        raise RuntimeError("sensitive-provider-content")
+
+    monkeypatch.setattr("app.services.document_processing._persist_lab_values", fail)
+    failed = client.post(url + "/reprocess", headers=headers)
+    assert failed.status_code == 200
+    assert failed.json()["status"] == "failed"
+    assert failed.json()["lab_results"] == previous
+    assert "sensitive-provider-content" not in failed.text
+    assert "sensitive-provider-content" not in caplog.text
+
+
+def test_reprocessing_does_not_duplicate_results_or_allow_busy_document(client, db_session):
+    from app.models.document import Document
+    from app.models.enums import ProcessingStatus
+
+    headers = _auth_headers(client)
+    result = client.post(API + "/documents", headers=headers,
+                         files={"file": ("labs.pdf", _make_text_pdf(SAMPLE_LAB_TEXT),
+                                         "application/pdf")}).json()
+    url = API + f"/documents/{result['id']}/reprocess"
+    for _ in range(2):
+        processed = client.post(url, headers=headers)
+        assert processed.status_code == 200
+        assert len(processed.json()["lab_results"]) == 3
+    document = db_session.get(Document, result["id"])
+    document.status = ProcessingStatus.PROCESSING
+    db_session.commit()
+    assert client.post(url, headers=headers).status_code == 409
+
+
+def test_document_date_update_propagates_and_invalidates_explanations(client):
+    h = _auth_headers(client)
+    other = _auth_headers(client, "date-other@example.com")
+    data = _make_text_pdf(SAMPLE_LAB_TEXT)
+    doc = client.post(API + "/documents", headers=h,
+                      files={"file": ("labs.pdf", data, "application/pdf")},
+                      data={"document_date": "2026-01-10"}).json()
+    assert all(r["measured_on"] == "2026-01-10" for r in doc["lab_results"])
+    result_id = doc["lab_results"][0]["id"]
+    client.post(API + f"/labs/{result_id}/explain", headers=h)
+    url = API + f"/documents/{doc['id']}/date"
+    assert client.put(url, headers=other, json={"document_date": "2026-02-10"}).status_code == 404
+    updated = client.put(url, headers=h, json={"document_date": "2026-02-10"}).json()
+    assert all(r["measured_on"] == "2026-02-10" for r in updated["lab_results"])
+    assert all(r["ai_explanation"] is None for r in updated["lab_results"])
+    assert client.get(API + f"/documents/{doc['id']}/original", headers=h).content == data
+    cleared = client.put(url, headers=h, json={"document_date": None}).json()
+    assert all(r["measured_on"] is None for r in cleared["lab_results"])
+
+
+def test_date_update_refuses_processing_and_invalid_date(client, db_session):
+    from app.models.document import Document
+    from app.models.enums import ProcessingStatus
+
+    h = _auth_headers(client)
+    document = _upload(client, h).json()
+    url = API + f"/documents/{document['id']}/date"
+    assert client.put(url, headers=h, json={"document_date": "bad"}).status_code == 422
+    stored = db_session.get(Document, document["id"])
+    stored.status = ProcessingStatus.PROCESSING
+    db_session.commit()
+    assert client.put(url, headers=h, json={"document_date": "2026-01-10"}).status_code == 409
+
+
+def test_new_measurement_clears_previous_cached_comparison(client):
+    h = _auth_headers(client)
+    first = client.post(API + "/labs", headers=h, json={
+        "analyte": "Glicemie", "value": 100, "unit": "mg/dL", "measured_on": "2026-01-10"}).json()
+    client.post(API + f"/labs/{first['id']}/explain", headers=h)
+    client.post(API + "/labs", headers=h, json={
+        "analyte": "Glicemie", "value": 90, "unit": "mg/dL", "measured_on": "2026-02-10"})
+    results = client.get(API + "/labs", headers=h).json()
+    assert all(r["ai_explanation"] is None for r in results)
+
+
+def test_expired_processing_can_be_recovered(client, db_session):
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.document import Document
+    from app.models.enums import ProcessingStatus
+
+    h = _auth_headers(client)
+    uploaded = client.post(API + "/documents", headers=h,
+        files={"file": ("labs.pdf", _make_text_pdf(SAMPLE_LAB_TEXT), "application/pdf")}).json()
+    document = db_session.get(Document, uploaded["id"])
+    document.status = ProcessingStatus.PROCESSING
+    document.processing_token = "abandoned"
+    document.processing_until = datetime.now(UTC) - timedelta(minutes=1)
+    db_session.commit()
+    db_session.expire_all()
+    result = client.post(f"{API}/documents/{document.id}/reprocess", headers=h)
+    assert result.status_code == 200
+    assert result.json()["status"] == "done"
+    assert document.processing_token is None
+    assert document.processing_until is None
+
+
+def test_superseded_worker_cannot_replace_newer_results(client, db_session, monkeypatch):
+    from app.models.document import Document
+    from app.services.ai.mock import MockProvider
+
+    h = _auth_headers(client)
+    uploaded = client.post(API + "/documents", headers=h,
+        files={"file": ("labs.pdf", _make_text_pdf(SAMPLE_LAB_TEXT), "application/pdf")}).json()
+    document = db_session.get(Document, uploaded["id"])
+    original = MockProvider.extract_document
+
+    def supersede(self, text, category):
+        document.processing_token = "newer-worker"
+        document.ai_summary = "Rezultate ale încercării noi"
+        db_session.commit()
+        return original(self, text, category)
+
+    monkeypatch.setattr(MockProvider, "extract_document", supersede)
+    response = client.post(f"{API}/documents/{document.id}/reprocess", headers=h)
+    assert response.status_code == 409
+    db_session.refresh(document)
+    assert document.processing_token == "newer-worker"
+    assert document.ai_summary == "Rezultate ale încercării noi"
+    assert client.get(f"{API}/documents/{document.id}/original", headers=h).status_code == 200
+
+
+def test_deleted_document_is_not_resurrected_by_processing(client, db_session, monkeypatch):
+    from app.models.document import Document
+    from app.services.ai.mock import MockProvider
+
+    h = _auth_headers(client)
+    uploaded = client.post(API + "/documents", headers=h,
+        files={"file": ("labs.pdf", _make_text_pdf(SAMPLE_LAB_TEXT), "application/pdf")}).json()
+    document_id = uploaded["id"]
+    original = MockProvider.extract_document
+
+    def remove_during_extraction(self, text, category):
+        db_session.delete(db_session.get(Document, document_id))
+        db_session.commit()
+        return original(self, text, category)
+
+    monkeypatch.setattr(MockProvider, "extract_document", remove_during_extraction)
+    response = client.post(f"{API}/documents/{document_id}/reprocess", headers=h)
+    assert response.status_code == 409
+    assert db_session.get(Document, document_id) is None
+
+
+def test_original_failure_is_sanitized_and_retryable(client, storage, monkeypatch):
+    headers = _auth_headers(client, "original-failure@example.com")
+    result = client.post(API + "/documents", headers=headers,
+                         files={"file": ("test.pdf", b"%PDF-1.4 synthetic", "application/pdf")})
+    assert result.status_code == 201
+    url = API + f"/documents/{result.json()['id']}/original"
+
+    def fail(key):
+        raise RuntimeError("private-provider-key-and-path")
+
+    monkeypatch.setattr(storage, "get", fail)
+    response = client.get(url, headers=headers)
+    assert response.status_code == 503
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["retry-after"] == "30"
+    assert "private-provider" not in response.text
+
+    def missing(key):
+        raise FileNotFoundError("private-path")
+
+    monkeypatch.setattr(storage, "get", missing)
+    response = client.get(url, headers=headers)
+    assert response.status_code == 404
+    assert response.headers["cache-control"] == "no-store"
+    assert "private-path" not in response.text
+
+
+def test_document_access_and_delete_audit_contains_only_owner_and_ids(client, db_session):
+    from sqlalchemy import select
+
+    from app.models.user import AuditLog, User
+
+    owner = _auth_headers(client, "document-audit-owner@example.com")
+    other = _auth_headers(client, "document-audit-other@example.com")
+    document = _upload(client, owner, filename="private-medical-name.pdf").json()
+    document_id = document["id"]
+    original = f"{API}/documents/{document_id}/original"
+    assert client.get(original, headers=other).status_code == 404
+    assert client.get(original, headers=owner).status_code == 200
+    assert client.get(f"{API}/documents/{document_id}/download", headers=owner).status_code == 200
+    assert client.delete(f"{API}/documents/{document_id}", headers=owner).status_code == 204
+    rows = db_session.scalars(select(AuditLog).where(AuditLog.resource_type == "document",
+                              AuditLog.resource_id == str(document_id))).all()
+    assert {row.action for row in rows} == {
+        "document_original_access", "document_download_link_issued", "document_delete"}
+    assert len(rows) == 3
+    user = db_session.scalar(select(User).where(User.email == "document-audit-owner@example.com"))
+    assert all(row.user_id == user.id and row.detail is None for row in rows)
+    exported = client.get(f"{API}/gdpr/export", headers=owner).json()["audit_events"]
+    assert any(event["action"] == "document_delete" for event in exported)

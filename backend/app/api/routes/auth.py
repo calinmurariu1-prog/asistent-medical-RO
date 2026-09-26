@@ -3,12 +3,19 @@ from __future__ import annotations
 
 import jwt
 import pyotp
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select
+from pydantic import ValidationError
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.browser_session import (
+    REFRESH_COOKIE,
+    clear_browser_cookies,
+    require_browser_origin,
+    set_browser_cookies,
+)
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import RateLimiter
@@ -28,6 +35,8 @@ from app.schemas.auth import (
     EmailVerifyRequest,
     LoginRequest,
     MFAActivateRequest,
+    MFAActivateResponse,
+    MFARecoveryRegenerateRequest,
     MFASetupResponse,
     PasswordResetConfirm,
     PasswordResetRequest,
@@ -36,13 +45,13 @@ from app.schemas.auth import (
     TokenPair,
     UserOut,
 )
-from app.services import audit
+from app.services import audit, mfa_recovery
 from app.services.email import send_password_reset_email, send_verification_email
 from app.services.token_service import (
     EMAIL_VERIFY,
     PASSWORD_RESET,
+    consume_purpose_token,
     create_purpose_token,
-    verify_purpose_token,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -81,7 +90,8 @@ def register(
     db.commit()
     db.refresh(user)
 
-    token = create_purpose_token(str(user.id), EMAIL_VERIFY)
+    token = create_purpose_token(str(user.id), EMAIL_VERIFY, db=db)
+    db.commit()
     send_verification_email(user.email, token)
     audit.record(db, user_id=user.id, action="register", ip_address=_client_ip(request))
     return user
@@ -95,7 +105,7 @@ def login(
     request: Request,
     db: Session = Depends(get_db),
 ) -> TokenPair:
-    user = db.scalar(select(User).where(User.email == payload.email))
+    user = db.scalar(select(User).where(User.email == payload.email).with_for_update())
     if (
         user is None
         or not user.hashed_password
@@ -105,14 +115,23 @@ def login(
     if not user.is_active:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Account disabled")
 
+    recovery_used = False
     if user.mfa_enabled:
         if not payload.mfa_code:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "MFA code required")
         secret = decrypt_field(user.mfa_secret)
         if not secret or not pyotp.TOTP(secret).verify(payload.mfa_code, valid_window=1):
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid MFA code")
+            if not mfa_recovery.consume(db, user.id, payload.mfa_code):
+                db.rollback()
+                raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid MFA code")
+            db.execute(update(User).where(User.id == user.id).values(
+                token_version=User.token_version + 1))
+            db.refresh(user)
+            recovery_used = True
 
-    audit.record(db, user_id=user.id, action="login", ip_address=_client_ip(request))
+    audit.record(db, user_id=user.id,
+                 action="login_mfa_recovery" if recovery_used else "login",
+                 ip_address=_client_ip(request))
     return TokenPair(
         access_token=create_access_token(str(user.id), user.token_version),
         refresh_token=create_refresh_token(str(user.id), user.token_version),
@@ -142,9 +161,12 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)) -> TokenPair
 def password_reset_request(
     payload: PasswordResetRequest, db: Session = Depends(get_db)
 ) -> dict[str, str]:
+    if settings.is_production and not settings.SMTP_HOST:
+        raise HTTPException(503, "Recuperarea parolei este temporar indisponibilă.")
     user = db.scalar(select(User).where(User.email == payload.email))
-    if user:
-        token = create_purpose_token(str(user.id), PASSWORD_RESET, hours=2)
+    if user and user.is_active:
+        token = create_purpose_token(str(user.id), PASSWORD_RESET, hours=2, db=db)
+        db.commit()
         send_password_reset_email(user.email, token)
     # Always 200 to prevent account enumeration.
     return {"detail": "If the email exists, a reset link has been sent."}
@@ -154,63 +176,146 @@ def password_reset_request(
 def password_reset_confirm(
     payload: PasswordResetConfirm, db: Session = Depends(get_db)
 ) -> dict[str, str]:
-    sub = verify_purpose_token(payload.token, PASSWORD_RESET)
-    if sub is None:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid or expired token")
-    user = db.get(User, int(sub))
+    user = consume_purpose_token(payload.token, PASSWORD_RESET, db)
     if user is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+        db.rollback()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Link invalid, expirat sau deja folosit.")
     user.hashed_password = hash_password(payload.new_password)
     # Invalidate all existing sessions after a password reset.
     user.token_version += 1
+    from datetime import UTC, datetime
+
+    from sqlalchemy import update
+
+    from app.models.user import RecoveryToken
+    db.execute(update(RecoveryToken).where(
+        RecoveryToken.user_id == user.id, RecoveryToken.purpose == PASSWORD_RESET,
+        RecoveryToken.consumed_at.is_(None)).values(consumed_at=datetime.now(UTC)))
     db.commit()
     return {"detail": "Password updated"}
+
+
+@router.post("/email/resend", dependencies=[Depends(_auth_limiter)])
+def resend_verification(
+    current: User = Depends(get_current_user), db: Session = Depends(get_db),
+) -> dict[str, str]:
+    if current.is_email_verified:
+        return {"detail": "Adresa de email este deja confirmată."}
+    if settings.is_production and not settings.SMTP_HOST:
+        raise HTTPException(503, "Serviciul de email este temporar indisponibil.")
+    token = create_purpose_token(str(current.id), EMAIL_VERIFY, db=db)
+    db.commit()
+    try:
+        delivered = send_verification_email(current.email, token)
+    except Exception:  # noqa: BLE001 (local mailbox failures must not disclose paths)
+        delivered = False
+    if not delivered:
+        raise HTTPException(503, "Mesajul nu a putut fi trimis. Reîncearcă mai târziu.")
+    audit.record(db, user_id=current.id, action="email_verification_resend")
+    detail = ("Mesajul a fost salvat în cutia de email de test a aplicației locale."
+              if not settings.SMTP_HOST else "Linkul a fost transmis serviciului de email.")
+    return {"detail": detail}
 
 
 @router.post("/email/verify")
 def verify_email(
     payload: EmailVerifyRequest, db: Session = Depends(get_db)
 ) -> dict[str, str]:
-    sub = verify_purpose_token(payload.token, EMAIL_VERIFY)
-    if sub is None:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid or expired token")
-    user = db.get(User, int(sub))
+    user = consume_purpose_token(payload.token, EMAIL_VERIFY, db)
     if user is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+        db.rollback()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Link invalid, expirat sau deja folosit.")
     user.is_email_verified = True
     db.commit()
     return {"detail": "Email verified"}
 
 
-@router.post("/mfa/setup", response_model=MFASetupResponse)
+@router.post("/mfa/setup", response_model=MFASetupResponse,
+             dependencies=[Depends(_auth_limiter)])
 def mfa_setup(
+    response: Response,
     current: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> MFASetupResponse:
+    response.headers["Cache-Control"] = "no-store"
     secret = pyotp.random_base32()
-    current.mfa_secret = encrypt_field(secret)  # stored encrypted at rest
-    db.add(current)
-    db.commit()
+    changed = db.execute(update(User).where(
+        User.id == current.id, User.mfa_enabled.is_(False),
+    ).values(mfa_secret=encrypt_field(secret)))
+    if changed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, "MFA este deja activ. Secretul nu poate fi înlocuit.")
+    audit.record(db, user_id=current.id, action="mfa_setup")
     uri = pyotp.totp.TOTP(secret).provisioning_uri(
         name=current.email, issuer_name=settings.PROJECT_NAME
     )
     return MFASetupResponse(secret=secret, otpauth_uri=uri)
 
 
-@router.post("/mfa/activate")
+@router.post("/mfa/activate", response_model=MFAActivateResponse,
+             dependencies=[Depends(_auth_limiter)])
 def mfa_activate(
     payload: MFAActivateRequest,
+    response: Response,
     current: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> dict[str, str]:
+) -> MFAActivateResponse:
+    response.headers["Cache-Control"] = "no-store"
     secret = decrypt_field(current.mfa_secret)
     if not secret:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Run /mfa/setup first")
     if not pyotp.TOTP(secret).verify(payload.code, valid_window=1):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid code")
-    current.mfa_enabled = True
-    db.add(current)
-    db.commit()
-    return {"detail": "MFA enabled"}
+    # Compare the encrypted setup snapshot: a concurrent setup must not enable
+    # a secret different from the one whose code was just verified.
+    changed = db.execute(update(User).where(
+        User.id == current.id, User.mfa_enabled.is_(False),
+        User.mfa_secret == current.mfa_secret,
+    ).values(mfa_enabled=True, token_version=User.token_version + 1))
+    if changed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, "Configurarea MFA s-a schimbat. Reia autentificarea.")
+    codes = mfa_recovery.issue(db, current.id)
+    audit.record(db, user_id=current.id, action="mfa_activate")
+    return MFAActivateResponse(
+        detail="MFA activat. Autentifică-te din nou cu parola și codul MFA.",
+        recovery_codes=codes,
+    )
+
+
+@router.post("/mfa/recovery-codes", response_model=MFAActivateResponse,
+             dependencies=[Depends(_auth_limiter)])
+def regenerate_mfa_recovery(
+    payload: MFARecoveryRegenerateRequest, response: Response,
+    current: User = Depends(get_current_user), db: Session = Depends(get_db),
+) -> MFAActivateResponse:
+    response.headers["Cache-Control"] = "no-store"
+    version = current.token_version
+    # Serialize with logins and other regeneration attempts before consuming codes.
+    locked = db.scalar(select(User).where(User.id == current.id).with_for_update()
+                       .execution_options(populate_existing=True))
+    if locked is None or not locked.is_active or locked.token_version != version:
+        raise HTTPException(401, "Sesiune expirată.")
+    if not locked.mfa_enabled:
+        raise HTTPException(409, "Activează MFA înainte de a genera coduri de rezervă.")
+    if not locked.hashed_password or not verify_password(payload.password, locked.hashed_password):
+        raise HTTPException(400, "Parolă sau cod MFA incorect.")
+    claimed = db.execute(update(User).where(
+        User.id == locked.id, User.token_version == version, User.mfa_enabled.is_(True),
+    ).values(token_version=User.token_version + 1))
+    if claimed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, "Sesiunea s-a schimbat. Autentifică-te din nou.")
+    secret = decrypt_field(locked.mfa_secret)
+    if not secret or not pyotp.TOTP(secret).verify(payload.code, valid_window=1):
+        if not mfa_recovery.consume(db, locked.id, payload.code):
+            db.rollback()
+            raise HTTPException(400, "Parolă sau cod MFA incorect.")
+    codes = mfa_recovery.issue(db, locked.id)
+    audit.record(db, user_id=locked.id, action="mfa_recovery_regenerate")
+    return MFAActivateResponse(
+        detail="Codurile anterioare sunt invalidate. Autentifică-te din nou.",
+        recovery_codes=codes,
+    )
 
 
 @router.get("/me", response_model=UserOut)
@@ -223,25 +328,70 @@ def logout_all(
     current: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> dict[str, str]:
     """Revoke every existing token for this user (all devices)."""
-    current.token_version += 1
-    db.add(current)
-    db.commit()
+    db.execute(update(User).where(User.id == current.id).values(
+        token_version=User.token_version + 1))
+    audit.record(db, user_id=current.id, action="logout_all")
     return {"detail": "Toate sesiunile au fost deconectate."}
 
 
-@router.post("/login-form", response_model=TokenPair, include_in_schema=False)
+@router.post(
+    "/login-form", response_model=TokenPair, include_in_schema=False,
+    dependencies=[Depends(_auth_limiter)],
+)
 def login_form(
+    request: Request,
     form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
 ) -> TokenPair:
-    """OAuth2 password flow used by the Swagger 'Authorize' button."""
-    user = db.scalar(select(User).where(User.email == form.username))
-    if (
-        user is None
-        or not user.hashed_password
-        or not verify_password(form.password, user.hashed_password)
-    ):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
-    return TokenPair(
-        access_token=create_access_token(str(user.id), user.token_version),
-        refresh_token=create_refresh_token(str(user.id), user.token_version),
-    )
+    """Swagger login applies the same account and MFA checks as JSON login.
+
+    OAuth2's password form cannot supply our TOTP field. MFA users must use
+    /login with mfa_code; never issue tokens on the basis of the password alone.
+    """
+    try:
+        payload = LoginRequest(email=form.username, password=form.password)
+    except ValidationError:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials") from None
+    return login(payload, request, db)
+
+
+@router.post("/browser/login", dependencies=[Depends(_auth_limiter)])
+def browser_login(
+    payload: LoginRequest, request: Request, response: Response,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    require_browser_origin(request)
+    tokens = login(payload, request, db)
+    set_browser_cookies(response, tokens.access_token, tokens.refresh_token)
+    return {"detail": "Autentificare reușită."}
+
+
+@router.post("/browser/refresh")
+def browser_refresh(
+    request: Request, response: Response, db: Session = Depends(get_db),
+) -> dict[str, str]:
+    require_browser_origin(request)
+    token = request.cookies.get(REFRESH_COOKIE)
+    if not token:
+        raise HTTPException(401, "Sesiune expirată.")
+    tokens = refresh(RefreshRequest(refresh_token=token), db)
+    set_browser_cookies(response, tokens.access_token, tokens.refresh_token)
+    return {"detail": "Sesiune reînnoită."}
+
+
+@router.post("/browser/logout-all")
+def browser_logout_all(
+    request: Request, response: Response,
+    current: User = Depends(get_current_user), db: Session = Depends(get_db),
+) -> dict[str, str]:
+    require_browser_origin(request)
+    result = logout_all(current, db)
+    clear_browser_cookies(response)
+    return result
+
+
+@router.post("/browser/clear")
+def browser_clear(request: Request, response: Response) -> dict[str, str]:
+    """Clear this browser even when its access token has expired; does not revoke other devices."""
+    require_browser_origin(request)
+    clear_browser_cookies(response)
+    return {"detail": "Cookie-urile acestui browser au fost șterse."}

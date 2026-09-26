@@ -51,3 +51,7 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+.local-data/
+playwright-report/
+test-results/

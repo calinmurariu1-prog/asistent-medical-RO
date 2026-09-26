@@ -19,5 +19,5 @@ def get_places_provider() -> PlacesProvider:
 
         return GooglePlacesProvider()
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Google Places init failed: %s; using mock.", exc)
+        logger.warning("Google Places init failed: %s; using mock.", type(exc).__name__)
         return MockPlacesProvider()

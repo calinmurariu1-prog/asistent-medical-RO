@@ -22,7 +22,7 @@ def test_empty_record_has_disclaimer_only(client):
 
 def test_abnormal_lab_generates_recommendations(client):
     h = _auth(client)
-    # 200 vs (70-99): >= 99*1.5 -> critical_high.
+    # An out-of-range value is not automatically a clinical emergency.
     client.post(
         f"{API}/labs",
         headers=h,
@@ -31,7 +31,7 @@ def test_abnormal_lab_generates_recommendations(client):
     )
     body = client.get(f"{API}/recommendations", headers=h).json()
     assert any("Glicemie" in q for q in body["questions_for_doctor"])
-    assert any("Glicemie" in a for a in body["alerts"])       # critical alert
+    assert body["alerts"] == []
     assert body["lifestyle"]                                   # metabolic -> lifestyle
     assert any("Glicemie" in m for m in body["monitoring"])
 

@@ -6,8 +6,15 @@ import { api } from "@/lib/api";
 import type { AiSkill } from "@/lib/types";
 import { Button, Card, Input, PageHeader, Spinner } from "@/components/ui";
 
+interface SkillResult {
+  result: string;
+  emergency?: boolean;
+  sources?: {ref: string; title: string; url: string | null}[];
+}
+
 const INPUT_LABELS: Record<string, string> = {
-  name: "Denumire medicament",
+  name: "Substanța activă",
+  medications: "Substanțe active separate prin punct și virgulă",
   concern: "Preocuparea ta",
   text: "Textul medical",
   condition: "Afecțiunea",
@@ -18,7 +25,7 @@ export default function AssistantPage() {
   const [skills, setSkills] = useState<AiSkill[]>([]);
   const [active, setActive] = useState<AiSkill | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
-  const [result, setResult] = useState<string | null>(null);
+  const [result, setResult] = useState<SkillResult | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -36,13 +43,13 @@ export default function AssistantPage() {
     setLoading(true);
     setResult(null);
     try {
-      const r = await api.post<{ result: string }>(
+      const r = await api.post<SkillResult>(
         `/ai/skills/${active.name}`,
         { inputs: values },
       );
-      setResult(r.result);
+      setResult(r);
     } catch (e) {
-      setResult(e instanceof Error ? e.message : "Eroare");
+      setResult({result: e instanceof Error ? e.message : "Eroare"});
     } finally {
       setLoading(false);
     }
@@ -88,6 +95,7 @@ export default function AssistantPage() {
                 key === "text" ? (
                   <textarea
                     key={key}
+                    maxLength={12000}
                     placeholder={INPUT_LABELS[key] || key}
                     value={values[key] || ""}
                     onChange={(e) => setValues({ ...values, [key]: e.target.value })}
@@ -109,8 +117,10 @@ export default function AssistantPage() {
 
               {loading && <Spinner />}
               {result && (
-                <div className="whitespace-pre-wrap rounded-2xl bg-surface-2 p-4 text-sm">
-                  {result}
+                <div role={result.emergency ? "alert" : "status"} className="whitespace-pre-wrap break-words rounded-2xl bg-surface-2 p-4 text-sm">
+                  {result.emergency && <p className="mb-2 font-semibold text-red-600 dark:text-red-400">Posibilă urgență — nu aștepta un răspuns AI</p>}
+                  <p>{result.result}</p>
+                  {result.sources?.map(source => source.url ? <a key={source.ref} className="mt-2 block text-primary underline" href={source.url} target="_blank" rel="noopener noreferrer">[{source.ref}] {source.title}</a> : <p key={source.ref} className="mt-2 text-muted">[{source.ref}] {source.title}</p>)}
                 </div>
               )}
             </div>

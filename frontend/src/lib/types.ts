@@ -29,6 +29,7 @@ export interface PatientProfile {
 }
 
 export type LabFlag =
+  | "unknown"
   | "normal"
   | "high"
   | "low"
@@ -64,6 +65,7 @@ export interface LabSeries {
   ref_high: number | null;
   trend: string | null;
   points: LabSeriesPoint[];
+  comparison_warning: string | null;
 }
 
 export interface DocumentItem {
@@ -237,6 +239,7 @@ export interface Dashboard {
     total_analytes: number;
     abnormal_count: number;
     critical_count: number;
+    unknown_count: number;
   };
   recent_documents: DocumentItem[];
   active_medications: { id: number; name: string; dose: string | null }[];
@@ -244,4 +247,18 @@ export interface Dashboard {
   alerts: string[];
   recommendations_preview: string[];
   unread_notifications: number;
+}
+
+
+export interface MedicalNotification {
+  id: number;
+  channel: "push" | "email" | "sms";
+  title: string;
+  body: string | null;
+  status: "pending" | "sent" | "failed" | "read";
+  scheduled_for: string | null;
+  sent_at: string | null;
+  resource_type: string | null;
+  resource_id: string | null;
+  created_at: string;
 }

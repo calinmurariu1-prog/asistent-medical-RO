@@ -1,13 +1,12 @@
-"""Transactional email sending (SMTP), with a dev-safe logging fallback.
-
-When SMTP is not configured, emails are logged instead of sent so local/dev and
-tests never touch the network. Swap in an async queue for production volume.
-"""
+"""SMTP email delivery with a private local mailbox for development."""
 from __future__ import annotations
 
 import logging
 import smtplib
+import ssl
+import uuid
 from email.message import EmailMessage
+from pathlib import Path
 
 from app.core.config import settings
 
@@ -15,33 +14,52 @@ logger = logging.getLogger(__name__)
 
 
 def send_email(to: str, subject: str, body: str) -> bool:
-    """Send a plain-text email. Returns True if actually sent via SMTP."""
+    """Return True when sent via SMTP or saved to the private development mailbox."""
     if not settings.SMTP_HOST:
-        logger.info("[email:dev] To=%s | %s\n%s", to, subject, body)
-        return False
-
-    msg = EmailMessage()
-    msg["From"] = settings.SMTP_FROM
-    msg["To"] = to
-    msg["Subject"] = subject
-    msg.set_content(body)
+        if settings.is_production:
+            logger.warning("Email delivery is not configured")
+            return False
+        temporary = None
+        try:
+            mailbox = Path(settings.LOCAL_DATA_DIR) / "mailbox"
+            mailbox.mkdir(mode=0o700, parents=True, exist_ok=True)
+            path = mailbox / (uuid.uuid4().hex + ".txt")
+            temporary = path.with_suffix(".tmp")
+            with temporary.open("x", encoding="utf-8") as output:
+                temporary.chmod(0o600)
+                output.write(f"To: {to}\nSubject: {subject}\n\n{body}")
+            temporary.replace(path)
+            return True
+        except OSError as exc:
+            logger.error("Local email delivery failed (%s)", type(exc).__name__)
+            if temporary is not None:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    logger.warning("Local email temporary cleanup deferred")
+            return False
 
     try:
+        msg = EmailMessage()
+        msg["From"] = settings.SMTP_FROM
+        msg["To"] = to
+        msg["Subject"] = subject
+        msg.set_content(body)
         with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15) as server:
             if settings.SMTP_TLS:
-                server.starttls()
+                server.starttls(context=ssl.create_default_context())
             if settings.SMTP_USER:
                 server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
             server.send_message(msg)
         return True
     except Exception as exc:  # noqa: BLE001  (never let email break the request)
-        logger.error("[email] send failed to %s: %s", to, exc)
+        logger.error("Email delivery failed (%s)", type(exc).__name__)
         return False
 
 
-def send_verification_email(to: str, token: str) -> None:
-    link = f"{settings.FRONTEND_URL}/verify-email?token={token}"
-    send_email(
+def send_verification_email(to: str, token: str) -> bool:
+    link = f"{settings.FRONTEND_URL}/verify-email#token={token}"
+    return send_email(
         to,
         "Confirmă adresa de email — Asistent Medical AI",
         "Bun venit! Confirmă-ți adresa de email accesând linkul de mai jos:\n\n"
@@ -50,7 +68,7 @@ def send_verification_email(to: str, token: str) -> None:
 
 
 def send_password_reset_email(to: str, token: str) -> None:
-    link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+    link = f"{settings.FRONTEND_URL}/reset-password#token={token}"
     send_email(
         to,
         "Resetare parolă — Asistent Medical AI",

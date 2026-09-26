@@ -4,12 +4,13 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.models.document import LabResult
 from app.models.enums import LabFlag
 from app.services.ai.base import AIProvider
+from app.services.ai.lab_units import normalize_unit
 
 ABNORMAL_FLAGS = {
     LabFlag.HIGH,
@@ -47,10 +48,26 @@ def build_series(db: Session, patient_id: int, analyte: str) -> list[LabResult]:
     return get_results(db, patient_id, analyte=analyte)
 
 
+def comparison_warning(series: list[LabResult]) -> str | None:
+    """Require explicit compatible units and distinct dates before comparison."""
+    if any(r.confidence == "unverified" for r in series):
+        return "Comparație indisponibilă: există valori de confirmat pe documentul original."
+    numeric = [r for r in series if r.value is not None]
+    if any(not r.unit or not r.unit.strip() for r in numeric):
+        return "Comparație indisponibilă: lipsesc unități de măsură. Verifică originalele."
+    if len({normalize_unit(r.unit) for r in numeric}) > 1:
+        return "Comparație indisponibilă: unitățile diferă. Este necesară o conversie validată."
+    dates = [r.measured_on for r in numeric]
+    if any(d is None for d in dates) or len(set(dates)) != len(dates):
+        return ("Comparație indisponibilă: date lipsă sau măsurători în aceeași zi. "
+                "Verifică ordinea.")
+    return None
+
+
 def compute_trend(series: list[LabResult]) -> str | None:
     """Describe the last value relative to the previous one."""
     numeric = [r for r in series if r.value is not None]
-    if len(numeric) < 2:
+    if comparison_warning(series) or len(numeric) < 2:
         return None
     prev, last = numeric[-2].value, numeric[-1].value
     if last > prev:
@@ -68,20 +85,23 @@ def build_summary(db: Session, patient_id: int) -> dict:
         by_analyte[r.analyte].append(r)
 
     items = []
-    abnormal = critical = 0
+    abnormal = critical = unknown = 0
     for analyte, series in sorted(by_analyte.items()):
         series.sort(key=_sort_key)
         latest = series[-1]
-        if latest.flag in ABNORMAL_FLAGS:
+        effective_flag = LabFlag.UNKNOWN if latest.confidence == "unverified" else latest.flag
+        if effective_flag == LabFlag.UNKNOWN:
+            unknown += 1
+        if effective_flag in ABNORMAL_FLAGS:
             abnormal += 1
-        if latest.flag in CRITICAL_FLAGS:
+        if effective_flag in CRITICAL_FLAGS:
             critical += 1
         items.append(
             {
                 "analyte": analyte,
-                "latest_value": latest.value,
+                "latest_value": latest.value if latest.confidence == "verified" else None,
                 "unit": latest.unit,
-                "flag": latest.flag,
+                "flag": effective_flag,
                 "measured_on": latest.measured_on,
                 "measurements": len(series),
                 "trend": compute_trend(series),
@@ -91,24 +111,41 @@ def build_summary(db: Session, patient_id: int) -> dict:
         "total_analytes": len(items),
         "abnormal_count": abnormal,
         "critical_count": critical,
+        "unknown_count": unknown,
         "items": items,
     }
 
 
+class LabExplanationChanged(Exception):
+    """The source changed or disappeared while its explanation was generated."""
+
+
 def explain_result(db: Session, ai: AIProvider, result: LabResult) -> LabResult:
-    """Generate and persist an AI explanation for one lab result."""
-    series = build_series(db, result.patient_id, result.analyte)
-    trend = compute_trend(series)
-    result.ai_explanation = ai.explain_lab_value(
-        analyte=result.analyte,
-        value=result.value,
-        unit=result.unit,
-        ref_low=result.ref_low,
-        ref_high=result.ref_high,
-        flag=result.flag.value,
-        trend=trend,
-    )
-    db.add(result)
+    from app.services.ai.record_ai import explain_lab_record
+
+    # A detached factual snapshot prevents ORM refreshes from changing the prompt mid-call.
+    fields = ("id", "patient_id", "document_id", "analyte", "value", "value_text", "unit",
+              "ref_low", "ref_high", "flag", "measured_on", "confidence")
+    snapshot = {field: getattr(result, field) for field in fields}
+    detached = LabResult(**snapshot)
+    db.commit()  # Do not hold the read transaction during external generation.
+    explanation = explain_lab_record(ai, detached)
+    conditions = [getattr(LabResult, field) == value for field, value in snapshot.items()]
+    changed = db.execute(update(LabResult).where(*conditions).values(
+        ai_explanation=explanation).execution_options(synchronize_session=False))
+    if changed.rowcount != 1:
+        db.rollback()
+        raise LabExplanationChanged
     db.commit()
-    db.refresh(result)
-    return result
+    current = db.get(LabResult, snapshot["id"], populate_existing=True)
+    if current is None:
+        raise LabExplanationChanged
+    return current
+
+
+def invalidate_explanations(db: Session, patient_id: int, analytes: list[str]) -> None:
+    """Cached comparisons are stale when any value/date in the series changes."""
+    if analytes:
+        db.execute(update(LabResult).where(
+            LabResult.patient_id == patient_id, LabResult.analyte.in_(set(analytes)),
+        ).values(ai_explanation=None))

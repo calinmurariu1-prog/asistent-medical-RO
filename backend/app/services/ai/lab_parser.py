@@ -12,18 +12,19 @@ from __future__ import annotations
 import re
 
 from app.services.ai.base import ExtractedLabValue
+from app.services.ai.lab_units import normalize_unit
 
 _NUM = r"[-+]?\d+(?:[.,]\d+)?"
-_UNIT = r"[A-Za-zµ%/\^\d]+(?:/[A-Za-zµ%\^\d]+)?"
+_UNIT = r"(?:10\^\d{1,2}/[A-Za-zµμ]+|[A-Za-zµμ%][A-Za-zµμ%/\^\d]*)"
 
 # analyte  value  [unit]  ref_low - ref_high (with optional brackets/paren)
 _LINE_RE = re.compile(
     rf"""^\s*
     (?P<analyte>[A-Za-zĂÂÎȘȚăâîșț][A-Za-zĂÂÎȘȚăâîșț0-9 .\-()]{{1,60}}?)   # name
     [:\s]\s*
-    (?P<value>{_NUM})\s*
-    (?P<unit>{_UNIT})?\s*
-    [\[(]?\s*
+    (?P<value>{_NUM})
+    (?:\s*(?P<unit>{_UNIT})(?=\s|[\[(]))?
+    (?:\s+|(?=[\[(]))[\[(]?\s*
     (?P<low>{_NUM})\s*[-–]\s*(?P<high>{_NUM})
     \s*[\])]?
     \s*$""",
@@ -49,15 +50,20 @@ def parse_lab_values(text: str) -> list[ExtractedLabValue]:
         analyte = m.group("analyte").strip(" .:-")
         if len(analyte) < 2:
             continue
+        # A single separator followed by three digits can mean decimals or
+        # thousands. Retain its original spelling for review instead of guessing.
+        raw_numbers = [m.group(key) for key in ("value", "low", "high")]
+        ambiguous = any(re.fullmatch(r"[-+]?[1-9]\d*[.,]\d{3}", raw) for raw in raw_numbers)
         results.append(
             ExtractedLabValue(
                 analyte=analyte,
-                value=_to_float(m.group("value")),
-                unit=(m.group("unit") or None),
-                ref_low=_to_float(m.group("low")),
-                ref_high=_to_float(m.group("high")),
-                # Read straight from the document text — inherently trusted.
-                confidence="verified",
+                value=None if ambiguous else _to_float(m.group("value")),
+                value_text=m.group("value"),
+                unit=normalize_unit(m.group("unit")),
+                ref_low=None if ambiguous else _to_float(m.group("low")),
+                ref_high=None if ambiguous else _to_float(m.group("high")),
+                # Technical extraction agreement is not clinical validation.
+                confidence="unverified" if ambiguous else "verified",
             )
         )
     return results

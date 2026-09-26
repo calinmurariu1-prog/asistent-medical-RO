@@ -49,8 +49,11 @@ interface DeviceInfo {
 
 async function plugin(): Promise<any | null> {
   try {
-    const { registerPlugin } = await import("@capacitor/core");
-    return registerPlugin("HealthPlugin");
+    const { registerPlugin, Capacitor } = await import("@capacitor/core");
+    if (!Capacitor.isNativePlatform() || !Capacitor.isPluginAvailable("HealthPlugin")) return null;
+    // A Capacitor proxy exposes arbitrary method names, including then. Wrap it
+    // so resolving this async function does not invoke a fictitious then().
+    return { instance: registerPlugin("HealthPlugin") };
   } catch {
     return null;
   }
@@ -71,11 +74,11 @@ async function platformSource(): Promise<"apple_health" | "google_health" | null
 /** True only inside the native shell where a health plugin is present. */
 export async function healthNativeAvailable(): Promise<boolean> {
   if (!(await isNative())) return false;
-  const p = await plugin();
+  const p = (await plugin())?.instance;
   if (!p) return false;
   try {
     const res = await p.isHealthAvailable?.();
-    return res ? res.available !== false : true;
+    return res?.available === true;
   } catch {
     return false;
   }
@@ -83,7 +86,7 @@ export async function healthNativeAvailable(): Promise<boolean> {
 
 /** Ask the user for read access to the health data types we sync. */
 export async function requestHealthPermissions(): Promise<boolean> {
-  const p = await plugin();
+  const p = (await plugin())?.instance;
   if (!p) return false;
   const permissions = Object.keys(METRIC_DATATYPES).map(
     (m) => `READ_${m.toUpperCase()}`,
@@ -103,7 +106,7 @@ export async function requestHealthPermissions(): Promise<boolean> {
 async function readData(
   daysBack: number,
 ): Promise<{ samples: NativeSample[]; devices: DeviceInfo[] }> {
-  const p = await plugin();
+  const p = (await plugin())?.instance;
   if (!p) return { samples: [], devices: [] };
 
   const end = new Date();
@@ -158,7 +161,9 @@ export async function syncNativeHealth(
   const source = await platformSource();
   if (!source) throw new Error("Sincronizarea nativă nu este disponibilă aici.");
 
-  await requestHealthPermissions();
+  if (!(await requestHealthPermissions())) {
+    throw new Error("Accesul la datele de sănătate nu a fost acordat.");
+  }
   const { samples, devices } = await readData(daysBack);
   if (samples.length === 0) {
     throw new Error(
@@ -176,15 +181,14 @@ export async function syncNativeHealth(
 // ---------------------------------------------------------------------------
 async function prefs(): Promise<any | null> {
   try {
-    const { Preferences } = await import("@capacitor/preferences");
-    return Preferences;
+    return await import("@capacitor/preferences");
   } catch {
     return null;
   }
 }
 
 export async function isAutoSyncEnabled(): Promise<boolean> {
-  const P = await prefs();
+  const P = (await prefs())?.Preferences;
   if (!P) return true; // default on when preferences unavailable
   try {
     const { value } = await P.get({ key: AUTOSYNC_KEY });
@@ -195,7 +199,7 @@ export async function isAutoSyncEnabled(): Promise<boolean> {
 }
 
 export async function setAutoSyncEnabled(enabled: boolean): Promise<void> {
-  const P = await prefs();
+  const P = (await prefs())?.Preferences;
   if (!P) return;
   try {
     await P.set({ key: AUTOSYNC_KEY, value: enabled ? "true" : "false" });

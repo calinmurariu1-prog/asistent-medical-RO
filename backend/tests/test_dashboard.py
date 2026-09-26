@@ -35,8 +35,22 @@ def test_dashboard_aggregates_everything(client):
 
     body = client.get(f"{API}/dashboard", headers=h).json()
     assert body["lab_summary"]["total_analytes"] == 1
-    assert body["lab_summary"]["critical_count"] == 1
+    assert body["lab_summary"]["critical_count"] == 0
+    assert body["lab_summary"]["abnormal_count"] == 1
     assert len(body["active_medications"]) == 1
     assert len(body["upcoming_appointments"]) == 1
-    assert body["unread_notifications"] == 1
-    assert body["alerts"]  # critical glicemie surfaces an alert
+    assert body["unread_notifications"] == 0  # Future reminders are not unread yet.
+    client.post(f"{API}/notifications", headers=h, json={"title": "Due now"})
+    assert client.get(f"{API}/dashboard", headers=h).json()["unread_notifications"] == 1
+    assert body["alerts"] == []  # No unsupported critical threshold inferred.
+
+
+def test_unevaluable_results_are_counted_separately(client):
+    h = _auth(client)
+    client.post(f"{API}/labs", headers=h, json={"analyte": "Test", "value": 20})
+    result = client.get(f"{API}/dashboard", headers=h).json()["lab_summary"]
+    assert result["unknown_count"] == 1
+    assert result["abnormal_count"] == 0
+    assert result["critical_count"] == 0
+    text = client.post(f"{API}/ai/summarize-record", headers=h).json()["result"]
+    assert "neevaluabile" in text

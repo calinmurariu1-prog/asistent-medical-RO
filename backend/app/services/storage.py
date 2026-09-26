@@ -6,11 +6,15 @@ which override `get_storage` with an in-memory fake.
 """
 from __future__ import annotations
 
+import hashlib
+import os
 import uuid
 from functools import lru_cache
+from pathlib import Path
 from typing import Protocol
 
 from app.core.config import settings
+from app.core.security import _fernet
 
 
 class Storage(Protocol):
@@ -36,6 +40,7 @@ class S3Storage:
 
     def __init__(self) -> None:
         import boto3  # lazy
+        from botocore.config import Config
 
         self._bucket = settings.S3_BUCKET
         self._client = boto3.client(
@@ -45,6 +50,7 @@ class S3Storage:
             aws_secret_access_key=settings.S3_SECRET_KEY,
             region_name=settings.S3_REGION,
             use_ssl=settings.S3_USE_SSL,
+            config=Config(connect_timeout=5, read_timeout=10, retries={"max_attempts": 2}),
         )
         self._ensure_bucket()
 
@@ -61,8 +67,19 @@ class S3Storage:
         self._client.put_object(Bucket=self._bucket, Key=key, Body=data, **extra)
 
     def get(self, key: str) -> bytes:
-        obj = self._client.get_object(Bucket=self._bucket, Key=key)
-        return obj["Body"].read()
+        from botocore.exceptions import ClientError
+
+        try:
+            obj = self._client.get_object(Bucket=self._bucket, Key=key)
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") in {"NoSuchKey", "NotFound", "404"}:
+                raise FileNotFoundError("Original unavailable") from None
+            raise
+        body = obj["Body"]
+        try:
+            return body.read()
+        finally:
+            body.close()
 
     def delete(self, key: str) -> None:
         self._client.delete_object(Bucket=self._bucket, Key=key)
@@ -79,11 +96,45 @@ class S3Storage:
         return url
 
 
+class LocalStorage:
+    """Encrypted private files, never served as a static directory."""
+    def __init__(self):
+        self.root = Path(settings.LOCAL_DATA_DIR).resolve() / "originals"
+        self.root.mkdir(parents=True, exist_ok=True)
+
+    def _path(self, key: str) -> Path:
+        return self.root / (hashlib.sha256(key.encode()).hexdigest() + ".enc")
+
+    def put(self, key: str, data: bytes, content_type: str | None = None) -> None:
+        target = self._path(key)
+        temporary = target.with_suffix(".tmp")  # Object keys are unique and never reused.
+        try:
+            temporary.write_bytes(_fernet().encrypt(data))
+            temporary.chmod(0o600)
+            os.replace(temporary, target)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def get(self, key: str) -> bytes:
+        return _fernet().decrypt(self._path(key).read_bytes())
+
+    def delete(self, key: str) -> None:
+        target = self._path(key)
+        target.unlink(missing_ok=True)
+        target.with_suffix(".tmp").unlink(missing_ok=True)
+
+    def presigned_url(self, key: str, expires: int = 3600) -> str:
+        raise ValueError("Local originals require an authenticated download")
+
+
 @lru_cache
-def _default_storage() -> S3Storage:
+def _default_storage() -> Storage:
+    if settings.STORAGE_BACKEND == "local" and not settings.is_production:
+        return LocalStorage()
+    if settings.STORAGE_BACKEND != "s3":
+        raise RuntimeError("Unsupported storage configuration")
     return S3Storage()
 
 
 def get_storage() -> Storage:
-    """FastAPI dependency. Override in tests with an in-memory fake."""
     return _default_storage()

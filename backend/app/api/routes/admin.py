@@ -6,11 +6,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.chat import AIChat
 from app.models.document import Document, LabResult
 from app.models.feedback import Feedback
 from app.models.patient import Patient
+from app.models.storage_deletion import StorageDeletion
 from app.models.user import AuditLog, User
 from app.schemas.admin import (
     AdminStats,
@@ -82,3 +84,13 @@ def list_feedback(
 ) -> list[Feedback]:
     stmt = select(Feedback).order_by(Feedback.created_at.desc()).limit(limit)
     return list(db.scalars(stmt).all())
+
+
+@router.get("/storage-cleanup")
+def storage_cleanup_status(db: Session = Depends(get_db)) -> dict:
+    return {
+        "pending": _count(db, StorageDeletion),
+        "oldest_pending": db.scalar(select(func.min(StorageDeletion.created_at))),
+        "worker_enabled": settings.STORAGE_CLEANUP_ENABLED,
+        "retry_interval_seconds": settings.STORAGE_CLEANUP_INTERVAL_SECONDS,
+    }

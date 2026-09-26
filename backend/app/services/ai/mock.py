@@ -73,6 +73,8 @@ class MockProvider:
             parts.append(f"Valoarea ta este {value}{unit_str}{ref}.")
 
         status_text = {
+            "unknown": ("Nu pot evalua încadrarea: lipsește o valoare numerică sau un interval "
+                        "de referință valid. Verifică documentul original împreună cu medicul."),
             "high": "Valoarea este peste intervalul de referință.",
             "critical_high": "Valoarea este mult peste intervalul de referință.",
             "low": "Valoarea este sub intervalul de referință.",
