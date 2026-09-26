@@ -26,6 +26,39 @@ După ~5–10 minute vei avea:
 > serviciile, actualizează `BACKEND_CORS_ORIGINS`, `NEXT_PUBLIC_API_URL` și
 > `FRONTEND_URL` corespunzător.
 
+## Variabile de mediu (verificate față de `render.yaml` + `config.py`)
+
+Blueprint-ul setează automat:
+
+| Variabilă | Sursă | Valoare / notă |
+|---|---|---|
+| `ENVIRONMENT` | value | `production` |
+| `DATABASE_URL` | fromDatabase | connectionString din `asistent-medical-db` |
+| `SECRET_KEY` | generateValue | secret random 256-bit (base64) |
+| `DATA_ENCRYPTION_KEY` | generateValue | secret random 256-bit (base64) |
+| `RATE_LIMIT_ENABLED` | value | `true` |
+| `AI_DEFAULT_PROVIDER` | value | `mock` (fără chei; schimbă în `groq`/`gemini`/...) |
+| `BACKEND_CORS_ORIGINS` | value | `https://asistent-medical-frontend.onrender.com` |
+| `FRONTEND_URL` | value | `https://asistent-medical-frontend.onrender.com` |
+| `NEXT_PUBLIC_API_URL` | value (frontend) | `https://asistent-medical-backend.onrender.com` |
+
+**Nu sunt în blueprint** (setezi manual în Dashboard → Environment, sau
+folosește `sync: false` dacă vrei prompt la sync):
+
+- AI real: `GROQ_API_KEY` / `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`
+  + modelul corespunzător (`GROQ_MODEL` etc.).
+- Maps: `GOOGLE_MAPS_API_KEY` (backend, IP-restricted) +
+  `NEXT_PUBLIC_GOOGLE_MAPS_KEY` (frontend, build-time, referrer-restricted).
+- Email: `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`.
+- Billing: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICES`;
+  IAP: `APPLE_IAP_*`, `GOOGLE_PLAY_*`.
+- Push: `FCM_PROJECT_ID`, `FCM_SERVICE_ACCOUNT_JSON`.
+- Storage extern (dacă nu folosești MinIO local): `S3_*`.
+
+> `validate_production_config()` refuză boot-ul dacă `SECRET_KEY` începe cu
+> `change-me` sau are <32 caractere, sau dacă `DATA_ENCRYPTION_KEY` lipsește.
+> Pe Render, `generateValue` produce valori sigure, deci deploy-ul trece.
+
 ## Secrete generate automat
 `SECRET_KEY` și `DATA_ENCRYPTION_KEY` sunt generate de Render (`generateValue`)
 — nu le pui manual. `validate_production_config()` verifică la boot că nu sunt
@@ -34,8 +67,8 @@ valori implicite, deci deploy-ul se oprește dacă lipsesc.
 ## AI real (opțional)
 Implicit `AI_DEFAULT_PROVIDER=mock` (funcționează fără chei). Pentru AI real,
 în Render → serviciul backend → Environment, setează:
-- `AI_DEFAULT_PROVIDER=anthropic` (sau `openai` / `gemini`)
-- `ANTHROPIC_API_KEY=...`
+- `AI_DEFAULT_PROVIDER=anthropic` (sau `openai` / `gemini` / `groq`)
+- `ANTHROPIC_API_KEY=...` (sau cheia providerului ales)
 
 Pentru providerul `medllm` (z.ai) e nevoie și de micro-serviciul `med-llm` — pe
 Render adaugă-l ca serviciu Docker separat din `./med-llm-service`, cu configul
@@ -49,7 +82,7 @@ Fără cheie, funcția rulează pe providerul mock.
 
 Workflow-ul `.github/workflows/ci.yml` rulează la fiecare push: **testează
 backend-ul (lint + pytest) și construiește frontend-ul**, apoi — dacă ambele
-trec — declanșează deploy-ul pe Render. Astfel se publică doar cod „verde".
+trec — declanșează deploy-ul pe Render. Astfel se publică doar cod „verde”.
 
 Setup (o singură dată):
 
@@ -89,11 +122,15 @@ Folosește-le pentru a **restricționa** accesul acolo unde e cazul:
 - **Micro-serviciul z.ai (med-llm)**: dacă `internal-api.z.ai` are allowlist pe
   IP, adaugă aceste intervale.
 
-> Notă: intervalele de IP Render pot fi actualizate de Render în timp —
-> verifică periodic în dashboard-ul Render (Connections / Outbound IPs).
+> ⚠️ Render a migrat la noi intervale de ieșire pe **13 noiembrie 2025**
+> (vezi [changelog](https://render.com/changelog/adopting-new-outbound-ip-ranges-for-all-regions)).
+> Intervalele de mai sus sunt cele raportate pentru regiunea Frankfurt; pot
+> varia. **Verifică mereu lista actuală** în dashboard: serviciu →
+> **Connect → Outbound**. Nu te baza pe valori din documentație pentru
+> allowlist-uri critice.
 
 ## Note free tier
-Serviciile free Render „adorm" după inactivitate (primul request după pauză e
+Serviciile free Render „adorm” după inactivitate (primul request după pauză e
 mai lent). Postgres free are limită de stocare/retenție — potrivit pentru test,
 nu pentru producție reală.
 
@@ -101,11 +138,11 @@ nu pentru producție reală.
 Pentru verificare email + resetare parolă reale, setează `SMTP_HOST`,
 `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`. Fără ele, linkurile se loghează.
 
-## Troubleshooting — „aplicația nu pornește" pe Render
+## Troubleshooting — „aplicația nu pornește” pe Render
 
 Ordinea în care merită verificat (de la cel mai probabil), pe planul **free**:
 
-1. **Serviciul „doarme" (spin-down).** Serviciile free se opresc după ~15 min de
+1. **Serviciul „doarme” (spin-down).** Serviciile free se opresc după ~15 min de
    inactivitate. Primul acces le trezește, dar pornirea la rece durează
    **~50 sec – 2 min**. Deschide URL-ul și **așteaptă/refresh** după un minut.
 2. **Baza de date free a expirat.** Pe Render, PostgreSQL **free se șterge după
