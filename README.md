@@ -37,7 +37,7 @@ testat. Vezi [`docs/ROADMAP.md`](docs/ROADMAP.md) pentru planul complet.
 - **OCR:** Tesseract (ron+eng)
 - **Infra:** Docker · Docker Compose · GitHub Actions CI
 
-> Notă: „GPT-5.5" din cerință nu există ca model real. Serviciul AI este
+> Notă: „GPT-5.5” din cerință nu există ca model real. Serviciul AI este
 > agnostic de provider și configurabil din `.env`; providerul implicit
 > recomandat este Anthropic Claude.
 
@@ -109,6 +109,10 @@ pytest
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — arhitectură și componente
 - [`docs/DATABASE.md`](docs/DATABASE.md) — schema bazei de date
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — plan pe faze + scalare/producție
+- [`docs/DEPLOY.md`](docs/DEPLOY.md) — deploy pe Render (blueprint + variabile + IP-uri)
+- [`docs/RENDER_VARIABLES.md`](docs/RENDER_VARIABLES.md) — inventar variabile de mediu pe Render
+- [`docs/DEPLOY_DIGITALOCEAN.md`](docs/DEPLOY_DIGITALOCEAN.md) — deploy pe DigitalOcean App Platform
+- [`docs/DEPLOY_DROPLET.md`](docs/DEPLOY_DROPLET.md) — deploy pe Droplet (Docker Compose)
 
 ## Securitate & GDPR
 
